@@ -17,5 +17,5 @@ FulfillmentService tham gia vào giai đoạn sau thanh toán (post-checkout ful
 | Tên Sự Kiện | Thời Điểm Kích Hoạt | Payload Dữ Liệu | Services Quan Tâm |
 |:---|:---|:---|:---|
 | `ShipmentCreatedEvent` | Phiếu xuất kho & mã vận đơn được tạo | `OrderId`, `TrackingCode`, `Carrier`, `EstimatedDelivery` | `CommerceService` (Cập nhật Order status thành `Preparing`), `NotificationService` (Báo mã tracking cho khách). |
-| `ShipmentStatusUpdatedEvent`| Hành trình kiện hàng thay đổi vị trí/trạng thái | `TrackingCode`, `Status`, `CurrentLocation`, `UpdatedAt` | `NotificationService`, `AuditService`. |
+| `ShipmentStatusUpdatedEvent`| Hành trình kiện hàng thay đổi vị trí/trạng thái | `TrackingCode`, `Status`, `CurrentLocation`, `UpdatedAt` | `NotificationService`, `LogService`. |
 | `ShipmentDeliveredEvent` | Khách nhận hàng thành công | `OrderId`, `TrackingCode`, `DeliveredAt` | `CommerceService` (Hoàn tất đơn hàng `Completed`), `WalletService` (Giải phóng tiền cho Seller). |
