@@ -8,6 +8,7 @@ public class Warehouse : AuditableEntity<Guid>
     public required string Code { get; set; }
     public required string Name { get; set; }
     public WarehouseType Type { get; set; } = WarehouseType.PlatformWarehouse;
+    public Guid? SellerId { get; set; }
     public string? Address { get; set; }
     public bool IsDisabled { get; set; }
 

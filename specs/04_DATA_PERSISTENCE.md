@@ -4,41 +4,47 @@
 
 ## 1. MÔ HÌNH THỰC THỂ CHÍNH (DOMAIN ENTITIES)
 
-1. **`WarehouseInventory`**:
+1. **`Warehouse` (Kho bãi)**:
    - `Id`: `Guid`.
-   - `SkuId`: `string` (Unique Index, mã định danh vật lý SKU).
-   - `WarehouseCode`: `string` (Mã kho, ví dụ `"WH-HN-01"`).
-   - `PhysicalStock`: `int` (Số lượng hàng vật lý thực tế).
-   - `WeightGrams`: `int` (Trọng lượng gram).
-   - `LocationAisle`: `string` (Vị trí ô kệ trong kho).
-
-2. **`Shipment`**:
-   - `Id`: `Guid`.
-   - `OrderId`: `Guid` (Đơn hàng tương ứng).
-   - `TrackingCode`: `string` (Mã vận đơn duy nhất).
-   - `Carrier`: `string` (Đơn vị vận chuyển: `"GiaoHangNhanh"`, `"VNPost"`, `"ViettelPost"`).
-   - `SenderAddress`: `string`.
-   - `RecipientAddress`: `string`.
-   - `ShippingFee`: `decimal`.
-   - `Status`: `ShipmentStatus` (`Preparing`, `PickedUp`, `InTransit`, `OutForDelivery`, `Delivered`, `FailedDelivery`).
-   - `EstimatedDays`: `int`.
+   - `Code`: `string` (Unique Index, mã định danh kho).
+   - `Name`: `string`.
+   - `Type`: `WarehouseType` (`SellerWarehouse = 0`, `PlatformWarehouse = 1`, `Consignment = 2`).
+   - `SellerId`: `Guid?` (Index, Cross-service Ref $\rightarrow$ `UserService.Users.Id`, `null` đối với kho sàn, có giá trị đối với kho riêng của người bán).
+   - `Address`: `string?`.
+   - `IsDisabled`: `bool`.
    - `CreatedAt`, `UpdatedAt`: `DateTimeOffset`.
-   - Navigation: `ICollection<ShipmentCheckpoint> Checkpoints`.
+   - Navigation: `ICollection<InventoryItem> InventoryItems`, `ICollection<Shipment> Shipments`.
 
-3. **`ShipmentCheckpoint`**:
+2. **`InventoryItem` (Tồn kho SKU)**:
    - `Id`: `Guid`.
-   - `ShipmentId`: `Guid` (FK $\rightarrow$ `Shipment.Id`).
-   - `Status`: `string`.
-   - `Location`: `string`.
-   - `Description`: `string`.
-   - `Timestamp`: `DateTimeOffset`.
+   - `SkuId`: `Guid` (Cross-service Ref $\rightarrow$ `CatalogService.ProductVariants.Id`).
+   - `WarehouseId`: `Guid` (FK $\rightarrow$ `Warehouse.Id`).
+   - `TotalQuantity`, `ReservedQuantity`, `UnavailableQuantity`, `AvailableQuantity`: `int`.
+   - Unique Index: `(SkuId, WarehouseId)`.
+   - Navigation: `Warehouse`, `ReservationItems`, `Ledgers`.
 
----
+3. **`InventoryReservation` & `InventoryReservationItem` (Giữ chỗ tồn kho)**:
+   - Quản lý khóa giữ hàng trong thời gian chờ thanh toán đơn hàng thương mại hoặc phiên đấu giá.
+   - `ReferenceType`: `InventoryReservationReferenceType` (`Order = 0`, `AuctionCheckout = 1`, `Manual = 2`).
+   - `ReferenceId`: `string`.
+   - `Status`: `InventoryReservationStatus` (`Pending = 0`, `Confirmed = 1`, `Released = 2`, `Expired = 3`).
 
-## 2. QUY CHUẨN CƠ SỞ DỮ LIỆU & EF CORE
+4. **`InventoryLedger` (Sổ cái biến động kho)**:
+   - `MovementType`: `InventoryMovementType` (`Inbound = 0`, `Outbound = 1`, `Reserve = 2`, `Release = 3`, `Adjustment = 4`, `Return = 5`).
+   - `ReferenceType`: `InventoryLedgerReferenceType`.
+   - `Quantity`, `Note`.
 
-- Engine: PostgreSQL.
-- Database: `fulfillment_db` tại port `5437`.
-- Chuỗi kết nối: `Host=localhost;Port=5437;Database=fulfillment_db;Username=postgres;Password=...`.
-- Tên bảng: `warehouse_inventories`, `shipments`, `shipment_checkpoints`.
-- **No Repository Pattern**: Tầng Application tương tác trực tiếp với `FulfillmentDbContext`.
+5. **`Carrier` (Đối tác vận chuyển)**:
+   - `Code`: `string` (`"GHN"`, `"VIETTELPOST"`...).
+   - `Name`, `Priority`, `IsDisabled`.
+
+6. **`Shipment`, `ShipmentItem`, `ShipmentEvent` (Vận đơn & Hành trình)**:
+   - `OrderId`: `Guid` (Cross-service Ref $\rightarrow$ `CommerceService.SubOrders.Id` hoặc `Orders.Id`).
+   - `WarehouseId`, `CarrierId`.
+   - `Status`: `ShipmentStatus` (`ReadyToPick = 0`, `Picking = 1`, `Packed = 2`, `HandedOver = 3`, `InTransit = 4`, `Delivered = 5`, `DeliveryFailed = 6`, `Returned = 7`, `Cancelled = 8`).
+   - `ServiceType`, `TrackingNumber`, `ShippingFee`, `ReceiverName`, `ReceiverPhone`, `ReceiverAddress`.
+   - `ShipmentItems`: Chi tiết từng SKU trong kiện hàng.
+   - `ShipmentEvents`: Nhật ký các mốc sự kiện hành trình giao nhận.
+
+7. **`AuditLog`**:
+   - Ghi vết kiểm toán vận hành kho vận.
