@@ -23,6 +23,6 @@
    - Kho ảo trong `CatalogService` là số lượng `Available` hiển thị trên trang bán lẻ.
    - Kho trong `FulfillmentService` là kho vật lý (vị trí kho, trọng lượng, đóng gói thực tế).
 
-3. **TUYỆT ĐỐI KHÔNG THAY ĐỔI CỔNG 8006 VÀ DATABASE 5437**:
+3. **TUYỆT ĐỐI KHÔNG THAY ĐỔI CỔNG 8006 VÀ DATABASE 5438**:
    - Service gRPC chạy tại `http://localhost:8006`.
-   - Chuỗi kết nối DB trỏ tới `localhost:5437/fulfillment_db`.
+   - Chuỗi kết nối DB trỏ tới `localhost:5438/fulfillment_db` với mật khẩu mặc định `MatkhaucuaTui123@`.

@@ -22,5 +22,5 @@ dotnet run --project Fulfillment.Api
 
 - [ ] **Biên dịch thành công 100%**: Không lỗi cảnh báo nghiêm trọng.
 - [ ] **Không vi phạm rào chắn**: Không dùng Repository Pattern bọc ngoài EF Core.
-- [ ] **Port & Database**: Lắng nghe đúng port `8006`, kết nối `fulfillment_db` trên port `5437`.
+- [ ] **Port & Database**: Lắng nghe đúng port `8006`, kết nối `fulfillment_db` trên port `5438` (Password: `MatkhaucuaTui123@`).
 - [ ] **Git Status**: Không commit file rác (`bin/`, `obj/`, `.idea/`, `.env`).
