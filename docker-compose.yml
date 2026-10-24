@@ -22,9 +22,10 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d fulfillment_db"]
-      interval: 5s
-      timeout: 3s
+      interval: 1m
+      timeout: 30s
       retries: 5
+      start_period: 60s
 
   # 2. Ứng dụng Fulfillment Service gRPC (Port 8006)
   fulfillment-service:
