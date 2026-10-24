@@ -1,19 +1,22 @@
 # 01 — PHÂN TẦNG CLEAN ARCHITECTURE & QUY TẮC PHỤ THUỘC (FULFILLMENT SERVICE)
-
+> **Trạng thái triển khai (2026-10-24):** ⚠️ Một phần — 4/4 project đúng tầng và đúng chiều phụ thuộc, nhưng tầng Application chỉ có **2 service đọc** (0 CQRS command/query, 0 Value Object), tầng Api **0 gRPC service** (chỉ `GET /health`). 46 file `.cs` / 1.184 LOC: Domain 23/334 · Application 8/204 · Infrastructure 13/492 · Api 2/154.
+> **Nguồn sự thật:** code trong repo này (`file:line` ghi kèm trong từng bảng).
+> **Cập nhật lần cuối:** 2026-10-24.
 Solution `Fulfillment.sln` bao gồm 4 project tương ứng với 4 tầng kiến trúc sạch (Clean Architecture):
-
 ```
 Fulfillment.sln
-├── Fulfillment.Domain/           # Entities (Warehouse, StockItem, Shipment), Value Objects (Address, Weight)
-├── Fulfillment.Application/      # Use cases CQRS (CalculateShippingFeeQuery, CreateShipmentCommand)
-├── Fulfillment.Infrastructure/   # EF Core DbContext, PostgreSQL mappings, 3rd Party Carrier Integration
-└── Fulfillment.Api/              # Điểm khởi chạy gRPC Server (Program.cs, DI setup)
+├── Fulfillment.Domain/           # 10 entity thật (Warehouse, InventoryItem, Shipment, ShipmentItem, ShipmentEvent,
+│                                 # Carrier, InventoryLedger, InventoryReservation, InventoryReservationItem, AuditLog)
+│                                 # ⚠️ KHÔNG có Value Object Address/Weight (đặc tả cũ ghi sai)
+├── Fulfillment.Application/      # 2 service đọc: ShipmentService, WarehouseService
+│                                 # ⚠️ KHÔNG có CQRS (CalculateShippingFeeQuery/CreateShipmentCommand không tồn tại)
+├── Fulfillment.Infrastructure/   # EF Core 8 DbContext, 10 Fluent API configuration, 1 migration, seed data,
+│                                 # MassTransit 8.3.0 + RabbitMQ + EF Outbox (⚠️ 0 message flow)
+└── Fulfillment.Api/              # Host Kestrel + Swagger + GlobalExceptionHandlerMiddleware + 1 endpoint /health
+                                  # ❌ KHÔNG map gRPC service (đặc tả cũ ghi "gRPC Server" là sai)
 ```
-
 ---
-
 ## 1. NGUYÊN TẮC LUỒNG PHỤ THUỘC (DEPENDENCY RULE)
-
 ```
 [ Fulfillment.Api ] ────────────┐
                                 │
@@ -23,7 +26,26 @@ Fulfillment.sln
                                 │
 [ Fulfillment.Infrastructure ] ─┘
 ```
-- **`Fulfillment.Domain`**: Chứa Entity `Shipment`, `ShipmentHistory`, `WarehouseItem`. Độc lập 100% không phụ thuộc project ngoài.
-- **`Fulfillment.Application`**: Chứa thuật toán tính toán cước vận chuyển, các ca sử dụng tạo vận đơn, cập nhật trạng thái giao hàng.
-- **`Fulfillment.Infrastructure`**: Chứa `FulfillmentDbContext`, cấu hình bảng PostgreSQL, và các Service tích hợp nhà vận chuyển bên ngoài (nếu có).
-- **`Fulfillment.Api`**: Điểm khởi động gRPC Server, đăng ký `app.MapGrpcService<FulfillmentGrpcService>()`.
+- **`Fulfillment.Domain`**: Chứa 10 entity nghiệp vụ kho/vận đơn (danh sách thật ở §2). Độc lập 100%: `Fulfillment.Domain.csproj` có **0 `PackageReference`** và **0 `ProjectReference`** → ✅ đúng tuyệt đối. Sửa tên sai so với đặc tả cũ: entity `ShipmentHistory`, `WarehouseItem` **không tồn tại**; tên thật là `ShipmentEvent` và `InventoryItem`.
+- **`Fulfillment.Application`**: Chứa **2 service đọc** (`ShipmentService`, `WarehouseService`) thao tác trực tiếp qua `IFulfillmentDbContext`. ⚠️ Chưa có thuật toán tính cước vận chuyển, chưa có ca sử dụng tạo vận đơn hay cập nhật trạng thái giao hàng (đó là đặc tả mục tiêu). Project này tham chiếu `Microsoft.EntityFrameworkCore 8.0.10` (dùng `DbSet`/`AsNoTracking`) + `DependencyInjection.Abstractions`, và `ProjectReference` duy nhất là `Fulfillment.Domain`.
+- **`Fulfillment.Infrastructure`**: Chứa `AppDbContext` (triển khai `IFulfillmentDbContext`), 10 file `*Configuration.cs`, 1 migration `20261024103218_InitialFulfillmentSchema`, seed data, và đăng ký MassTransit/RabbitMQ/EF Outbox. ⚠️ `FulfillmentDbContext` (lớp con rỗng của `AppDbContext`, `Fulfillment.Infrastructure/Persistence/AppDbContext.cs:38-43`) là **trùng lặp 100%** và không được đăng ký DI (DI chỉ dùng `AddDbContext<AppDbContext>` — `Fulfillment.Infrastructure/DependencyInjection.cs:17-18`). Không có service tích hợp nhà vận chuyển bên ngoài.
+- **`Fulfillment.Api`**: Điểm khởi động Kestrel (`Http1AndHttp2`, h2c), Swagger chỉ bật khi `IsDevelopment()`, middleware lỗi toàn cục, tự `Migrate()` khi khởi động. ❌ **Không có** `app.MapGrpcService<FulfillmentGrpcService>()`; class `FulfillmentGrpcService` **không tồn tại**. Bề mặt duy nhất: `GET /health` (`Fulfillment.Api/Program.cs:57`).
+---
+## 2. THÀNH PHẦN THẬT THEO TẦNG (đối chiếu nhanh)
+| Tầng | Thành phần | Trạng thái | Bằng chứng |
+|---|---|---|---|
+| Domain | 10 entity | ✅ | `Fulfillment.Domain/Entities/` (10 file) |
+| Domain | 9 enum | ✅ | `Fulfillment.Domain/Enums/` (9 file) |
+| Domain | `BaseEntity<TKey>`, `IAuditable`, `AuditableEntity<TKey>`, `ISoftDelete` | ✅ | `Fulfillment.Domain/Base/BaseEntity.cs`, `IAuditable.cs`, `ISoftDelete.cs` |
+| Domain | `DomainException`, `EntityNotFoundException`, `BusinessRuleValidationException` | ✅ | `Fulfillment.Domain/Exceptions/DomainException.cs:3-18` |
+| Domain | Value Object `Address`, `Weight` | ❌ không tồn tại | `ls Fulfillment.Domain/` |
+| Application | `IShipmentService` + `ShipmentService` (2 truy vấn đọc) | ✅ | `Fulfillment.Application/Services/Shipment/ShipmentService.cs:18-56` |
+| Application | `IWarehouseService` + `WarehouseService` (2 truy vấn đọc) | ✅ | `Fulfillment.Application/Services/Warehouse/WarehouseService.cs:20-53` |
+| Application | CQRS `*Query`/`*Command`, MediatR | ❌ không tồn tại | grep `MediatR` = 0 |
+| Infrastructure | `AppDbContext` + 10 `DbSet` | ✅ | `Fulfillment.Infrastructure/Persistence/AppDbContext.cs:14-23` |
+| Infrastructure | 10 Fluent API configuration | ✅ | `Fulfillment.Infrastructure/Persistence/Configurations/` (10 file) |
+| Infrastructure | 1 migration (13 bảng: 10 nghiệp vụ + 3 outbox) | ✅ | `Fulfillment.Infrastructure/Migrations/20261024103218_InitialFulfillmentSchema.cs` |
+| Api | `GlobalExceptionHandlerMiddleware` (RFC 9110 ProblemDetails) | ✅ | `Fulfillment.Api/Middleware/GlobalExceptionHandlerMiddleware.cs:32-88` |
+| Api | gRPC server (`FulfillmentGrpcService`) | ❌ không tồn tại | grep `AddGrpc`/`MapGrpcService` = 0 |
+| Api | Controller | ❌ 0 controller | `Fulfillment.Api/` không có thư mục `Controllers/` |
+| Toàn solution | Project test | ❌ 0 project, 0 test | `Fulfillment.sln` chỉ có 4 project |
