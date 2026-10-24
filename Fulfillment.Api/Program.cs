@@ -1,3 +1,4 @@
+using Fulfillment.Api.Middleware;
 using Fulfillment.Application;
 using Fulfillment.Infrastructure;
 using Fulfillment.Infrastructure.Persistence;
@@ -27,6 +28,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 var app = builder.Build();
+
+app.UseGlobalExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
