@@ -1,3 +1,4 @@
+using Fulfillment.Application;
 using Fulfillment.Infrastructure;
 using Fulfillment.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 // 1. CSDL PostgreSQL & Hạ tầng MassTransit
 builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddApplicationServices();
 
 // 2. Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
