@@ -4,6 +4,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace Fulfillment.Infrastructure.Migrations
 {
     /// <inheritdoc />
@@ -373,6 +375,28 @@ namespace Fulfillment.Infrastructure.Migrations
                 table: "Warehouses",
                 columns: new[] { "Id", "Address", "Code", "CreatedAt", "CreatedBy", "DeletedAt", "IsDeleted", "IsDisabled", "Name", "SellerId", "Type", "UpdatedAt", "UpdatedBy" },
                 values: new object[] { new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), "Hà Nội, Việt Nam", "WH-CENTRAL-01", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), null, false, false, "Kho Trung Tâm Sàn Nexus", null, "PlatformWarehouse", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000") });
+
+            migrationBuilder.InsertData(
+                table: "InventoryItems",
+                columns: new[] { "Id", "AvailableQuantity", "CreatedAt", "DeletedAt", "IsDeleted", "ReservedQuantity", "SkuId", "TotalQuantity", "UnavailableQuantity", "UpdatedAt", "WarehouseId" },
+                values: new object[,]
+                {
+                    { new Guid("e1000000-0000-0000-0000-000000000001"), 100, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, 0, new Guid("11100000-0000-0000-0000-000000000001"), 100, 0, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") },
+                    { new Guid("e1000000-0000-0000-0000-000000000002"), 200, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, 0, new Guid("22100000-0000-0000-0000-000000000002"), 200, 0, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") },
+                    { new Guid("e1000000-0000-0000-0000-000000000003"), 150, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, 0, new Guid("33100000-0000-0000-0000-000000000003"), 150, 0, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") },
+                    { new Guid("e1000000-0000-0000-0000-000000000004"), 9, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, 1, new Guid("44100000-0000-0000-0000-000000000004"), 10, 0, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") },
+                    { new Guid("e1000000-0000-0000-0000-000000000005"), 500, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, 0, new Guid("55100000-0000-0000-0000-000000000005"), 500, 0, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") }
+                });
+
+            migrationBuilder.InsertData(
+                table: "Shipments",
+                columns: new[] { "Id", "CarrierId", "CreatedAt", "CreatedBy", "DeletedAt", "DeliveredAt", "EstimatedDeliveryAt", "IsDeleted", "OrderId", "ReceiverAddress", "ReceiverName", "ReceiverPhone", "ServiceType", "ShippingFee", "Status", "TrackingNumber", "UpdatedAt", "UpdatedBy", "WarehouseId" },
+                values: new object[] { new Guid("77000000-0000-0000-0000-000000000001"), new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff"), new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), null, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, new Guid("02000000-0000-0000-0000-000000000001"), "123 Nguyen Trai, Thanh Xuan, Ha Noi", "John Buyer", "0900000004", "Standard", 0m, "Delivered", "GHN-NEXUS-20260101-0001", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") });
+
+            migrationBuilder.InsertData(
+                table: "ShipmentItems",
+                columns: new[] { "Id", "CreatedAt", "DeletedAt", "IsDeleted", "Quantity", "ShipmentId", "SkuId", "UpdatedAt" },
+                values: new object[] { new Guid("77100000-0000-0000-0000-000000000001"), new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, 1, new Guid("77000000-0000-0000-0000-000000000001"), new Guid("33100000-0000-0000-0000-000000000003"), new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)) });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Carriers_Code",

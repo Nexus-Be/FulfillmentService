@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Fulfillment.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261024081723_InitialFulfillmentSchema")]
+    [Migration("20261024103218_InitialFulfillmentSchema")]
     partial class InitialFulfillmentSchema
     {
         /// <inheritdoc />
@@ -189,6 +189,73 @@ namespace Fulfillment.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("InventoryItems");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("e1000000-0000-0000-0000-000000000001"),
+                            AvailableQuantity = 100,
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            ReservedQuantity = 0,
+                            SkuId = new Guid("11100000-0000-0000-0000-000000000001"),
+                            TotalQuantity = 100,
+                            UnavailableQuantity = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            WarehouseId = new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+                        },
+                        new
+                        {
+                            Id = new Guid("e1000000-0000-0000-0000-000000000002"),
+                            AvailableQuantity = 200,
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            ReservedQuantity = 0,
+                            SkuId = new Guid("22100000-0000-0000-0000-000000000002"),
+                            TotalQuantity = 200,
+                            UnavailableQuantity = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            WarehouseId = new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+                        },
+                        new
+                        {
+                            Id = new Guid("e1000000-0000-0000-0000-000000000003"),
+                            AvailableQuantity = 150,
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            ReservedQuantity = 0,
+                            SkuId = new Guid("33100000-0000-0000-0000-000000000003"),
+                            TotalQuantity = 150,
+                            UnavailableQuantity = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            WarehouseId = new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+                        },
+                        new
+                        {
+                            Id = new Guid("e1000000-0000-0000-0000-000000000004"),
+                            AvailableQuantity = 9,
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            ReservedQuantity = 1,
+                            SkuId = new Guid("44100000-0000-0000-0000-000000000004"),
+                            TotalQuantity = 10,
+                            UnavailableQuantity = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            WarehouseId = new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+                        },
+                        new
+                        {
+                            Id = new Guid("e1000000-0000-0000-0000-000000000005"),
+                            AvailableQuantity = 500,
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            ReservedQuantity = 0,
+                            SkuId = new Guid("55100000-0000-0000-0000-000000000005"),
+                            TotalQuantity = 500,
+                            UnavailableQuantity = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            WarehouseId = new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.InventoryLedger", b =>
@@ -400,6 +467,28 @@ namespace Fulfillment.Infrastructure.Migrations
                     b.HasIndex("WarehouseId");
 
                     b.ToTable("Shipments");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("77000000-0000-0000-0000-000000000001"),
+                            CarrierId = new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedBy = new Guid("00000000-0000-0000-0000-000000000000"),
+                            DeliveredAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            OrderId = new Guid("02000000-0000-0000-0000-000000000001"),
+                            ReceiverAddress = "123 Nguyen Trai, Thanh Xuan, Ha Noi",
+                            ReceiverName = "John Buyer",
+                            ReceiverPhone = "0900000004",
+                            ServiceType = "Standard",
+                            ShippingFee = 0m,
+                            Status = "Delivered",
+                            TrackingNumber = "GHN-NEXUS-20260101-0001",
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            UpdatedBy = new Guid("00000000-0000-0000-0000-000000000000"),
+                            WarehouseId = new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee")
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.ShipmentEvent", b =>
@@ -484,6 +573,18 @@ namespace Fulfillment.Infrastructure.Migrations
                     b.HasIndex("ShipmentId");
 
                     b.ToTable("ShipmentItems");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("77100000-0000-0000-0000-000000000001"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            Quantity = 1,
+                            ShipmentId = new Guid("77000000-0000-0000-0000-000000000001"),
+                            SkuId = new Guid("33100000-0000-0000-0000-000000000003"),
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.Warehouse", b =>

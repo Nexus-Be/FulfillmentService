@@ -26,7 +26,7 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
-        Seeds.FulfillmentSeedData.SeedCarriersAndWarehouses(modelBuilder);
+        Seeds.FulfillmentSeedData.SeedAll(modelBuilder);
 
         // MassTransit Transactional Outbox entities
         modelBuilder.AddInboxStateEntity();
