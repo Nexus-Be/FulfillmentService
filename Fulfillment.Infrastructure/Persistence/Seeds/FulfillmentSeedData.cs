@@ -10,6 +10,7 @@ public static class FulfillmentSeedData
     {
         var centralWarehouseId = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
         var ghnCarrierId = Guid.Parse("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        var seedDate = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
         modelBuilder.Entity<Warehouse>().HasData(
             new Warehouse
@@ -20,8 +21,8 @@ public static class FulfillmentSeedData
                 Type = WarehouseType.PlatformWarehouse,
                 Address = "Hà Nội, Việt Nam",
                 IsDisabled = false,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow,
+                CreatedAt = seedDate,
+                UpdatedAt = seedDate,
                 IsDeleted = false
             }
         );
@@ -34,8 +35,8 @@ public static class FulfillmentSeedData
                 Name = "Giao Hàng Nhanh",
                 Priority = 1,
                 IsDisabled = false,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow,
+                CreatedAt = seedDate,
+                UpdatedAt = seedDate,
                 IsDeleted = false
             }
         );

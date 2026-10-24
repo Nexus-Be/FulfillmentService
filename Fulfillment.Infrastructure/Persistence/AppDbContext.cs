@@ -1,5 +1,6 @@
 namespace Fulfillment.Infrastructure.Persistence;
 
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Fulfillment.Domain.Entities;
 
@@ -24,6 +25,12 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+        Seeds.FulfillmentSeedData.SeedCarriersAndWarehouses(modelBuilder);
+
+        // MassTransit Transactional Outbox entities
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
     }
 }
 

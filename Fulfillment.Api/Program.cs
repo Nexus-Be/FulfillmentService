@@ -1,3 +1,4 @@
+using Fulfillment.Infrastructure;
 using Fulfillment.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,11 +13,8 @@ builder.WebHost.ConfigureKestrel(options =>
     });
 });
 
-// 1. CSDL PostgreSQL
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Port=5438;Database=fulfillment_db;Username=postgres;Password=MatkhaucuaTui123@";
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+// 1. CSDL PostgreSQL & Hạ tầng MassTransit
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
 // 2. Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
@@ -32,6 +30,23 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+// Tự động apply database migrations nếu kết nối CSDL thành công
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try
+    {
+        if (db.Database.IsRelational())
+        {
+            db.Database.Migrate();
+        }
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning("Database migration deferred on startup: {Message}", ex.Message);
+    }
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Fulfillment.Api" }));
