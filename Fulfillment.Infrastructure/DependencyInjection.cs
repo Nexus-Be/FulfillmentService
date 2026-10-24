@@ -4,6 +4,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Fulfillment.Application.Interfaces;
 using Fulfillment.Infrastructure.Persistence;
 
 public static class DependencyInjection
@@ -15,6 +16,8 @@ public static class DependencyInjection
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(connectionString));
+
+        services.AddScoped<IFulfillmentDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         // MassTransit + RabbitMQ + Transactional Outbox
         services.AddMassTransit(x =>
