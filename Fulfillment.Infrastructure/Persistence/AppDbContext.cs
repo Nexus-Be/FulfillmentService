@@ -2,9 +2,10 @@ namespace Fulfillment.Infrastructure.Persistence;
 
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Fulfillment.Application.Interfaces;
 using Fulfillment.Domain.Entities;
 
-public class AppDbContext : DbContext
+public class AppDbContext : DbContext, IFulfillmentDbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
