@@ -70,6 +70,10 @@ Khi bắt đầu làm việc tại FulfillmentService, AI Agent **BẮT BUỘC P
 3. **CẤU HÌNH PORT 8006 VÀ DATABASE 5438 LÀ BẤT BIẾN** — nhưng phải ghi đủ: Docker `8006` (`Dockerfile:3-4`), chạy local `http=5228` / `https=7014` (`Fulfillment.Api/Properties/launchSettings.json`). DB `5438`, database `fulfillment_db`.
 4. **HỢP ĐỒNG PROTOBUF ĐỒNG BỘ 100% VỚI GATEWAY** — ⚠️ hiện repo **không có** `Contracts/shop.proto` (thư mục `Contracts/` không tồn tại) và chưa có gRPC server. Không được mô tả là đã có.
 5. **KHÔNG ĐƯỢC TẠO BỀ MẶT GIẢ**: `GET /health` trả hằng số `Healthy`, **không kiểm tra DB** (`Fulfillment.Api/Program.cs:57`). Không dùng `/health` làm bằng chứng "service + DB hoạt động".
+6. **CẤM TỰ Ý SỬA ĐỔI BIẾN MÔI TRƯỜNG, SECRET VÀ KEY BÍ MẬT (MANDATORY HUMAN-IN-THE-LOOP FOR SECRETS)**:
+   - **Tuyệt đối CẤM mọi AI Coding Agent tự ý sửa đổi, thay thế, xóa hoặc ghi đè các biến môi trường (`.env`, `.env.*`), Connection Strings, API Keys, JWT Secrets, chứng chỉ hoặc bất kỳ thông tin bí mật (credentials/secrets) nào trong toàn bộ hệ thống.**
+   - **Bắt buộc phải xin ý kiến và nhận được sự đồng ý rõ ràng (explicit approval) từ người dùng trước khi thực hiện bất kỳ thay đổi nào liên quan đến biến môi trường hoặc tài khoản bí mật.**
+   - Khi phát hiện cấu hình môi trường, connection string hoặc secret key có vấn đề hoặc cần cập nhật, Agent **CHỈ ĐƯỢC PHÉP báo cáo hiện trạng, đề xuất phương án và chờ người dùng xác nhận**, tuyệt đối không tự ý can thiệp.
 ---
 ## 💬 NGUYÊN TẮC 5: QUY CHUẨN THÔNG BÁO LỖI TOÀN HỆ THỐNG (MANDATORY ERROR RULES)
 Tất cả các thông báo lỗi (Error Messages, Exceptions, ProblemDetails, Validation Errors, Response Details) **BẮT BUỘC** phải tuân theo 3 nguyên tắc sau:
