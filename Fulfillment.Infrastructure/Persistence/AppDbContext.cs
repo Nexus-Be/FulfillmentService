@@ -34,10 +34,3 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
         modelBuilder.AddOutboxStateEntity();
     }
 }
-
-public class FulfillmentDbContext : AppDbContext
-{
-    public FulfillmentDbContext(DbContextOptions<AppDbContext> options) : base(options)
-    {
-    }
-}
