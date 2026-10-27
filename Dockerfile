@@ -5,12 +5,11 @@ ENV ASPNETCORE_URLS=http://+:8006
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["Fulfillment.sln", "."]
 COPY ["Fulfillment.Api/Fulfillment.Api.csproj", "Fulfillment.Api/"]
 COPY ["Fulfillment.Application/Fulfillment.Application.csproj", "Fulfillment.Application/"]
 COPY ["Fulfillment.Domain/Fulfillment.Domain.csproj", "Fulfillment.Domain/"]
 COPY ["Fulfillment.Infrastructure/Fulfillment.Infrastructure.csproj", "Fulfillment.Infrastructure/"]
-RUN dotnet restore "Fulfillment.sln"
+RUN dotnet restore "Fulfillment.Api/Fulfillment.Api.csproj"
 COPY . .
 RUN dotnet build "Fulfillment.Api/Fulfillment.Api.csproj" -c Release -o /app/build
 
