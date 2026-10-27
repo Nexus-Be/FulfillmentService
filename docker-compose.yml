@@ -8,7 +8,7 @@
 
 services:
 
-  # 1. Ứng dụng Fulfillment Service gRPC (Port 8006)
+  # 1. Ứng dụng Fulfillment Service RESTful Web API (Port 8006)
   fulfillment-service:
     build:
       context: .

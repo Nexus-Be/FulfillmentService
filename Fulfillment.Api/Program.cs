@@ -1,3 +1,4 @@
+using Fulfillment.Api.Extensions;
 using Fulfillment.Api.Middleware;
 using Fulfillment.Application;
 using Fulfillment.Infrastructure;
@@ -6,7 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Cấu hình Kestrel chỉ định HTTP/2 cho gRPC không cần TLS (h2c)
+// 0. Observability / OpenTelemetry Tracing
+builder.Services.AddServiceObservability(builder.Configuration, "fulfillment-service");
+
+// Cấu hình Kestrel chỉ định HTTP/1 & HTTP/2
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureEndpointDefaults(listenOptions =>
