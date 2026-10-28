@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Fulfillment.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialFulfillmentSchema : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -23,7 +23,7 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     TraceId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     UserId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     UserName = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
-                    Action = table.Column<string>(type: "text", nullable: false),
+                    Action = table.Column<int>(type: "integer", nullable: false),
                     EntityName = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
                     EntityId = table.Column<string>(type: "character varying(150)", maxLength: 150, nullable: false),
                     OldValues = table.Column<string>(type: "jsonb", nullable: true),
@@ -86,9 +86,9 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    ReferenceType = table.Column<string>(type: "text", nullable: false),
+                    ReferenceType = table.Column<int>(type: "integer", nullable: false),
                     ReferenceId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     ExpiresAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     ConfirmedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     ReleasedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
@@ -125,7 +125,7 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Code = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     Name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
-                    Type = table.Column<string>(type: "text", nullable: false),
+                    Type = table.Column<int>(type: "integer", nullable: false),
                     SellerId = table.Column<Guid>(type: "uuid", nullable: true),
                     Address = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     IsDisabled = table.Column<bool>(type: "boolean", nullable: false),
@@ -218,10 +218,10 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     OrderId = table.Column<Guid>(type: "uuid", nullable: false),
                     WarehouseId = table.Column<Guid>(type: "uuid", nullable: false),
                     CarrierId = table.Column<Guid>(type: "uuid", nullable: false),
-                    ServiceType = table.Column<string>(type: "text", nullable: false),
+                    ServiceType = table.Column<int>(type: "integer", nullable: false),
                     ShippingFee = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     TrackingNumber = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     ReceiverName = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     ReceiverPhone = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     ReceiverAddress = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
@@ -257,10 +257,10 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     InventoryItemId = table.Column<Guid>(type: "uuid", nullable: false),
-                    MovementType = table.Column<string>(type: "text", nullable: false),
+                    MovementType = table.Column<int>(type: "integer", nullable: false),
                     Quantity = table.Column<int>(type: "integer", nullable: false),
                     ReservationId = table.Column<Guid>(type: "uuid", nullable: true),
-                    ReferenceType = table.Column<string>(type: "text", nullable: true),
+                    ReferenceType = table.Column<int>(type: "integer", nullable: true),
                     ReferenceId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     Note = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
@@ -321,7 +321,7 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     ShipmentId = table.Column<Guid>(type: "uuid", nullable: false),
                     CarrierStatus = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    Status = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     ExternalEventId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     OccurredAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
@@ -374,7 +374,7 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
             migrationBuilder.InsertData(
                 table: "Warehouses",
                 columns: new[] { "Id", "Address", "Code", "CreatedAt", "CreatedBy", "DeletedAt", "IsDeleted", "IsDisabled", "Name", "SellerId", "Type", "UpdatedAt", "UpdatedBy" },
-                values: new object[] { new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), "Hà Nội, Việt Nam", "WH-CENTRAL-01", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), null, false, false, "Kho Trung Tâm Sàn Nexus", null, "PlatformWarehouse", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000") });
+                values: new object[] { new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"), "Hà Nội, Việt Nam", "WH-CENTRAL-01", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), null, false, false, "Kho Trung Tâm Sàn Nexus", null, 1, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000") });
 
             migrationBuilder.InsertData(
                 table: "InventoryItems",
@@ -391,7 +391,7 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
             migrationBuilder.InsertData(
                 table: "Shipments",
                 columns: new[] { "Id", "CarrierId", "CreatedAt", "CreatedBy", "DeletedAt", "DeliveredAt", "EstimatedDeliveryAt", "IsDeleted", "OrderId", "ReceiverAddress", "ReceiverName", "ReceiverPhone", "ServiceType", "ShippingFee", "Status", "TrackingNumber", "UpdatedAt", "UpdatedBy", "WarehouseId" },
-                values: new object[] { new Guid("77000000-0000-0000-0000-000000000001"), new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff"), new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), null, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, new Guid("02000000-0000-0000-0000-000000000001"), "123 Nguyen Trai, Thanh Xuan, Ha Noi", "John Buyer", "0900000004", "Standard", 0m, "Delivered", "GHN-NEXUS-20260101-0001", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") });
+                values: new object[] { new Guid("77000000-0000-0000-0000-000000000001"), new Guid("ffffffff-ffff-ffff-ffff-ffffffffffff"), new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), null, new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, false, new Guid("02000000-0000-0000-0000-000000000001"), "123 Nguyen Trai, Thanh Xuan, Ha Noi", "John Buyer", "0900000004", 0, 0m, 5, "GHN-NEXUS-20260101-0001", new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), new Guid("00000000-0000-0000-0000-000000000000"), new Guid("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee") });
 
             migrationBuilder.InsertData(
                 table: "ShipmentItems",

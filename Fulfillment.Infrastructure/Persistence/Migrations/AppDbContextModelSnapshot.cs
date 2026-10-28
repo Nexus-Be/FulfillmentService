@@ -28,9 +28,8 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Action")
+                        .HasColumnType("integer");
 
                     b.Property<string>("ChangedColumns")
                         .HasColumnType("jsonb");
@@ -273,9 +272,8 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("MovementType")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("MovementType")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Note")
                         .HasMaxLength(1000)
@@ -288,8 +286,8 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("ReferenceType")
-                        .HasColumnType("text");
+                    b.Property<int?>("ReferenceType")
+                        .HasColumnType("integer");
 
                     b.Property<Guid?>("ReservationId")
                         .HasColumnType("uuid");
@@ -332,16 +330,14 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("ReferenceType")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("ReferenceType")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("ReleasedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -432,17 +428,15 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<string>("ServiceType")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("ServiceType")
+                        .HasColumnType("integer");
 
                     b.Property<decimal>("ShippingFee")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TrackingNumber")
                         .HasMaxLength(100)
@@ -478,9 +472,9 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                             ReceiverAddress = "123 Nguyen Trai, Thanh Xuan, Ha Noi",
                             ReceiverName = "John Buyer",
                             ReceiverPhone = "0900000004",
-                            ServiceType = "Standard",
+                            ServiceType = 0,
                             ShippingFee = 0m,
-                            Status = "Delivered",
+                            Status = 5,
                             TrackingNumber = "GHN-NEXUS-20260101-0001",
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             UpdatedBy = new Guid("00000000-0000-0000-0000-000000000000"),
@@ -524,9 +518,8 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ShipmentId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -622,9 +615,8 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("SellerId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -652,7 +644,7 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                             IsDeleted = false,
                             IsDisabled = false,
                             Name = "Kho Trung Tâm Sàn Nexus",
-                            Type = "PlatformWarehouse",
+                            Type = 1,
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             UpdatedBy = new Guid("00000000-0000-0000-0000-000000000000")
                         });

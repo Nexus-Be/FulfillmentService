@@ -9,8 +9,6 @@ public class InventoryLedgerConfiguration : IEntityTypeConfiguration<InventoryLe
     public void Configure(EntityTypeBuilder<InventoryLedger> builder)
     {
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.MovementType).HasConversion<string>();
-        builder.Property(x => x.ReferenceType).HasConversion<string>();
         builder.Property(x => x.ReferenceId).HasMaxLength(100);
         builder.Property(x => x.Note).HasMaxLength(1000);
 

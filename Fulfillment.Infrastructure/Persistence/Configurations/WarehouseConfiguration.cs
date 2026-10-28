@@ -12,7 +12,6 @@ public class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
         builder.Property(x => x.Code).HasMaxLength(100).IsRequired();
         builder.HasIndex(x => x.Code).IsUnique();
         builder.Property(x => x.Name).HasMaxLength(255).IsRequired();
-        builder.Property(x => x.Type).HasConversion<string>();
         builder.Property(x => x.SellerId);
         builder.HasIndex(x => x.SellerId);
         builder.Property(x => x.Address).HasMaxLength(1000);
