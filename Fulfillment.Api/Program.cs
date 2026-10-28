@@ -24,6 +24,7 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
 
 // 2. Swagger / OpenAPI & JSON Serialization
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -62,6 +63,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Fulfillment.Api" }));
 
 app.Run();

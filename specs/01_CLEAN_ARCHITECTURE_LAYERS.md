@@ -1,7 +1,7 @@
 # 01 — PHÂN TẦNG CLEAN ARCHITECTURE & QUY TẮC PHỤ THUỘC (FULFILLMENT SERVICE)
-> **Trạng thái triển khai (2026-10-24):** ⚠️ Một phần — 4/4 project đúng tầng và đúng chiều phụ thuộc, nhưng tầng Application chỉ có **2 service đọc** (0 CQRS command/query, 0 Value Object), tầng Api **0 gRPC service** (chỉ `GET /health`). 46 file `.cs` / 1.184 LOC: Domain 23/334 · Application 8/204 · Infrastructure 13/492 · Api 2/154.
-> **Nguồn sự thật:** code trong repo này (`file:line` ghi kèm trong từng bảng).
-> **Cập nhật lần cuối:** 2026-10-24.
+> **Trạng thái triển khai (2026-10-29):** ✅ ĐÃ CHUẨN HÓA — 4 tầng Clean Architecture chuẩn hóa: Feature Co-location cho Warehouse và Shipment tại `Fulfillment.Application/Services/`, 1-to-1 REST Controllers tại `Fulfillment.Api/Controllers/WarehousesController.cs` và `ShipmentsController.cs`, Consumer DI extension `ConsumerExtensions.cs`, 100% RESTful HTTP/JSON (CẤM gRPC).
+> **Nguồn sự thật:** code trong repo này (`Fulfillment.sln`, `Fulfillment.Application/Services/`, `Fulfillment.Application/Consumers/`, `Fulfillment.Api/Controllers/`).
+> **Cập nhật lần cuối:** 2026-10-29.
 Solution `Fulfillment.sln` bao gồm 4 project tương ứng với 4 tầng kiến trúc sạch (Clean Architecture):
 ```
 Fulfillment.sln

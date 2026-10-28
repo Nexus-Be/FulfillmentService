@@ -4,6 +4,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Fulfillment.Application.Consumers;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Infrastructure.Persistence;
 
@@ -25,6 +26,8 @@ public static class DependencyInjection
         services.AddMassTransit(x =>
         {
             x.SetKebabCaseEndpointNameFormatter();
+
+            x.AddApplicationConsumers();
 
             x.AddEntityFrameworkOutbox<AppDbContext>(o =>
             {
