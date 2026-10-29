@@ -2,7 +2,7 @@
 # NEXUS FULFILLMENT SERVICE - DOCKER COMPOSE
 # =============================================================================
 # Khởi chạy độc lập Fulfillment Service:
-#   CSDL chính lưu trên Neon Cloud (PostgreSQL)
+#   CSDL chính lưu trên PostgreSQL cục bộ (port 5438 hoặc nexus-fulfillment-db)
 #   docker compose up -d
 # =============================================================================
 
@@ -20,7 +20,7 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
-      - ConnectionStrings__DefaultConnection=${FULFILLMENT_CONNECTION_STRING:-${CONNECTION_STRING}}
+      - ConnectionStrings__DefaultConnection=${FULFILLMENT_CONNECTION_STRING:-${CONNECTION_STRING:-Host=fulfillment-db;Port=5432;Database=fulfillment_db;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}}}
       - RabbitMq__Host=${RABBITMQ_HOST:-rabbitmq}
       - RabbitMq__Port=${RABBITMQ_PORT:-5672}
       - RabbitMq__User=${RABBITMQ_USER:-guest}
