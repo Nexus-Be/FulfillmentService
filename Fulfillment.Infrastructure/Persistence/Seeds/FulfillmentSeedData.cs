@@ -149,5 +149,137 @@ public static class FulfillmentSeedData
                 IsDeleted = false
             }
         );
+
+        // 6. Inventory Reservation (for auction item)
+        var reservationId = Guid.Parse("e2000000-0000-0000-0000-000000000001");
+        modelBuilder.Entity<InventoryReservation>().HasData(
+            new InventoryReservation
+            {
+                Id = reservationId,
+                ReferenceType = InventoryReservationReferenceType.AuctionCheckout,
+                ReferenceId = "aa000000-0000-0000-0000-000000000001",
+                Status = InventoryReservationStatus.Pending,
+                ExpiresAt = seedDate.AddDays(7),
+                ConfirmedAt = null,
+                ReleasedAt = null,
+                CreatedAt = seedDate,
+                UpdatedAt = seedDate,
+                IsDeleted = false
+            }
+        );
+
+        // 7. Inventory Reservation Item
+        modelBuilder.Entity<InventoryReservationItem>().HasData(
+            new InventoryReservationItem
+            {
+                Id = Guid.Parse("e3000000-0000-0000-0000-000000000001"),
+                ReservationId = reservationId,
+                InventoryItemId = Guid.Parse("e1000000-0000-0000-0000-000000000004"), // NX-HELMET-M
+                Quantity = 1,
+                CreatedAt = seedDate,
+                UpdatedAt = seedDate,
+                IsDeleted = false
+            }
+        );
+
+        // 8. Inventory Ledgers
+        modelBuilder.Entity<InventoryLedger>().HasData(
+            new InventoryLedger
+            {
+                Id = Guid.Parse("e4000000-0000-0000-0000-000000000001"),
+                InventoryItemId = Guid.Parse("e1000000-0000-0000-0000-000000000004"),
+                MovementType = InventoryMovementType.Inbound,
+                Quantity = 10,
+                ReservationId = null,
+                ReferenceType = InventoryLedgerReferenceType.StockIn,
+                ReferenceId = "STOCKIN-20260101-001",
+                Note = "Khởi tạo tồn kho ban đầu cho Mũ Bảo Hiểm",
+                CreatedAt = seedDate,
+                UpdatedAt = seedDate,
+                IsDeleted = false
+            },
+            new InventoryLedger
+            {
+                Id = Guid.Parse("e4000000-0000-0000-0000-000000000002"),
+                InventoryItemId = Guid.Parse("e1000000-0000-0000-0000-000000000004"),
+                MovementType = InventoryMovementType.Reserve,
+                Quantity = 1,
+                ReservationId = reservationId,
+                ReferenceType = InventoryLedgerReferenceType.Reservation,
+                ReferenceId = "aa000000-0000-0000-0000-000000000001",
+                Note = "Khóa tạm tồn kho phục vụ đấu giá",
+                CreatedAt = seedDate,
+                UpdatedAt = seedDate,
+                IsDeleted = false
+            }
+        );
+
+        // 9. Shipment Events
+        modelBuilder.Entity<ShipmentEvent>().HasData(
+            new ShipmentEvent
+            {
+                Id = Guid.Parse("77200000-0000-0000-0000-000000000001"),
+                ShipmentId = shipmentId,
+                CarrierStatus = "PICKED_UP",
+                Status = ShipmentEventStatus.PickedUp,
+                Description = "Bưu tá GHN đã lấy hàng tại kho trung tâm",
+                ExternalEventId = "GHN-EVT-001",
+                OccurredAt = seedDate.AddHours(2),
+                RawPayload = "{\"carrier\":\"GHN\",\"status\":\"PICKED_UP\"}",
+                CreatedAt = seedDate.AddHours(2),
+                UpdatedAt = seedDate.AddHours(2),
+                IsDeleted = false
+            },
+            new ShipmentEvent
+            {
+                Id = Guid.Parse("77200000-0000-0000-0000-000000000002"),
+                ShipmentId = shipmentId,
+                CarrierStatus = "IN_TRANSIT",
+                Status = ShipmentEventStatus.InTransit,
+                Description = "Đang trung chuyển qua bưu cục Hà Nội",
+                ExternalEventId = "GHN-EVT-002",
+                OccurredAt = seedDate.AddHours(6),
+                RawPayload = "{\"carrier\":\"GHN\",\"status\":\"IN_TRANSIT\"}",
+                CreatedAt = seedDate.AddHours(6),
+                UpdatedAt = seedDate.AddHours(6),
+                IsDeleted = false
+            },
+            new ShipmentEvent
+            {
+                Id = Guid.Parse("77200000-0000-0000-0000-000000000003"),
+                ShipmentId = shipmentId,
+                CarrierStatus = "DELIVERED",
+                Status = ShipmentEventStatus.Delivered,
+                Description = "Giao hàng thành công tới người nhận",
+                ExternalEventId = "GHN-EVT-003",
+                OccurredAt = seedDate.AddHours(12),
+                RawPayload = "{\"carrier\":\"GHN\",\"status\":\"DELIVERED\"}",
+                CreatedAt = seedDate.AddHours(12),
+                UpdatedAt = seedDate.AddHours(12),
+                IsDeleted = false
+            }
+        );
+
+        // 10. Audit Log
+        modelBuilder.Entity<AuditLog>().HasData(
+            new AuditLog
+            {
+                Id = Guid.Parse("77300000-0000-0000-0000-000000000001"),
+                ServiceName = "Fulfillment",
+                TraceId = "trace-fulfillment-shipment-001",
+                UserId = Guid.Parse("aaaaaaaa-1111-1111-1111-111111111111").ToString(),
+                UserName = "admin@nexus.com",
+                Action = AuditAction.ShipmentDeliver,
+                EntityName = "Shipment",
+                EntityId = shipmentId.ToString(),
+                OldValues = "{\"Status\":\"OutForDelivery\"}",
+                NewValues = "{\"Status\":\"Delivered\"}",
+                ChangedColumns = "[\"Status\"]",
+                IpAddress = "127.0.0.1",
+                UserAgent = "GHNWebhookService/1.0",
+                CreatedAt = seedDate.AddHours(12),
+                IsSynced = true
+            }
+        );
     }
 }

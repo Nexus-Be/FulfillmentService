@@ -1,10 +1,8 @@
 namespace Fulfillment.Infrastructure;
 
-using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Fulfillment.Application.Consumers;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Infrastructure.Persistence;
 
@@ -21,36 +19,6 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
 
         services.AddScoped<IFulfillmentDbContext>(sp => sp.GetRequiredService<AppDbContext>());
-
-        // MassTransit + RabbitMQ + Transactional Outbox
-        services.AddMassTransit(x =>
-        {
-            x.SetKebabCaseEndpointNameFormatter();
-
-            x.AddApplicationConsumers();
-
-            x.AddEntityFrameworkOutbox<AppDbContext>(o =>
-            {
-                o.UsePostgres();
-                o.UseBusOutbox();
-            });
-
-            x.UsingRabbitMq((context, cfg) =>
-            {
-                var rabbitHost = configuration["RabbitMq:Host"] ?? "localhost";
-                var rabbitPort = ushort.TryParse(configuration["RabbitMq:Port"], out var port) ? port : (ushort)5672;
-                var rabbitUser = configuration["RabbitMq:User"] ?? "guest";
-                var rabbitPass = configuration["RabbitMq:Password"] ?? "guest";
-
-                cfg.Host(rabbitHost, rabbitPort, "/", h =>
-                {
-                    h.Username(rabbitUser);
-                    h.Password(rabbitPass);
-                });
-
-                cfg.ConfigureEndpoints(context);
-            });
-        });
 
         return services;
     }

@@ -56,12 +56,12 @@ Fulfillment.sln
 1. **Giao tiếp đồng bộ (RESTful)**:
    - `Fulfillment.Api/Controllers/`: Thin Dispatcher Controller, chỉ nhận request, gọi Service Interface trong Application, trả về `IActionResult`. Tuyệt đối cấm logic nghiệp vụ, cấm map anonymous object, cấm khai báo class DTO trong file controller.
    - `Fulfillment.Application/Services/{Feature}/`: Mỗi feature (`Shipment`, `Warehouse`...) chứa `I{Feature}Service.cs`, `{Feature}Service.cs`, và Request/Response DTOs dùng chung cho Controller.
-2. **Giao tiếp bất đồng bộ (RabbitMQ MassTransit)**:
-   - `Fulfillment.Application/Contracts/`: Chứa các Integration Events (ví dụ: `ShipmentCreatedIntegrationEvent`, `ShipmentDeliveredIntegrationEvent`).
-   - `Fulfillment.Infrastructure/Consumers/`: Chứa các MassTransit Consumer xử lý sự kiện bất đồng bộ.
+2. **Bãi bỏ hoàn toàn gRPC & Message Broker**:
+   - Không sử dụng RabbitMQ, MassTransit hay Outbox tables.
+   - Toàn bộ giao tiếp kho bãi và vận đơn qua RESTful Web API (`WarehousesController.cs`, `ShipmentsController.cs`).
 3. **Quản lý Dependency Injection**:
    - `Fulfillment.Application/DependencyInjection.cs`: Đăng ký toàn bộ Application Services.
-   - `Fulfillment.Infrastructure/DependencyInjection.cs`: Đăng ký `AppDbContext`, MassTransit Bus, Consumers.
+   - `Fulfillment.Infrastructure/DependencyInjection.cs`: Đăng ký `AppDbContext` (hiện thực `IFulfillmentDbContext`).
 4. **Validation**:
    - Input format validation đặt tại Request DTOs qua Data Annotations (`[Required]`, `[Range]`...).
    - Business validation đặt tại Application Services hoặc Domain Exceptions.

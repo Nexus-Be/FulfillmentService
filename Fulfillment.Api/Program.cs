@@ -1,5 +1,4 @@
 using Fulfillment.Api.Extensions;
-using Fulfillment.Api.Middleware;
 using Fulfillment.Application;
 using Fulfillment.Infrastructure;
 using Fulfillment.Infrastructure.Persistence;
@@ -7,10 +6,10 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 0. Observability / OpenTelemetry Tracing
-builder.Services.AddServiceObservability(builder.Configuration, "fulfillment-service");
+// 1. Auxiliary Service Defaults (Observability, Swagger, JSON options)
+builder.Services.AddServiceDefaults(builder.Configuration, "fulfillment-service");
 
-// Cấu hình Kestrel chỉ định HTTP/1 & HTTP/2
+// Configure Kestrel endpoint defaults for HTTP/1 & HTTP/2
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureEndpointDefaults(listenOptions =>
@@ -19,34 +18,19 @@ builder.WebHost.ConfigureKestrel(options =>
     });
 });
 
-// 1. CSDL PostgreSQL & Hạ tầng MassTransit
-builder.Services.AddInfrastructureServices(builder.Configuration);
+// 2. Application & Infrastructure Dependency Injection
 builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// 2. Swagger / OpenAPI & JSON Serialization
+// 3. REST Services
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.Converters.Add(new Fulfillment.Api.Common.Converters.PascalCaseJsonStringEnumConverter(allowIntegerValues: false));
-});
-builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(options =>
-{
-    options.JsonSerializerOptions.Converters.Add(new Fulfillment.Api.Common.Converters.PascalCaseJsonStringEnumConverter(allowIntegerValues: false));
-});
 
 var app = builder.Build();
 
-app.UseGlobalExceptionHandler();
+// 4. Default Middleware Pipeline (Exception Handler, Swagger UI)
+app.UseServiceDefaults();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-// Tự động apply database migrations nếu kết nối CSDL thành công
+// Automatically apply database migrations on startup if relational DB is available
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -64,6 +48,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Fulfillment.Api" }));
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "fulfillment-service" }));
 
 app.Run();

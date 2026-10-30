@@ -84,6 +84,26 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("AuditLogs");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("77300000-0000-0000-0000-000000000001"),
+                            Action = 9,
+                            ChangedColumns = "[\"Status\"]",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 12, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            EntityId = "77000000-0000-0000-0000-000000000001",
+                            EntityName = "Shipment",
+                            IpAddress = "127.0.0.1",
+                            IsSynced = true,
+                            NewValues = "{\"Status\":\"Delivered\"}",
+                            OldValues = "{\"Status\":\"OutForDelivery\"}",
+                            ServiceName = "Fulfillment",
+                            TraceId = "trace-fulfillment-shipment-001",
+                            UserAgent = "GHNWebhookService/1.0",
+                            UserId = "aaaaaaaa-1111-1111-1111-111111111111",
+                            UserName = "admin@nexus.com"
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.Carrier", b =>
@@ -302,6 +322,35 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.HasIndex("ReservationId");
 
                     b.ToTable("InventoryLedgers");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("e4000000-0000-0000-0000-000000000001"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            InventoryItemId = new Guid("e1000000-0000-0000-0000-000000000004"),
+                            IsDeleted = false,
+                            MovementType = 0,
+                            Note = "Khởi tạo tồn kho ban đầu cho Mũ Bảo Hiểm",
+                            Quantity = 10,
+                            ReferenceId = "STOCKIN-20260101-001",
+                            ReferenceType = 3,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("e4000000-0000-0000-0000-000000000002"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            InventoryItemId = new Guid("e1000000-0000-0000-0000-000000000004"),
+                            IsDeleted = false,
+                            MovementType = 2,
+                            Note = "Khóa tạm tồn kho phục vụ đấu giá",
+                            Quantity = 1,
+                            ReferenceId = "aa000000-0000-0000-0000-000000000001",
+                            ReferenceType = 1,
+                            ReservationId = new Guid("e2000000-0000-0000-0000-000000000001"),
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.InventoryReservation", b =>
@@ -345,6 +394,19 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("InventoryReservations");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("e2000000-0000-0000-0000-000000000001"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            ExpiresAt = new DateTimeOffset(new DateTime(2026, 1, 8, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsDeleted = false,
+                            ReferenceId = "aa000000-0000-0000-0000-000000000001",
+                            ReferenceType = 1,
+                            Status = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.InventoryReservationItem", b =>
@@ -381,6 +443,18 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.HasIndex("ReservationId");
 
                     b.ToTable("InventoryReservationItems");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("e3000000-0000-0000-0000-000000000001"),
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            InventoryItemId = new Guid("e1000000-0000-0000-0000-000000000004"),
+                            IsDeleted = false,
+                            Quantity = 1,
+                            ReservationId = new Guid("e2000000-0000-0000-0000-000000000001"),
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.Shipment", b =>
@@ -529,6 +603,50 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.HasIndex("ShipmentId");
 
                     b.ToTable("ShipmentEvents");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("77200000-0000-0000-0000-000000000001"),
+                            CarrierStatus = "PICKED_UP",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 2, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Bưu tá GHN đã lấy hàng tại kho trung tâm",
+                            ExternalEventId = "GHN-EVT-001",
+                            IsDeleted = false,
+                            OccurredAt = new DateTimeOffset(new DateTime(2026, 1, 1, 2, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RawPayload = "{\"carrier\":\"GHN\",\"status\":\"PICKED_UP\"}",
+                            ShipmentId = new Guid("77000000-0000-0000-0000-000000000001"),
+                            Status = 1,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 2, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("77200000-0000-0000-0000-000000000002"),
+                            CarrierStatus = "IN_TRANSIT",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 6, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Đang trung chuyển qua bưu cục Hà Nội",
+                            ExternalEventId = "GHN-EVT-002",
+                            IsDeleted = false,
+                            OccurredAt = new DateTimeOffset(new DateTime(2026, 1, 1, 6, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RawPayload = "{\"carrier\":\"GHN\",\"status\":\"IN_TRANSIT\"}",
+                            ShipmentId = new Guid("77000000-0000-0000-0000-000000000001"),
+                            Status = 2,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 6, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            Id = new Guid("77200000-0000-0000-0000-000000000003"),
+                            CarrierStatus = "DELIVERED",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 12, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Giao hàng thành công tới người nhận",
+                            ExternalEventId = "GHN-EVT-003",
+                            IsDeleted = false,
+                            OccurredAt = new DateTimeOffset(new DateTime(2026, 1, 1, 12, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            RawPayload = "{\"carrier\":\"GHN\",\"status\":\"DELIVERED\"}",
+                            ShipmentId = new Guid("77000000-0000-0000-0000-000000000001"),
+                            Status = 4,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 12, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.ShipmentItem", b =>
@@ -650,174 +768,6 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.InboxState", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime?>("Consumed")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ConsumerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("Delivered")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ExpirationTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("LastSequenceNumber")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("LockId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("MessageId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ReceiveCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("Received")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Delivered");
-
-                    b.ToTable("InboxState");
-                });
-
-            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
-                {
-                    b.Property<long>("SequenceNumber")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("SequenceNumber"));
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<Guid?>("ConversationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CorrelationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("DestinationAddress")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTime?>("EnqueueTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("ExpirationTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("FaultAddress")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("Headers")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("InboxConsumerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("InboxMessageId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("InitiatorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("MessageId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MessageType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("OutboxId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Properties")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("RequestId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ResponseAddress")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<DateTime>("SentTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SourceAddress")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.HasKey("SequenceNumber");
-
-                    b.HasIndex("EnqueueTime");
-
-                    b.HasIndex("ExpirationTime");
-
-                    b.HasIndex("OutboxId", "SequenceNumber")
-                        .IsUnique();
-
-                    b.HasIndex("InboxMessageId", "InboxConsumerId", "SequenceNumber")
-                        .IsUnique();
-
-                    b.ToTable("OutboxMessage");
-                });
-
-            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxState", b =>
-                {
-                    b.Property<Guid>("OutboxId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("Created")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("Delivered")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long?>("LastSequenceNumber")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("LockId")
-                        .HasColumnType("uuid");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("OutboxId");
-
-                    b.HasIndex("Created");
-
-                    b.ToTable("OutboxState");
-                });
-
             modelBuilder.Entity("Fulfillment.Domain.Entities.InventoryItem", b =>
                 {
                     b.HasOne("Fulfillment.Domain.Entities.Warehouse", "Warehouse")
@@ -904,18 +854,6 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Shipment");
-                });
-
-            modelBuilder.Entity("MassTransit.EntityFrameworkCoreIntegration.OutboxMessage", b =>
-                {
-                    b.HasOne("MassTransit.EntityFrameworkCoreIntegration.OutboxState", null)
-                        .WithMany()
-                        .HasForeignKey("OutboxId");
-
-                    b.HasOne("MassTransit.EntityFrameworkCoreIntegration.InboxState", null)
-                        .WithMany()
-                        .HasForeignKey("InboxMessageId", "InboxConsumerId")
-                        .HasPrincipalKey("MessageId", "ConsumerId");
                 });
 
             modelBuilder.Entity("Fulfillment.Domain.Entities.Carrier", b =>
