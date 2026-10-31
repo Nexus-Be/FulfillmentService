@@ -1,3 +1,5 @@
+name: nexus-db-fulfillment
+
 services:
   postgres-fulfillment:
     image: postgres:16-alpine

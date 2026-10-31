@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Fulfillment.Application.Interfaces;
+using Fulfillment.Domain.Exceptions;
 
 public sealed class ShipmentService : IShipmentService
 {
@@ -15,13 +16,12 @@ public sealed class ShipmentService : IShipmentService
         _dbContext = dbContext;
     }
 
-    public async Task<ShipmentDto?> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default)
+    public async Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default)
     {
         var shipment = await _dbContext.Shipments
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, cancellationToken);
-
-        if (shipment == null) return null;
+            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", trackingNumber);
 
         return new ShipmentDto(
             shipment.Id,
@@ -35,13 +35,12 @@ public sealed class ShipmentService : IShipmentService
             shipment.ReceiverAddress);
     }
 
-    public async Task<ShipmentDto?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<ShipmentDto> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         var shipment = await _dbContext.Shipments
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken);
-
-        if (shipment == null) return null;
+            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", orderId);
 
         return new ShipmentDto(
             shipment.Id,

@@ -6,7 +6,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Fulfillment.Application.Common;
+using Fulfillment.Application.Common.Models;
 using Fulfillment.Application.Interfaces;
+using Fulfillment.Domain.Exceptions;
 
 public sealed class WarehouseService : IWarehouseService
 {
@@ -17,13 +20,12 @@ public sealed class WarehouseService : IWarehouseService
         _dbContext = dbContext;
     }
 
-    public async Task<WarehouseDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<WarehouseDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var warehouse = await _dbContext.Warehouses
             .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == id, cancellationToken);
-
-        if (warehouse == null) return null;
+            .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
+            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", id);
 
         return new WarehouseDto(
             warehouse.Id,
@@ -34,12 +36,20 @@ public sealed class WarehouseService : IWarehouseService
             warehouse.IsDisabled);
     }
 
-    public async Task<IReadOnlyList<WarehouseDto>> ListActiveAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedData<WarehouseDto>> ListActiveAsync(int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        var warehouses = await _dbContext.Warehouses
+        var (safePage, safePageSize) = PaginationConstants.Normalize(page, pageSize);
+
+        var query = _dbContext.Warehouses
             .AsNoTracking()
-            .Where(w => !w.IsDisabled)
+            .Where(w => !w.IsDisabled);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
             .OrderBy(w => w.Name)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
             .Select(w => new WarehouseDto(
                 w.Id,
                 w.Code,
@@ -49,6 +59,6 @@ public sealed class WarehouseService : IWarehouseService
                 w.IsDisabled))
             .ToListAsync(cancellationToken);
 
-        return warehouses;
+        return new PagedData<WarehouseDto>(items, PaginationMetadata.Create(safePage, safePageSize, totalCount));
     }
 }

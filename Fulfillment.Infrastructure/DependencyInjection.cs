@@ -12,7 +12,15 @@ public static class DependencyInjection
     {
         var rawConnection = configuration.GetConnectionString("DefaultConnection")
             ?? configuration["CONNECTION_STRING"]
-            ?? "Host=localhost;Port=5438;Database=fulfillment_db;Username=postgres;Password=postgres";
+            ?? configuration["FULFILLMENT_CONNECTION_STRING"]
+            ?? configuration["FULFILLMENT_DB_CONNECTION"]
+            ?? Environment.GetEnvironmentVariable("FULFILLMENT_CONNECTION_STRING")
+            ?? Environment.GetEnvironmentVariable("CONNECTION_STRING");
+
+        if (string.IsNullOrWhiteSpace(rawConnection) || rawConnection.Contains("REPLACE_WITH"))
+        {
+            throw new InvalidOperationException("Database connection string for FulfillmentService is not configured. Set 'ConnectionStrings:DefaultConnection' or environment variable 'FULFILLMENT_CONNECTION_STRING'.");
+        }
         var connectionString = NormalizeConnectionString(rawConnection);
 
         services.AddDbContext<AppDbContext>(options =>

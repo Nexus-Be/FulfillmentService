@@ -64,19 +64,39 @@ Khi bắt đầu làm việc tại FulfillmentService, AI Agent **BẮT BUỘC P
 1. **TUYỆT ĐỐI KHÔNG DÙNG REPOSITORY PATTERN BỌC NGOÀI EF CORE**: Sử dụng trực tiếp `AppDbContext` và `DbSet<T>` (hoặc interface `IFulfillmentDbContext`) trong tầng Application. Cấm tạo `IShipmentRepository`, `IWarehouseRepository`, `UnitOfWork`.
 2. **CẤU HÌNH PORT 8006 VÀ DATABASE 5438 LÀ BẤT BIẾN**.
 3. **CẤM SỬ DỤNG gRPC VÀ BÃI BỎ MESSAGE BROKER — BẮT BUỘC DÙNG 100% RESTFUL API**:
-   - Toàn bộ giao tiếp đồng bộ sử dụng chuẩn **RESTful Web API** (JSON qua HTTP/1.1 hoặc HTTP/2).
+   - Toàn bộ giao tiếp đồng bộ sử dụng chuẩn **RESTful Web API** (JSON qua HTTP/1.1 hoặc HTTP/2) với quy chuẩn 100% số nhiều cho collections: `/api/v1/shipments`, `/api/v1/warehouses`, `/api/v1/inventories`.
    - Tuyệt đối cấm gRPC, Protobuf, RabbitMQ và MassTransit.
 4. **FEATURE CO-LOCATION & 1-TO-1 CONTROLLER PAIRING**:
    - Tầng Application: Toàn bộ use cases đặt tại `Fulfillment.Application/Services/{Feature}/` gồm `I{Feature}Service.cs`, `{Feature}Service.cs`, `{Feature}Requests.cs`, `{Feature}Responses.cs`, `{Feature}Dtos.cs`.
    - Tầng Api: Ghép cặp 1-to-1 với `ShipmentsController.cs` và `WarehousesController.cs`, chỉ inject duy nhất feature service tương ứng.
+5. **QUY CHUẨN PHÂN TRANG (PAGINATION GOVERNANCE)**:
+   - Toàn bộ thao tác phân trang vận đơn, kho bãi bắt buộc thực hiện trực tiếp tại Database qua `.Skip((page - 1) * pageSize).Take(pageSize)` và `.CountAsync()`.
+   - Đóng gói dữ liệu trả về theo cấu trúc phân trang chuẩn `PagedData<T>` (`items` và metadata `pagination: { pageIndex, pageSize, totalCount, totalPages, hasPreviousPage, hasNextPage }`).
+   - TUYỆT ĐỐI CẤM trả về danh sách thô lớn không giới hạn để Gateway tự phân trang.
+6. **QUY CHUẨN PHÂN TÁCH PUBLIC VÀ INTERNAL REST API (INTERNAL API SEGREGATION)**:
+   - Cấu trúc thư mục Controller tại `Fulfillment.Api/Controllers/` bắt buộc chia thành `Controllers/Public/` (`/api/v1/shipments`, `/api/v1/warehouses`) và `Controllers/Internal/` (`/api/v1/internal/inventories`).
+   - Mọi endpoint nội bộ khởi tạo hoặc điều chỉnh kho bãi (`InternalInventoriesController`) bắt buộc qua `InternalServiceAuthMiddleware` kiểm tra header `X-Internal-Service-Key`.
+   - TUYỆT ĐỐI CẤM mở endpoint khởi tạo tồn kho vật lý ra ngoài API Gateway.
+7. **QUY CHUẨN BẢO VỆ QUYỀN SỞ HỮU TÀI NGUYÊN (RESOURCE OWNERSHIP GOVERNANCE)**:
+   - Tra cứu vận đơn theo đơn hàng hoặc thông tin vận chuyển chi tiết chỉ dành cho người mua sở hữu đơn hàng, người bán gửi hàng hoặc tài khoản `admin`/`staff`. Cấm để lộ vận đơn của người khác.
 
 ---
 
-## 💬 NGUYÊN TẮC 5: QUY CHUẨN THÔNG BÁO LỖI TOÀN HỆ THỐNG
+## 💬 NGUYÊN TẮC 5: QUY CHUẨN THÔNG BÁO LỖI TOÀN HỆ THỐNG (MANDATORY ERROR & ENUM RULES)
 
-1. **Ngôn ngữ (100% English)**: Toàn bộ thông báo lỗi viết bằng tiếng Anh. Tuyệt đối không dùng tiếng Việt.
-2. **Quy cách viết hoa (Sentence case)**: Viết hoa duy nhất chữ cái đầu câu: `"Shipment not found with the provided tracking number."`
-3. **Mã lỗi (SCREAMING_SNAKE_CASE)**: `SHIPMENT_NOT_FOUND`, `WAREHOUSE_INACTIVE`, `VAL_INVALID_INPUT`, `UNAUTHORIZED`, `FORBIDDEN`.
+1. **Ngôn ngữ (100% English)**: Toàn bộ thông báo lỗi viết bằng 100% tiếng Anh. Tuyệt đối CẤM dùng tiếng Việt trong response và runtime exception.
+2. **Quy cách viết hoa thông báo lỗi (100% Sentence case)**:
+   - Viết hoa DUY NHẤT chữ cái đầu tiên của câu thông báo.
+   - Toàn bộ các từ tiếp theo viết thường, TRỪ các từ viết tắt kỹ thuật hoặc tên riêng: `ID`, `OTP`, `JWT`, `URL`, `UUID`, `Email`, `API`, `HTTP`.
+   - TUYỆT ĐỐI CẤM viết hoa toàn bộ thông báo lỗi (ví dụ cấm: `"SHIPMENT NOT FOUND"`).
+   - Ví dụ đúng: `"Shipment not found with the provided tracking number."`, `"Warehouse is currently inactive."`
+3. **Mã lỗi (100% SCREAMING_SNAKE_CASE)**:
+   - Viết hoa toàn bộ và nối bằng gạch dưới: `SHIPMENT_NOT_FOUND`, `WAREHOUSE_INACTIVE`, `VAL_INVALID_INPUT`, `UNAUTHORIZED`, `FORBIDDEN`.
+   - CẤM tiền tố `ERR_`. Tiền tố `VAL_` chỉ dành riêng cho validation.
+4. **Quy chuẩn Tuần tự hóa Enum đầu ra REST API (PascalCase Serialization)**:
+   - 100% Enum trả về trong JSON envelope phải là chuỗi `PascalCase` (`"ReadyToPick"`, `"InTransit"`, `"Delivered"`), cấm chuỗi in hoa toàn bộ hoặc số nguyên.
+5. **Cơ chế Duy trì Rule Bền vững ("Ghi vào Rule")**:
+   - Khi Người dùng (Sếp) chỉ thị "ghi vào rule", AI Agent bắt buộc phải lập tức ghi nhận và đồng bộ vào file này, `.agents/AGENTS.md`, root `AGENTS.md` và `.cursor/rules/`.
 
 ---
 

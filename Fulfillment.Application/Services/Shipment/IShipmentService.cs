@@ -6,6 +6,6 @@ using System.Threading.Tasks;
 
 public interface IShipmentService
 {
-    Task<ShipmentDto?> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default);
-    Task<ShipmentDto?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default);
+    Task<ShipmentDto> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default);
 }
