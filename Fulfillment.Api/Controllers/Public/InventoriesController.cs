@@ -1,4 +1,4 @@
-namespace Fulfillment.Api.Controllers.Internal;
+namespace Fulfillment.Api.Controllers.Public;
 
 using System;
 using System.Threading;
@@ -7,12 +7,12 @@ using Microsoft.AspNetCore.Mvc;
 using Fulfillment.Application.Services.Inventory;
 
 [ApiController]
-[Route("api/v1/internal/inventories")]
-public sealed class InternalInventoriesController : ControllerBase
+[Route("api/v1/inventories")]
+public sealed class InventoriesController : ControllerBase
 {
     private readonly IInventoryService _inventoryService;
 
-    public InternalInventoriesController(IInventoryService inventoryService)
+    public InventoriesController(IInventoryService inventoryService)
     {
         _inventoryService = inventoryService;
     }
