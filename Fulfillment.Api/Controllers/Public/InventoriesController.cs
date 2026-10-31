@@ -1,6 +1,7 @@
 namespace Fulfillment.Api.Controllers.Public;
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -34,6 +35,16 @@ public sealed class InventoriesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _inventoryService.GetBySkuIdAsync(skuId, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Retrieves inventory balances for a list of SKU IDs.</summary>
+    [HttpPost("by-skus")]
+    public async Task<ActionResult<IReadOnlyList<InventoryItemResponse>>> GetByListSku(
+        [FromBody] IReadOnlyList<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryService.GetByListSkuAsync(skuIds, cancellationToken);
         return Ok(result);
     }
 }
