@@ -1,29 +1,32 @@
+using System;
 using Fulfillment.Api.Common;
 using Fulfillment.Api.Extensions;
 using Fulfillment.Application;
 using Fulfillment.Infrastructure;
 using Fulfillment.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Auxiliary Service Defaults (Observability, Swagger, JSON options)
 builder.Services.AddServiceDefaults(builder.Configuration, "fulfillment-service");
 
-// Configure Kestrel endpoint defaults for HTTP/1 & HTTP/2
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureEndpointDefaults(listenOptions =>
     {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
     });
 });
 
-// 2. Application & Infrastructure Dependency Injection
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// 3. REST Services
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
     {
@@ -32,10 +35,8 @@ builder.Services.AddControllers()
 
 var app = builder.Build();
 
-// 4. Default Middleware Pipeline (Exception Handler, Swagger UI)
 app.UseServiceDefaults();
 
-// Automatically apply database migrations on startup if relational DB is available
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -56,3 +57,5 @@ app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "fulfillment-service" }));
 
 app.Run();
+
+public partial class Program { }

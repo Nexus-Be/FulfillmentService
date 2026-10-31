@@ -12,7 +12,11 @@ public class Warehouse
     public string Type { get; set; } = "OWN";
     public string? Address { get; set; }
     public bool IsActive { get; set; } = true;
-    public bool IsDisabled => !IsActive;
+    public bool IsDisabled
+    {
+        get => !IsActive;
+        set => IsActive = !value;
+    }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
