@@ -1,16 +1,19 @@
-using Fulfillment.Domain.Base;
-using Fulfillment.Domain.Enums;
-
 namespace Fulfillment.Domain.Entities;
 
-public class Warehouse : AuditableEntity<Guid>
+using System;
+using System.Collections.Generic;
+
+public class Warehouse
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? SellerId { get; set; }
     public required string Code { get; set; }
     public required string Name { get; set; }
-    public WarehouseType Type { get; set; } = WarehouseType.PlatformWarehouse;
-    public Guid? SellerId { get; set; }
+    public string Type { get; set; } = "OWN";
     public string? Address { get; set; }
-    public bool IsDisabled { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsDisabled => !IsActive;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
     public ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();

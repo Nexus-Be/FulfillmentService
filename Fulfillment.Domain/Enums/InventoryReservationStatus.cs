@@ -2,8 +2,8 @@ namespace Fulfillment.Domain.Enums;
 
 public enum InventoryReservationStatus
 {
-    Pending = 0,
-    Confirmed = 1,
-    Released = 2,
-    Expired = 3
+    Active = 1,
+    Committed = 2,
+    Released = 3,
+    Expired = 4
 }

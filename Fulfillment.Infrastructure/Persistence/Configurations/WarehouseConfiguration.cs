@@ -8,13 +8,20 @@ public class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
 {
     public void Configure(EntityTypeBuilder<Warehouse> builder)
     {
+        builder.ToTable("warehouses");
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Code).HasMaxLength(100).IsRequired();
+
+        builder.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(x => x.SellerId).HasColumnName("seller_id");
+        builder.Property(x => x.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
+        builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
+        builder.Property(x => x.Type).HasColumnName("type").HasMaxLength(20).HasDefaultValue("OWN").IsRequired();
+        builder.Property(x => x.Address).HasColumnName("address").HasMaxLength(500);
+        builder.Property(x => x.IsActive).HasColumnName("is_active").HasDefaultValue(true).IsRequired();
+        builder.Ignore(x => x.IsDisabled);
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
+
         builder.HasIndex(x => x.Code).IsUnique();
-        builder.Property(x => x.Name).HasMaxLength(255).IsRequired();
-        builder.Property(x => x.SellerId);
-        builder.HasIndex(x => x.SellerId);
-        builder.Property(x => x.Address).HasMaxLength(1000);
 
         builder.HasMany(w => w.InventoryItems)
             .WithOne(i => i.Warehouse)

@@ -1,16 +1,19 @@
-using Fulfillment.Domain.Base;
-using Fulfillment.Domain.Enums;
-
 namespace Fulfillment.Domain.Entities;
 
-public class InventoryReservation : BaseEntity<Guid>
+using System;
+using System.Collections.Generic;
+
+public class InventoryReservation
 {
-    public required InventoryReservationReferenceType ReferenceType { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required string ReferenceType { get; set; }
     public required string ReferenceId { get; set; }
-    public required InventoryReservationStatus Status { get; set; } = InventoryReservationStatus.Pending;
-    public DateTimeOffset? ExpiresAt { get; set; }
+    public string Status { get; set; } = "ACTIVE";
+    public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? ReleasedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
     public ICollection<InventoryReservationItem> ReservationItems { get; set; } = new List<InventoryReservationItem>();
