@@ -8,15 +8,18 @@ using Fulfillment.Domain.Entities;
 public interface IFulfillmentDbContext
 {
     DbSet<Warehouse> Warehouses { get; }
+    DbSet<Carrier> Carriers { get; }
     DbSet<InventoryItem> InventoryItems { get; }
     DbSet<InventoryReservation> InventoryReservations { get; }
     DbSet<InventoryReservationItem> InventoryReservationItems { get; }
     DbSet<InventoryLedger> InventoryLedgers { get; }
-    DbSet<Carrier> Carriers { get; }
     DbSet<Shipment> Shipments { get; }
     DbSet<ShipmentItem> ShipmentItems { get; }
     DbSet<ShipmentEvent> ShipmentEvents { get; }
-    DbSet<AuditLog> AuditLogs { get; }
+    DbSet<SystemSetting> SystemSettings { get; }
+    DbSet<IdempotencyKey> IdempotencyKeys { get; }
+    DbSet<OutboxMessage> OutboxMessages { get; }
+    DbSet<InboxMessage> InboxMessages { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

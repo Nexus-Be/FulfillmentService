@@ -1,12 +1,13 @@
-using Fulfillment.Domain.Base;
-
 namespace Fulfillment.Domain.Entities;
 
-public class InventoryReservationItem : BaseEntity<Guid>
+using System;
+
+public class InventoryReservationItem
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid ReservationId { get; set; }
     public required Guid InventoryItemId { get; set; }
-    public required int Quantity { get; set; }
+    public int Quantity { get; set; }
 
     // Navigation
     public InventoryReservation? Reservation { get; set; }

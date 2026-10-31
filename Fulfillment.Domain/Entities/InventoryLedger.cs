@@ -1,17 +1,18 @@
-using Fulfillment.Domain.Base;
-using Fulfillment.Domain.Enums;
-
 namespace Fulfillment.Domain.Entities;
 
-public class InventoryLedger : BaseEntity<Guid>
+using System;
+
+public class InventoryLedger
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid InventoryItemId { get; set; }
-    public required InventoryMovementType MovementType { get; set; }
-    public required int Quantity { get; set; }
+    public required string MovementType { get; set; }
+    public int Quantity { get; set; }
     public Guid? ReservationId { get; set; }
-    public InventoryLedgerReferenceType? ReferenceType { get; set; }
+    public string? ReferenceType { get; set; }
     public string? ReferenceId { get; set; }
     public string? Note { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
     public InventoryItem? InventoryItem { get; set; }

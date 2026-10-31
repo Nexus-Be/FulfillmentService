@@ -1,22 +1,25 @@
-using Fulfillment.Domain.Base;
-using Fulfillment.Domain.Enums;
-
 namespace Fulfillment.Domain.Entities;
 
-public class Shipment : AuditableEntity<Guid>
+using System;
+using System.Collections.Generic;
+
+public class Shipment
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid OrderId { get; set; }
     public required Guid WarehouseId { get; set; }
     public required Guid CarrierId { get; set; }
-    public ShippingServiceType ServiceType { get; set; } = ShippingServiceType.Standard;
+    public string? ServiceType { get; set; }
     public decimal ShippingFee { get; set; }
     public string? TrackingNumber { get; set; }
-    public required ShipmentStatus Status { get; set; } = ShipmentStatus.ReadyToPick;
+    public string Status { get; set; } = "PENDING";
     public required string ReceiverName { get; set; }
     public required string ReceiverPhone { get; set; }
     public required string ReceiverAddress { get; set; }
     public DateTimeOffset? EstimatedDeliveryAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
     public Warehouse? Warehouse { get; set; }

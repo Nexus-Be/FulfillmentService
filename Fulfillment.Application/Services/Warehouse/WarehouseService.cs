@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Fulfillment.Application.Interfaces;
+using Fulfillment.Domain.Entities;
+using Fulfillment.Domain.Exceptions;
 
 public sealed class WarehouseService : IWarehouseService
 {
@@ -17,38 +19,90 @@ public sealed class WarehouseService : IWarehouseService
         _dbContext = dbContext;
     }
 
+    public async Task<WarehouseDto> CreateAsync(CreateWarehouseDto dto, CancellationToken cancellationToken = default)
+    {
+        var warehouse = new Warehouse
+        {
+            Code = dto.Code,
+            Name = dto.Name,
+            Address = dto.Address,
+            SellerId = dto.SellerId,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        _dbContext.Warehouses.Add(warehouse);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(warehouse);
+    }
+
+    public async Task<WarehouseDto> UpdateAsync(Guid id, UpdateWarehouseDto dto, CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
+            ?? throw new EntityNotFoundException("Warehouse", id);
+
+        warehouse.Name = dto.Name;
+        warehouse.Address = dto.Address;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(warehouse);
+    }
+
     public async Task<WarehouseDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var warehouse = await _dbContext.Warehouses
             .AsNoTracking()
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken);
 
-        if (warehouse == null) return null;
+        return warehouse == null ? null : MapToDto(warehouse);
+    }
 
-        return new WarehouseDto(
-            warehouse.Id,
-            warehouse.Code,
-            warehouse.Name,
-            warehouse.Type.ToString(),
-            warehouse.Address,
-            warehouse.IsDisabled);
+    public async Task<WarehouseDto> SetActiveStatusAsync(Guid id, bool isActive, CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
+            ?? throw new EntityNotFoundException("Warehouse", id);
+
+        warehouse.IsActive = isActive;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(warehouse);
+    }
+
+    public async Task<IReadOnlyList<WarehouseDto>> GetBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default)
+    {
+        var warehouses = await _dbContext.Warehouses
+            .AsNoTracking()
+            .Where(w => w.SellerId == sellerId)
+            .OrderBy(w => w.Name)
+            .Select(w => MapToDto(w))
+            .ToListAsync(cancellationToken);
+
+        return warehouses;
     }
 
     public async Task<IReadOnlyList<WarehouseDto>> ListActiveAsync(CancellationToken cancellationToken = default)
     {
         var warehouses = await _dbContext.Warehouses
             .AsNoTracking()
-            .Where(w => !w.IsDisabled)
+            .Where(w => w.IsActive)
             .OrderBy(w => w.Name)
-            .Select(w => new WarehouseDto(
-                w.Id,
-                w.Code,
-                w.Name,
-                w.Type.ToString(),
-                w.Address,
-                w.IsDisabled))
+            .Select(w => MapToDto(w))
             .ToListAsync(cancellationToken);
 
         return warehouses;
     }
+
+    private static WarehouseDto MapToDto(Warehouse w) =>
+        new WarehouseDto(
+            w.Id,
+            w.Code,
+            w.Name,
+            w.Address,
+            w.IsActive,
+            w.SellerId,
+            w.CreatedAt);
 }

@@ -8,14 +8,22 @@ public class InventoryReservationItemConfiguration : IEntityTypeConfiguration<In
 {
     public void Configure(EntityTypeBuilder<InventoryReservationItem> builder)
     {
+        builder.ToTable("inventory_reservation_items");
         builder.HasKey(x => x.Id);
 
-        builder.HasOne(ri => ri.Reservation)
-            .WithMany(r => r.ReservationItems)
-            .HasForeignKey(ri => ri.ReservationId);
+        builder.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(x => x.ReservationId).HasColumnName("reservation_id").IsRequired();
+        builder.Property(x => x.InventoryItemId).HasColumnName("inventory_item_id").IsRequired();
+        builder.Property(x => x.Quantity).HasColumnName("quantity").IsRequired();
 
-        builder.HasOne(ri => ri.InventoryItem)
+        builder.HasIndex(x => new { x.ReservationId, x.InventoryItemId }).IsUnique();
+
+        builder.HasOne(x => x.Reservation)
+            .WithMany(r => r.ReservationItems)
+            .HasForeignKey(x => x.ReservationId);
+
+        builder.HasOne(x => x.InventoryItem)
             .WithMany(i => i.ReservationItems)
-            .HasForeignKey(ri => ri.InventoryItemId);
+            .HasForeignKey(x => x.InventoryItemId);
     }
 }

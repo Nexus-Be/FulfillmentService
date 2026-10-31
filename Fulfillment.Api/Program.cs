@@ -1,43 +1,42 @@
-using Fulfillment.Api.Middleware;
+using System;
+using Fulfillment.Api.Common;
+using Fulfillment.Api.Extensions;
 using Fulfillment.Application;
 using Fulfillment.Infrastructure;
 using Fulfillment.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Cấu hình Kestrel chỉ định HTTP/2 cho gRPC không cần TLS (h2c)
+builder.Services.AddServiceDefaults(builder.Configuration, "fulfillment-service");
+
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ConfigureEndpointDefaults(listenOptions =>
     {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
     });
 });
 
-// 1. CSDL PostgreSQL & Hạ tầng MassTransit
-builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
-// 2. Swagger / OpenAPI
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-});
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = ApiValidationProblemFactory.Create;
+    });
 
 var app = builder.Build();
 
-app.UseGlobalExceptionHandler();
+app.UseServiceDefaults();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
-// Tự động apply database migrations nếu kết nối CSDL thành công
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -54,6 +53,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "Fulfillment.Api" }));
+app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "fulfillment-service" }));
 
 app.Run();

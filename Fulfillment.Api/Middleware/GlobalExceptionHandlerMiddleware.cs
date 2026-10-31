@@ -1,7 +1,10 @@
 namespace Fulfillment.Api.Middleware;
 
+using System;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Fulfillment.Domain.Exceptions;
@@ -35,21 +38,31 @@ public sealed class GlobalExceptionHandlerMiddleware
 
         var (statusCode, errorCode, title, detail) = exception switch
         {
-            EntityNotFoundException nfe => (
-                StatusCodes.Status404NotFound,
-                "NOT_FOUND",
-                "Resource not found",
-                nfe.Message),
+            InsufficientInventoryException iie => (
+                StatusCodes.Status400BadRequest,
+                "INSUFFICIENT_STOCK",
+                "Insufficient stock",
+                iie.Message),
             BusinessRuleValidationException bve => (
                 StatusCodes.Status400BadRequest,
                 "BUSINESS_RULE_VIOLATION",
                 "Business rule violation",
                 bve.Message),
+            EntityNotFoundException nfe => (
+                StatusCodes.Status404NotFound,
+                "NOT_FOUND",
+                "Resource not found",
+                nfe.Message),
             DomainException dex => (
                 StatusCodes.Status400BadRequest,
                 "DOMAIN_ERROR",
                 "Domain error",
                 dex.Message),
+            Microsoft.EntityFrameworkCore.DbUpdateException dbEx when dbEx.InnerException is Npgsql.PostgresException { SqlState: "23505" } => (
+                StatusCodes.Status400BadRequest,
+                "BUSINESS_RULE_VIOLATION",
+                "Duplicate key violation",
+                "A record with the same unique identifier or code already exists."),
             ArgumentException aex => (
                 StatusCodes.Status400BadRequest,
                 "VAL_INVALID_ARGUMENT",
