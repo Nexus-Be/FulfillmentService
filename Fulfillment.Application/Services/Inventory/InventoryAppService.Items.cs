@@ -44,39 +44,13 @@ public sealed partial class InventoryAppService
 
     public async Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.Type == InventoryAdjustmentType.Intake && request.Quantity <= 0)
-        {
-            throw new BusinessRuleValidationException("Quantity for INTAKE must be greater than zero.");
-        }
-
-        if (request.Type == InventoryAdjustmentType.Adjust && request.Quantity == 0)
-        {
-            throw new BusinessRuleValidationException("Quantity for ADJUST cannot be zero.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Reason))
-        {
-            throw new BusinessRuleValidationException("Reason for adjustment is required.");
-        }
+        ValidateAdjustRequest(request);
 
         var item = await _dbContext.InventoryItems
             .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken)
             ?? throw new EntityNotFoundException("InventoryItem for SKU", request.SkuId);
 
-        var newTotal = item.TotalQuantity + request.Quantity;
-
-        if (newTotal < 0)
-        {
-            throw new BusinessRuleValidationException("Total quantity cannot be negative.");
-        }
-
-        if (newTotal < item.ReservedQuantity)
-        {
-            throw new BusinessRuleValidationException("Total quantity cannot be less than reserved quantity.");
-        }
-
-        item.TotalQuantity = newTotal;
-        RefreshAvailableQuantity(item);
+        item.Adjust(request.Quantity);
 
         var movementType = request.Type switch
         {
@@ -89,7 +63,7 @@ public sealed partial class InventoryAppService
             item.Id,
             movementType,
             request.Quantity,
-            note: request.Reason);
+            note: request.Note);
 
         _dbContext.InventoryLedgers.Add(ledger);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -100,6 +74,19 @@ public sealed partial class InventoryAppService
             item.ReservedQuantity,
             item.AvailableQuantity ?? 0,
             ledger.Id);
+    }
+
+    private static void ValidateAdjustRequest(AdjustInventoryRequest request)
+    {
+        if (request.Type == InventoryAdjustmentType.Intake && request.Quantity <= 0)
+        {
+            throw new BusinessRuleValidationException("Quantity for INTAKE must be greater than zero.");
+        }
+
+        if (request.Type == InventoryAdjustmentType.Adjust && request.Quantity == 0)
+        {
+            throw new BusinessRuleValidationException("Quantity for ADJUST cannot be zero.");
+        }
     }
 
     public async Task<InventoryItemResponse?> GetBySkuIdAsync(Guid skuId, CancellationToken cancellationToken = default)

@@ -35,8 +35,7 @@ public sealed class WarehouseService : IWarehouseService
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new EntityNotFoundException("Warehouse", id);
 
-        warehouse.Name = dto.Name;
-        warehouse.Address = dto.Address;
+        warehouse.UpdateDetails(dto.Name, dto.Address);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -58,7 +57,7 @@ public sealed class WarehouseService : IWarehouseService
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new EntityNotFoundException("Warehouse", id);
 
-        warehouse.IsActive = isActive;
+        warehouse.SetActive(isActive);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return MapToDto(warehouse);

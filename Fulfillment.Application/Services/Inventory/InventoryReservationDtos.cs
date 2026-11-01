@@ -3,6 +3,9 @@ namespace Fulfillment.Application.Services.Inventory;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using Fulfillment.Domain.Constants;
+using Fulfillment.Domain.Entities;
 
 public sealed record ReserveInventoryItemRequest(
     [Required(ErrorMessage = "SKU ID is required.")]
@@ -12,9 +15,6 @@ public sealed record ReserveInventoryItemRequest(
     int Quantity);
 
 public sealed record CreateReservationRequest(
-    [Required(ErrorMessage = "Reference type is required.")]
-    string ReferenceType,
-
     [Required(ErrorMessage = "Reference ID is required.")]
     string ReferenceId,
 
@@ -29,11 +29,48 @@ public sealed record InventoryReservationItemResponse(
 
 public sealed record InventoryReservationResponse(
     Guid Id,
-    string ReferenceType,
     string ReferenceId,
     string Status,
     DateTimeOffset ExpiresAt,
     DateTimeOffset? ConfirmedAt,
     DateTimeOffset? ReleasedAt,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<InventoryReservationItemResponse> Items);
+    IReadOnlyList<InventoryReservationItemResponse> Items)
+{
+    public static InventoryReservationResponse FromCommittedLedgers(
+        string referenceId,
+        IReadOnlyList<InventoryLedger> ledgers,
+        IReadOnlyDictionary<Guid, Guid> itemIdToSkuMap)
+    {
+        var earliestLedger = ledgers.MinBy(l => l.CreatedAt);
+        var committedAt = earliestLedger?.CreatedAt ?? DateTimeOffset.UtcNow;
+        var reservationId = earliestLedger?.ReservationId ?? Guid.Empty;
+
+        var items = ledgers
+            .Select(l => new InventoryReservationItemResponse(
+                itemIdToSkuMap.TryGetValue(l.InventoryItemId, out var sku) ? sku : Guid.Empty,
+                l.Quantity))
+            .ToList();
+
+        return new InventoryReservationResponse(
+            reservationId,
+            referenceId,
+            ReservationStatus.Confirmed,
+            committedAt,
+            committedAt,
+            null,
+            committedAt,
+            items);
+    }
+
+    public static InventoryReservationResponse AlreadyReleased(string referenceId) =>
+        new(
+            Guid.Empty,
+            referenceId,
+            ReservationStatus.Released,
+            DateTimeOffset.UtcNow,
+            null,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            Array.Empty<InventoryReservationItemResponse>());
+}

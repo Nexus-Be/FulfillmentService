@@ -10,7 +10,6 @@ public sealed record InventoryItemResponse(
     Guid WarehouseId,
     int TotalQuantity,
     int ReservedQuantity,
-    int UnavailableQuantity,
     int AvailableQuantity,
     DateTimeOffset UpdatedAt);
 
@@ -35,9 +34,7 @@ public sealed record AdjustInventoryRequest(
 
     int Quantity,
 
-    [Required(ErrorMessage = "Reason for adjustment is required.")]
-    [MinLength(1, ErrorMessage = "Reason must not be empty.")]
-    string Reason);
+    string? Note = null);
 
 public sealed record AdjustInventoryResponse(
     Guid SkuId,

@@ -13,11 +13,6 @@ public sealed partial class InventoryAppService : IInventoryAppService
         _dbContext = dbContext;
     }
 
-    private static void RefreshAvailableQuantity(InventoryItem item)
-    {
-        item.AvailableQuantity = item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity;
-        item.UpdatedAt = DateTimeOffset.UtcNow;
-    }
 
     private static InventoryItemResponse MapToResponse(InventoryItem item) =>
         new InventoryItemResponse(
@@ -26,7 +21,6 @@ public sealed partial class InventoryAppService : IInventoryAppService
             item.WarehouseId,
             item.TotalQuantity,
             item.ReservedQuantity,
-            item.UnavailableQuantity,
-            item.AvailableQuantity ?? (item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity),
+            item.AvailableQuantity ?? (item.TotalQuantity - item.ReservedQuantity),
             item.UpdatedAt);
 }
