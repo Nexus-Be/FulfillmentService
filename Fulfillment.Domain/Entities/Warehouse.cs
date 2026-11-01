@@ -18,4 +18,18 @@ public class Warehouse
     // Navigation
     public ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
     public ICollection<Shipment> Shipments { get; set; } = new List<Shipment>();
+
+    public static Warehouse Create(string code, string name, string? address, Guid? sellerId = null, string type = "OWN")
+    {
+        return new Warehouse
+        {
+            Code = code.Trim().ToUpperInvariant(),
+            Name = name.Trim(),
+            Address = address?.Trim(),
+            SellerId = sellerId,
+            Type = type,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
 }

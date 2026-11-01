@@ -18,4 +18,20 @@ public class InventoryReservation
     // Navigation
     public ICollection<InventoryReservationItem> ReservationItems { get; set; } = new List<InventoryReservationItem>();
     public ICollection<InventoryLedger> Ledgers { get; set; } = new List<InventoryLedger>();
+
+    public static InventoryReservation Create(string referenceType, string referenceId, int holdMinutes = 30)
+    {
+        var effectiveHoldMinutes = holdMinutes > 0 ? holdMinutes : 30;
+        var now = DateTimeOffset.UtcNow;
+
+        return new InventoryReservation
+        {
+            ReferenceType = referenceType,
+            ReferenceId = referenceId,
+            Status = "ACTIVE",
+            ExpiresAt = now.AddMinutes(effectiveHoldMinutes),
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+    }
 }

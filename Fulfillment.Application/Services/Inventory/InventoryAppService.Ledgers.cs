@@ -17,7 +17,7 @@ public sealed partial class InventoryAppService
             .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken)
             ?? throw new EntityNotFoundException("InventoryItem for SKU", request.SkuId);
 
-        var ledger = CreateLedger(
+        var ledger = InventoryLedger.Create(
             item.Id,
             request.MovementType,
             request.Quantity,

@@ -59,16 +59,7 @@ public sealed partial class InventoryAppService
             }
         }
 
-        var holdMinutes = request.HoldMinutes > 0 ? request.HoldMinutes : 30;
-        var reservation = new InventoryReservation
-        {
-            ReferenceType = request.ReferenceType,
-            ReferenceId = request.ReferenceId,
-            Status = "ACTIVE",
-            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(holdMinutes),
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var reservation = InventoryReservation.Create(request.ReferenceType, request.ReferenceId, request.HoldMinutes);
 
         _dbContext.InventoryReservations.Add(reservation);
 
@@ -89,7 +80,7 @@ public sealed partial class InventoryAppService
             };
             reservationItems.Add(resItem);
 
-            ledgers.Add(CreateLedger(
+            ledgers.Add(InventoryLedger.Create(
                 item.Id,
                 "RESERVE",
                 req.Quantity,
@@ -141,7 +132,7 @@ public sealed partial class InventoryAppService
                 item.ReservedQuantity -= resItem.Quantity;
                 RefreshAvailableQuantity(item);
 
-                ledgers.Add(CreateLedger(
+                ledgers.Add(InventoryLedger.Create(
                     item.Id,
                     "COMMIT",
                     resItem.Quantity,
@@ -194,7 +185,7 @@ public sealed partial class InventoryAppService
                 item.ReservedQuantity -= resItem.Quantity;
                 RefreshAvailableQuantity(item);
 
-                ledgers.Add(CreateLedger(
+                ledgers.Add(InventoryLedger.Create(
                     item.Id,
                     "RELEASE",
                     resItem.Quantity,
@@ -249,7 +240,7 @@ public sealed partial class InventoryAppService
                     item.ReservedQuantity -= resItem.Quantity;
                     RefreshAvailableQuantity(item);
 
-                    ledgers.Add(CreateLedger(
+                    ledgers.Add(InventoryLedger.Create(
                         item.Id,
                         "RELEASE",
                         resItem.Quantity,

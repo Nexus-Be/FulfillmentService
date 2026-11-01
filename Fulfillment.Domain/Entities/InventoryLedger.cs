@@ -17,4 +17,26 @@ public class InventoryLedger
     // Navigation
     public InventoryItem? InventoryItem { get; set; }
     public InventoryReservation? Reservation { get; set; }
+
+    public static InventoryLedger Create(
+        Guid inventoryItemId,
+        string movementType,
+        int quantity,
+        string? referenceType = "MANUAL",
+        string? referenceId = null,
+        string? note = null,
+        Guid? reservationId = null)
+    {
+        return new InventoryLedger
+        {
+            InventoryItemId = inventoryItemId,
+            MovementType = movementType,
+            Quantity = quantity,
+            ReservationId = reservationId,
+            ReferenceType = referenceType ?? "MANUAL",
+            ReferenceId = referenceId,
+            Note = note,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
 }

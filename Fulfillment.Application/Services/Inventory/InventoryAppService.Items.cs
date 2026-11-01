@@ -22,22 +22,13 @@ public sealed partial class InventoryAppService
             throw new BusinessRuleValidationException($"Inventory for SKU '{request.SkuId}' already declared in warehouse '{request.WarehouseId}'.");
         }
 
-        var item = new InventoryItem
-        {
-            SkuId = request.SkuId,
-            WarehouseId = request.WarehouseId,
-            TotalQuantity = request.Quantity,
-            ReservedQuantity = 0,
-            UnavailableQuantity = 0,
-            AvailableQuantity = request.Quantity,
-            UpdatedAt = DateTimeOffset.UtcNow
-        };
+        var item = InventoryItem.Create(request.SkuId, request.WarehouseId, request.Quantity);
 
         _dbContext.InventoryItems.Add(item);
 
         if (request.Quantity > 0)
         {
-            var ledger = CreateLedger(
+            var ledger = InventoryLedger.Create(
                 item.Id,
                 InventoryMovementType.Initial.ToString().ToUpperInvariant(),
                 request.Quantity,
@@ -94,7 +85,7 @@ public sealed partial class InventoryAppService
             _ => throw new BusinessRuleValidationException("Unsupported adjustment type.")
         };
 
-        var ledger = CreateLedger(
+        var ledger = InventoryLedger.Create(
             item.Id,
             movementType,
             request.Quantity,

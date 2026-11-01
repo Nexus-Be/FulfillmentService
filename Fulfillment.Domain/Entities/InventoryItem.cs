@@ -18,4 +18,18 @@ public class InventoryItem
     public Warehouse? Warehouse { get; set; }
     public ICollection<InventoryReservationItem> ReservationItems { get; set; } = new List<InventoryReservationItem>();
     public ICollection<InventoryLedger> Ledgers { get; set; } = new List<InventoryLedger>();
+
+    public static InventoryItem Create(Guid skuId, Guid warehouseId, int initialQuantity)
+    {
+        return new InventoryItem
+        {
+            SkuId = skuId,
+            WarehouseId = warehouseId,
+            TotalQuantity = initialQuantity,
+            ReservedQuantity = 0,
+            UnavailableQuantity = 0,
+            AvailableQuantity = initialQuantity,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
 }

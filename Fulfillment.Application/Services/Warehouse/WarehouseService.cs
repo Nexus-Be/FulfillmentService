@@ -21,15 +21,7 @@ public sealed class WarehouseService : IWarehouseService
 
     public async Task<WarehouseDto> CreateAsync(CreateWarehouseDto dto, CancellationToken cancellationToken = default)
     {
-        var warehouse = new Warehouse
-        {
-            Code = dto.Code,
-            Name = dto.Name,
-            Address = dto.Address,
-            SellerId = dto.SellerId,
-            IsActive = true,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var warehouse = Warehouse.Create(dto.Code, dto.Name, dto.Address, dto.SellerId);
 
         _dbContext.Warehouses.Add(warehouse);
         await _dbContext.SaveChangesAsync(cancellationToken);
