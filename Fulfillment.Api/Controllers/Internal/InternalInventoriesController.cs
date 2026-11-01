@@ -68,4 +68,13 @@ public sealed class InternalInventoriesController : ControllerBase
         var result = await _inventoryAppService.GetByListSkuAsync(skuIds, cancellationToken);
         return Ok(result);
     }
+
+    [HttpGet("{skuId:guid}/ledgers")]
+    public async Task<IActionResult> GetLedgersBySkuId(
+        [FromRoute] Guid skuId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryAppService.GetLedgersBySkuIdAsync(skuId, cancellationToken);
+        return Ok(result);
+    }
 }

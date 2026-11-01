@@ -11,6 +11,12 @@ using Fulfillment.Domain.Exceptions;
 
 public sealed class GlobalExceptionHandlerMiddleware
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionHandlerMiddleware> _logger;
 
@@ -36,7 +42,65 @@ public sealed class GlobalExceptionHandlerMiddleware
     {
         var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
 
-        var (statusCode, errorCode, title, detail) = exception switch
+        if (exception is InsufficientInventoryBatchException batchEx)
+        {
+            const int statusCode = StatusCodes.Status400BadRequest;
+            const string errorCode = "INSUFFICIENT_INVENTORY";
+            const string title = "Insufficient inventory";
+            var detail = batchEx.Message;
+
+            _logger.LogWarning("[WARN {ErrorCode}] {Title}: {Detail}. Failures count: {Count}. Trace: {TraceId}",
+                errorCode, title, detail, batchEx.Failures.Count, traceId);
+
+            context.Response.ContentType = "application/problem+json";
+            context.Response.StatusCode = statusCode;
+
+            var batchProblemDetails = new
+            {
+                type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                title,
+                status = statusCode,
+                errorCode,
+                detail,
+                traceId,
+                items = batchEx.Failures
+            };
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(batchProblemDetails, JsonOptions));
+            return;
+        }
+
+        if (exception is ReservationAlreadyCommittedException committedEx)
+        {
+            const int statusCode = StatusCodes.Status409Conflict;
+            const string errorCode = "RESERVATION_ALREADY_COMMITTED";
+            const string title = "Reservation already committed";
+            var detail = committedEx.Message;
+
+            _logger.LogWarning("[WARN {ErrorCode}] {Title}: {Detail}. ReferenceId: {ReferenceId}. Trace: {TraceId}",
+                errorCode, title, detail, committedEx.ReferenceId, traceId);
+
+            context.Response.ContentType = "application/problem+json";
+            context.Response.StatusCode = statusCode;
+
+            var conflictProblemDetails = new
+            {
+                type = "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+                title,
+                status = statusCode,
+                errorCode,
+                detail,
+                traceId,
+                referenceId = committedEx.ReferenceId,
+                committedAt = committedEx.CommittedAt,
+                reservation = committedEx.Reservation
+            };
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(conflictProblemDetails, JsonOptions));
+            return;
+        }
+
+        var (status, code, errTitle, errDetail) = exception switch
         {
             InsufficientInventoryException iie => (
                 StatusCodes.Status400BadRequest,
@@ -75,29 +139,29 @@ public sealed class GlobalExceptionHandlerMiddleware
                 "An internal server error occurred. Please try again later.")
         };
 
-        if (statusCode >= 500)
+        if (status >= 500)
         {
-            _logger.LogError(exception, "[ERROR {ErrorCode}] {Title}: {Detail}. Trace: {TraceId}", errorCode, title, detail, traceId);
+            _logger.LogError(exception, "[ERROR {ErrorCode}] {Title}: {Detail}. Trace: {TraceId}", code, errTitle, errDetail, traceId);
         }
         else
         {
-            _logger.LogWarning("[WARN {ErrorCode}] {Title}: {Detail}. Trace: {TraceId}", errorCode, title, detail, traceId);
+            _logger.LogWarning("[WARN {ErrorCode}] {Title}: {Detail}. Trace: {TraceId}", code, errTitle, errDetail, traceId);
         }
 
         context.Response.ContentType = "application/problem+json";
-        context.Response.StatusCode = statusCode;
+        context.Response.StatusCode = status;
 
         var problemDetails = new
         {
-            type = $"https://tools.ietf.org/html/rfc9110#section-{(statusCode >= 500 ? "15.6.1" : "15.5.1")}",
-            title,
-            status = statusCode,
-            errorCode,
-            detail,
+            type = $"https://tools.ietf.org/html/rfc9110#section-{(status >= 500 ? "15.6.1" : "15.5.1")}",
+            title = errTitle,
+            status,
+            errorCode = code,
+            detail = errDetail,
             traceId
         };
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, JsonOptions));
     }
 }
 
