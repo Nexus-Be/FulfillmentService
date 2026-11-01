@@ -2,6 +2,7 @@ namespace Fulfillment.Domain.Entities;
 
 using System;
 using System.Collections.Generic;
+using Fulfillment.Domain.Exceptions;
 
 public class Warehouse
 {
@@ -21,6 +22,16 @@ public class Warehouse
 
     public static Warehouse Create(string code, string name, string? address, Guid? sellerId = null, string type = "OWN")
     {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            throw new BusinessRuleValidationException("Warehouse code is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new BusinessRuleValidationException("Warehouse name is required.");
+        }
+
         return new Warehouse
         {
             Code = code.Trim().ToUpperInvariant(),
@@ -31,5 +42,21 @@ public class Warehouse
             IsActive = true,
             CreatedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    public void UpdateDetails(string name, string? address)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new BusinessRuleValidationException("Warehouse name cannot be empty.");
+        }
+
+        Name = name.Trim();
+        Address = address?.Trim();
+    }
+
+    public void SetActive(bool isActive)
+    {
+        IsActive = isActive;
     }
 }

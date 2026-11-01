@@ -16,7 +16,6 @@ public class InventoryLedger
 
     // Navigation
     public InventoryItem? InventoryItem { get; set; }
-    public InventoryReservation? Reservation { get; set; }
 
     public static InventoryLedger Create(
         Guid inventoryItemId,

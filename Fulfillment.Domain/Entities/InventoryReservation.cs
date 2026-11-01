@@ -2,36 +2,89 @@ namespace Fulfillment.Domain.Entities;
 
 using System;
 using System.Collections.Generic;
+using Fulfillment.Domain.Constants;
+using Fulfillment.Domain.Exceptions;
 
 public class InventoryReservation
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public required string ReferenceType { get; set; }
     public required string ReferenceId { get; set; }
-    public string Status { get; set; } = "ACTIVE";
+    public string Status { get; set; } = ReservationStatus.Active;
     public DateTimeOffset ExpiresAt { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? ReleasedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
+    public bool IsActive => Status == ReservationStatus.Active;
+    public bool IsConfirmed => Status == ReservationStatus.Confirmed;
+    public bool IsReleased => Status == ReservationStatus.Released;
+    public bool IsExpired => Status == ReservationStatus.Expired;
+
     // Navigation
     public ICollection<InventoryReservationItem> ReservationItems { get; set; } = new List<InventoryReservationItem>();
-    public ICollection<InventoryLedger> Ledgers { get; set; } = new List<InventoryLedger>();
 
-    public static InventoryReservation Create(string referenceType, string referenceId, int holdMinutes = 30)
+    public static InventoryReservation Create(string referenceId, int holdMinutes = 30)
     {
         var effectiveHoldMinutes = holdMinutes > 0 ? holdMinutes : 30;
         var now = DateTimeOffset.UtcNow;
 
         return new InventoryReservation
         {
-            ReferenceType = referenceType,
             ReferenceId = referenceId,
-            Status = "ACTIVE",
+            Status = ReservationStatus.Active,
             ExpiresAt = now.AddMinutes(effectiveHoldMinutes),
             CreatedAt = now,
             UpdatedAt = now
         };
+    }
+
+    public bool Commit()
+    {
+        if (IsConfirmed)
+        {
+            return false;
+        }
+
+        if (!IsActive)
+        {
+            throw new BusinessRuleValidationException($"Cannot commit reservation with status '{Status}'.");
+        }
+
+        Status = ReservationStatus.Confirmed;
+        ConfirmedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return true;
+    }
+
+    public bool Release()
+    {
+        if (IsReleased)
+        {
+            return false;
+        }
+
+        if (!IsActive)
+        {
+            throw new BusinessRuleValidationException($"Cannot release reservation with status '{Status}'.");
+        }
+
+        Status = ReservationStatus.Released;
+        ReleasedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return true;
+    }
+
+    public bool Expire()
+    {
+        if (!IsActive)
+        {
+            return false;
+        }
+
+        Status = ReservationStatus.Expired;
+        ReleasedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return true;
     }
 }
