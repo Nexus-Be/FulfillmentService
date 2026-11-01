@@ -77,4 +77,13 @@ public sealed class InternalInventoriesController : ControllerBase
         var result = await _inventoryAppService.GetLedgersBySkuIdAsync(skuId, cancellationToken);
         return Ok(result);
     }
+
+    [HttpPost("ledgers")]
+    public async Task<IActionResult> RecordLedgerEntry(
+        [FromBody] RecordLedgerRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryAppService.RecordLedgerEntryAsync(request, cancellationToken);
+        return Ok(result);
+    }
 }
