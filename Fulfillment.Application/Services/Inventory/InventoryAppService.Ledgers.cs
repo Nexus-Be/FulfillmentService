@@ -17,17 +17,14 @@ public sealed partial class InventoryAppService
             .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken)
             ?? throw new EntityNotFoundException("InventoryItem for SKU", request.SkuId);
 
-        var ledger = new InventoryLedger
-        {
-            InventoryItemId = item.Id,
-            MovementType = request.MovementType,
-            Quantity = request.Quantity,
-            ReservationId = request.ReservationId,
-            ReferenceType = request.ReferenceType,
-            ReferenceId = request.ReferenceId,
-            Note = request.Note,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var ledger = CreateLedger(
+            item.Id,
+            request.MovementType,
+            request.Quantity,
+            referenceType: request.ReferenceType,
+            referenceId: request.ReferenceId,
+            note: request.Note,
+            reservationId: request.ReservationId);
 
         _dbContext.InventoryLedgers.Add(ledger);
         await _dbContext.SaveChangesAsync(cancellationToken);

@@ -79,8 +79,7 @@ public sealed partial class InventoryAppService
         {
             var item = itemMap[req.SkuId];
             item.ReservedQuantity += req.Quantity;
-            item.AvailableQuantity = item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity;
-            item.UpdatedAt = DateTimeOffset.UtcNow;
+            RefreshAvailableQuantity(item);
 
             var resItem = new InventoryReservationItem
             {
@@ -90,18 +89,14 @@ public sealed partial class InventoryAppService
             };
             reservationItems.Add(resItem);
 
-            var ledger = new InventoryLedger
-            {
-                InventoryItemId = item.Id,
-                MovementType = "RESERVE",
-                Quantity = req.Quantity,
-                ReservationId = reservation.Id,
-                ReferenceType = request.ReferenceType,
-                ReferenceId = request.ReferenceId,
-                Note = $"Reserved {req.Quantity} for {request.ReferenceType} {request.ReferenceId}",
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-            ledgers.Add(ledger);
+            ledgers.Add(CreateLedger(
+                item.Id,
+                "RESERVE",
+                req.Quantity,
+                referenceType: request.ReferenceType,
+                referenceId: request.ReferenceId,
+                note: $"Reserved {req.Quantity} for {request.ReferenceType} {request.ReferenceId}",
+                reservationId: reservation.Id));
         }
 
         _dbContext.InventoryReservationItems.AddRange(reservationItems);
@@ -144,20 +139,16 @@ public sealed partial class InventoryAppService
             {
                 item.TotalQuantity -= resItem.Quantity;
                 item.ReservedQuantity -= resItem.Quantity;
-                item.AvailableQuantity = item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity;
-                item.UpdatedAt = DateTimeOffset.UtcNow;
+                RefreshAvailableQuantity(item);
 
-                ledgers.Add(new InventoryLedger
-                {
-                    InventoryItemId = item.Id,
-                    MovementType = "COMMIT",
-                    Quantity = resItem.Quantity,
-                    ReservationId = reservation.Id,
-                    ReferenceType = referenceType,
-                    ReferenceId = referenceId,
-                    Note = $"Committed {resItem.Quantity} for {referenceType} {referenceId}",
-                    CreatedAt = DateTimeOffset.UtcNow
-                });
+                ledgers.Add(CreateLedger(
+                    item.Id,
+                    "COMMIT",
+                    resItem.Quantity,
+                    referenceType: referenceType,
+                    referenceId: referenceId,
+                    note: $"Committed {resItem.Quantity} for {referenceType} {referenceId}",
+                    reservationId: reservation.Id));
             }
         }
 
@@ -201,20 +192,16 @@ public sealed partial class InventoryAppService
             if (itemMap.TryGetValue(resItem.InventoryItemId, out var item))
             {
                 item.ReservedQuantity -= resItem.Quantity;
-                item.AvailableQuantity = item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity;
-                item.UpdatedAt = DateTimeOffset.UtcNow;
+                RefreshAvailableQuantity(item);
 
-                ledgers.Add(new InventoryLedger
-                {
-                    InventoryItemId = item.Id,
-                    MovementType = "RELEASE",
-                    Quantity = resItem.Quantity,
-                    ReservationId = reservation.Id,
-                    ReferenceType = referenceType,
-                    ReferenceId = referenceId,
-                    Note = reason ?? $"Released {resItem.Quantity} for {referenceType} {referenceId}",
-                    CreatedAt = DateTimeOffset.UtcNow
-                });
+                ledgers.Add(CreateLedger(
+                    item.Id,
+                    "RELEASE",
+                    resItem.Quantity,
+                    referenceType: referenceType,
+                    referenceId: referenceId,
+                    note: reason ?? $"Released {resItem.Quantity} for {referenceType} {referenceId}",
+                    reservationId: reservation.Id));
             }
         }
 
@@ -260,20 +247,16 @@ public sealed partial class InventoryAppService
                 if (itemMap.TryGetValue(resItem.InventoryItemId, out var item))
                 {
                     item.ReservedQuantity -= resItem.Quantity;
-                    item.AvailableQuantity = item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity;
-                    item.UpdatedAt = DateTimeOffset.UtcNow;
+                    RefreshAvailableQuantity(item);
 
-                    ledgers.Add(new InventoryLedger
-                    {
-                        InventoryItemId = item.Id,
-                        MovementType = "RELEASE",
-                        Quantity = resItem.Quantity,
-                        ReservationId = reservation.Id,
-                        ReferenceType = reservation.ReferenceType,
-                        ReferenceId = reservation.ReferenceId,
-                        Note = "Auto-expired hold released back to available stock",
-                        CreatedAt = DateTimeOffset.UtcNow
-                    });
+                    ledgers.Add(CreateLedger(
+                        item.Id,
+                        "RELEASE",
+                        resItem.Quantity,
+                        referenceType: reservation.ReferenceType,
+                        referenceId: reservation.ReferenceId,
+                        note: "Auto-expired hold released back to available stock",
+                        reservationId: reservation.Id));
                 }
             }
 

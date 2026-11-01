@@ -37,15 +37,11 @@ public sealed partial class InventoryAppService
 
         if (request.Quantity > 0)
         {
-            var ledger = new InventoryLedger
-            {
-                InventoryItemId = item.Id,
-                MovementType = InventoryMovementType.Initial.ToString().ToUpperInvariant(),
-                Quantity = request.Quantity,
-                ReferenceType = "MANUAL",
-                Note = request.Note ?? "Initial inventory declaration.",
-                CreatedAt = DateTimeOffset.UtcNow
-            };
+            var ledger = CreateLedger(
+                item.Id,
+                InventoryMovementType.Initial.ToString().ToUpperInvariant(),
+                request.Quantity,
+                note: request.Note ?? "Initial inventory declaration.");
 
             _dbContext.InventoryLedgers.Add(ledger);
         }
@@ -89,8 +85,7 @@ public sealed partial class InventoryAppService
         }
 
         item.TotalQuantity = newTotal;
-        item.AvailableQuantity = item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity;
-        item.UpdatedAt = DateTimeOffset.UtcNow;
+        RefreshAvailableQuantity(item);
 
         var movementType = request.Type switch
         {
@@ -99,15 +94,11 @@ public sealed partial class InventoryAppService
             _ => throw new BusinessRuleValidationException("Unsupported adjustment type.")
         };
 
-        var ledger = new InventoryLedger
-        {
-            InventoryItemId = item.Id,
-            MovementType = movementType,
-            Quantity = request.Quantity,
-            ReferenceType = "MANUAL",
-            Note = request.Reason,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
+        var ledger = CreateLedger(
+            item.Id,
+            movementType,
+            request.Quantity,
+            note: request.Reason);
 
         _dbContext.InventoryLedgers.Add(ledger);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -116,7 +107,7 @@ public sealed partial class InventoryAppService
             item.SkuId,
             item.TotalQuantity,
             item.ReservedQuantity,
-            item.AvailableQuantity.Value,
+            item.AvailableQuantity ?? 0,
             ledger.Id);
     }
 
@@ -145,15 +136,4 @@ public sealed partial class InventoryAppService
 
         return items.Select(MapToResponse).ToList();
     }
-
-    private static InventoryItemResponse MapToResponse(InventoryItem item) =>
-        new InventoryItemResponse(
-            item.Id,
-            item.SkuId,
-            item.WarehouseId,
-            item.TotalQuantity,
-            item.ReservedQuantity,
-            item.UnavailableQuantity,
-            item.AvailableQuantity ?? (item.TotalQuantity - item.ReservedQuantity - item.UnavailableQuantity),
-            item.UpdatedAt);
 }
