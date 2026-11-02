@@ -99,12 +99,7 @@ public sealed partial class InventoryAppService
             throw new EntityNotFoundException("InventoryReservation for reference", referenceId);
         }
 
-        if (!reservation.Commit())
-        {
-            return await MapToReservationResponseAsync(reservation, cancellationToken);
-        }
-
-        var committedAt = reservation.ConfirmedAt ?? DateTimeOffset.UtcNow;
+        var committedAt = DateTimeOffset.UtcNow;
         var itemIds = reservation.ReservationItems.Select(ri => ri.InventoryItemId).Distinct().ToList();
         var items = await _dbContext.InventoryItems
             .Where(i => itemIds.Contains(i.Id))
@@ -134,13 +129,17 @@ public sealed partial class InventoryAppService
         }
 
         var response = await MapToReservationResponseAsync(reservation, cancellationToken);
+        var confirmedResponse = response with
+        {
+            Status = ReservationStatus.Confirmed,
+            ConfirmedAt = committedAt
+        };
 
         _dbContext.InventoryLedgers.AddRange(ledgers);
-        // Xóa thẳng khỏi kho tạm để giải phóng bảng
         _dbContext.InventoryReservations.Remove(reservation);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return response;
+        return confirmedResponse;
     }
 
     public async Task<InventoryReservationResponse> ReleaseReservationAsync(string referenceId, string? reason = null, CancellationToken cancellationToken = default)
@@ -149,8 +148,7 @@ public sealed partial class InventoryAppService
             .Include(r => r.ReservationItems)
             .FirstOrDefaultAsync(r => r.ReferenceId == referenceId, cancellationToken);
 
-        // Kiểm tra xem đơn đã commit xuất kho chưa (dù còn hay đã xóa khỏi kho tạm)
-        if (reservation == null || reservation.IsConfirmed)
+        if (reservation == null)
         {
             var committed = await TryGetCommittedReservationAsync(referenceId, cancellationToken);
             if (committed != null)
@@ -161,25 +159,22 @@ public sealed partial class InventoryAppService
                     committed);
             }
 
-            if (reservation == null)
-            {
-                return InventoryReservationResponse.AlreadyReleased(referenceId);
-            }
-        }
-
-        if (!reservation.Release())
-        {
-            return await MapToReservationResponseAsync(reservation, cancellationToken);
+            return InventoryReservationResponse.AlreadyReleased(referenceId);
         }
 
         await ReleaseHoldItemsAsync(reservation.ReservationItems, cancellationToken);
 
         var response = await MapToReservationResponseAsync(reservation, cancellationToken);
+        var releasedResponse = response with
+        {
+            Status = ReservationStatus.Released,
+            ReleasedAt = DateTimeOffset.UtcNow
+        };
 
         _dbContext.InventoryReservations.Remove(reservation);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return response;
+        return releasedResponse;
     }
 
     public async Task<int> AutoExpireReservationsAsync(CancellationToken cancellationToken = default)
@@ -249,12 +244,8 @@ public sealed partial class InventoryAppService
     }
 
     /// <summary>
-    /// Tái tạo thông tin reservation từ lịch sử sổ cái (InventoryLedgers) nếu đơn hàng đã được commit trước đó.
-    /// Trả về <see cref="InventoryReservationResponse"/> nếu tìm thấy bản ghi commit trong sổ cái (hỗ trợ Idempotency); ngược lại trả về <c>null</c> nếu chưa từng commit.
+    /// Tìm thông của reservation trong số cái xem đã thanh toán chưa 
     /// </summary>
-    /// <param name="referenceId">Mã tham chiếu đơn hàng (Order/Reference ID).</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Thông tin reservation đã commit nếu tìm thấy trong sổ cái, hoặc <c>null</c> nếu không tồn tại.</returns>
     private async Task<InventoryReservationResponse?> TryGetCommittedReservationAsync(string referenceId, CancellationToken cancellationToken)
     {
         var pastLedgers = await _dbContext.InventoryLedgers

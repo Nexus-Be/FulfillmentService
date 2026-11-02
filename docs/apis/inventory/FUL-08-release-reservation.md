@@ -12,15 +12,19 @@
 
 ## 2. Mô tả nghiệp vụ
 Giải phóng số lượng hàng đang bị giữ chỗ tạm thời trả về lại cho tồn kho khả dụng:
-1. **Chặn đứng khi đơn đã xuất kho (Conflict Guard)**:
-   - Nếu đơn hàng **ĐÃ COMMIT XUẤT KHO TRƯỚC ĐÓ** (tìm thấy trong Sổ cái hoặc phiếu đã `Confirmed`):
+1. **Bản chất nghiệp vụ Giữ chỗ tạm**:
+   - Giữ chỗ tạm chỉ đóng vai trò là chiếc khóa tạm thời (Cart Lock) trong thời gian chờ thanh toán, chưa phát sinh mua bán thực tế.
+   - Khi hủy giữ chỗ: Chỉ đơn giản là nhả số lượng tồn kho khả dụng và xóa sạch bản ghi khỏi bảng tạm để giải phóng tài nguyên.
+   - **Tuyệt đối không ghi vào Sổ cái `inventory_ledger`**: Vì hàng hóa chưa từng xuất kho hay đổi chủ sở hữu, không làm biến động tài sản thực tế nên không được phép ghi rác vào Sổ cái kế toán kho.
+   - **Lý do hủy**: Chi tiết lý do hủy đơn do phía `OrderService` chịu trách nhiệm lưu trữ trên bảng đơn hàng; kho bãi chỉ thực hiện nhiệm vụ điều phối và nhả tồn kho.
+2. **Chặn đứng khi đơn đã xuất kho (Conflict Guard)**:
+   - Nếu đơn hàng **ĐÃ COMMIT XUẤT KHO TRƯỚC ĐÓ** (tìm thấy bản ghi `COMMIT` trong Sổ cái kế toán):
    - Hệ thống **chặn đứng thao tác hủy**, ném lỗi **HTTP 409 Conflict** (`RESERVATION_ALREADY_COMMITTED`) và đính kèm nguyên vẹn thông tin lần commit trước để Frontend hiển thị lý do cho người dùng.
-2. **Nhả hàng về kho (Release Hold)**:
+3. **Nhả hàng về kho (Release Hold)**:
    - Nếu phiếu hợp lệ (`ACTIVE`) $\rightarrow$ `ReservedQuantity -= quantity` (hàng quay lại trạng thái bán được).
    - Xóa phiếu khỏi bảng tạm `inventory_reservations` (Cascade delete tự động dọn dẹp items).
-   - **Không ghi Sổ cái** (vì lúc Hold chưa ghi thì lúc Release cũng không ghi rác vào Sổ cái).
-3. **Idempotency**:
-   - Nếu gọi lại nhiều lần cho một đơn đã được hủy/xóa từ trước $\rightarrow$ Trả về kết quả `RELEASED` an toàn.
+4. **Idempotency (Bảo vệ gọi lặp)**:
+   - Nếu gọi lại nhiều lần cho một đơn đã được hủy/xóa từ trước $\rightarrow$ Trả về kết quả `RELEASED` an toàn, không ném lỗi 404 nhầm lẫn.
 
 ## 3. Path Parameters & Query Parameters
 | Tham số | Vị trí | Kiểu | Bắt buộc | Mô tả |
