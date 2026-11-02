@@ -12,6 +12,8 @@ using Fulfillment.Domain.Exceptions;
 
 public sealed partial class InventoryAppService
 {
+    private sealed record AggregatedReservationItem(Guid SkuId, int Quantity);
+
     public async Task<InventoryReservationResponse> CreateReservationAsync(CreateReservationRequest request, CancellationToken cancellationToken = default)
     {
         if (request.Items.Count == 0)
@@ -32,19 +34,10 @@ public sealed partial class InventoryAppService
             throw new BusinessRuleValidationException($"Reservation for '{request.ReferenceId}' already exists with status '{existing.Status}'.");
         }
 
-        var aggregatedRequests = request.Items
-            .GroupBy(x => x.SkuId)
-            .Select(g => new { SkuId = g.Key, Quantity = g.Sum(x => x.Quantity) })
-            .OrderBy(x => x.SkuId)
-            .ToList();
-
+        var aggregatedRequests = AggregateReservationItems(request.Items);
         var skuIds = aggregatedRequests.Select(x => x.SkuId).ToList();
+        var itemMap = await GetInventoryItemMapBySkuIdsAsync(skuIds, cancellationToken);
 
-        var items = await _dbContext.InventoryItems
-            .Where(i => skuIds.Contains(i.SkuId))
-            .ToListAsync(cancellationToken);
-
-        var itemMap = items.ToDictionary(i => i.SkuId);
         var failures = new List<ReservationItemFailure>();
 
         foreach (var req in aggregatedRequests)
@@ -53,7 +46,7 @@ public sealed partial class InventoryAppService
             {
                 failures.Add(new ReservationItemFailure(
                     req.SkuId,
-                    "SKU_NOT_FOUND",
+                    ReservationItemErrorCodes.SkuNotFound,
                     req.Quantity,
                     0,
                     $"Inventory item for SKU '{req.SkuId}' was not found in warehouse inventory."));
@@ -65,7 +58,7 @@ public sealed partial class InventoryAppService
             {
                 failures.Add(new ReservationItemFailure(
                     req.SkuId,
-                    "INSUFFICIENT_STOCK",
+                    ReservationItemErrorCodes.InsufficientStock,
                     req.Quantity,
                     available,
                     $"Requested quantity ({req.Quantity}) exceeds available stock ({available}) for SKU '{req.SkuId}'."));
@@ -224,6 +217,26 @@ public sealed partial class InventoryAppService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return expiredReservations.Count;
+    }
+
+    private static IReadOnlyList<AggregatedReservationItem> AggregateReservationItems(IReadOnlyList<ReserveInventoryItemRequest> items)
+    {
+        return items
+            .GroupBy(x => x.SkuId)
+            .Select(g => new AggregatedReservationItem(g.Key, g.Sum(x => x.Quantity)))
+            .OrderBy(x => x.SkuId)
+            .ToList();
+    }
+
+    private async Task<Dictionary<Guid, InventoryItem>> GetInventoryItemMapBySkuIdsAsync(
+        IReadOnlyList<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var items = await _dbContext.InventoryItems
+            .Where(i => skuIds.Contains(i.SkuId))
+            .ToListAsync(cancellationToken);
+
+        return items.ToDictionary(i => i.SkuId);
     }
 
     private async Task<InventoryReservationResponse?> TryGetCommittedReservationAsync(string referenceId, CancellationToken cancellationToken)

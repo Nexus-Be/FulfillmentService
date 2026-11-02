@@ -80,6 +80,31 @@ public class InventoryReservationTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateReservation_WhenRequestHasDuplicateSkus_ShouldAggregateQuantitiesCorrectly()
+    {
+        // Arrange: Sku1 appears twice (qty 2 and qty 3), total 5
+        var request = new CreateReservationRequest(
+            ReferenceId: "ORD-DUP-SKU",
+            Items: new List<ReserveInventoryItemRequest>
+            {
+                new(_sku1, 2),
+                new(_sku1, 3)
+            });
+
+        // Act
+        var response = await _service.CreateReservationAsync(request);
+
+        // Assert
+        response.Items.Should().HaveCount(1);
+        response.Items[0].SkuId.Should().Be(_sku1);
+        response.Items[0].Quantity.Should().Be(5);
+
+        var item = await _dbContext.InventoryItems.FirstAsync(i => i.SkuId == _sku1);
+        item.ReservedQuantity.Should().Be(5);
+        item.AvailableQuantity.Should().Be(5);
+    }
+
+    [Fact]
     public async Task CreateReservation_WhenBatchHasErrors_ShouldCollectAllFailuresAndThrowBatchException()
     {
         // Arrange: Sku1 requests 20 (available is 10), FakeSku does not exist
@@ -101,13 +126,13 @@ public class InventoryReservationTests : IDisposable
 
         var sku1Failure = ex.Which.Failures.FirstOrDefault(f => f.SkuId == _sku1);
         sku1Failure.Should().NotBeNull();
-        sku1Failure!.ErrorCode.Should().Be("INSUFFICIENT_STOCK");
+        sku1Failure!.ErrorCode.Should().Be(ReservationItemErrorCodes.InsufficientStock);
         sku1Failure.AvailableQuantity.Should().Be(10);
         sku1Failure.RequestedQuantity.Should().Be(20);
 
         var fakeFailure = ex.Which.Failures.FirstOrDefault(f => f.SkuId == fakeSku);
         fakeFailure.Should().NotBeNull();
-        fakeFailure!.ErrorCode.Should().Be("SKU_NOT_FOUND");
+        fakeFailure!.ErrorCode.Should().Be(ReservationItemErrorCodes.SkuNotFound);
         fakeFailure.AvailableQuantity.Should().Be(0);
 
         // Ensure nothing was partially reserved
