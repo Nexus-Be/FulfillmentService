@@ -22,13 +22,10 @@ public class InventoryLedgerConfiguration : IEntityTypeConfiguration<InventoryLe
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
 
         builder.HasIndex(x => new { x.InventoryItemId, x.CreatedAt });
+        builder.HasIndex(x => x.ReservationId);
 
         builder.HasOne(x => x.InventoryItem)
             .WithMany(i => i.Ledgers)
             .HasForeignKey(x => x.InventoryItemId);
-
-        builder.HasOne(x => x.Reservation)
-            .WithMany(r => r.Ledgers)
-            .HasForeignKey(x => x.ReservationId);
     }
 }

@@ -16,7 +16,6 @@ public class InventoryItemConfiguration : IEntityTypeConfiguration<InventoryItem
         builder.Property(x => x.WarehouseId).HasColumnName("warehouse_id").IsRequired();
         builder.Property(x => x.TotalQuantity).HasColumnName("total_quantity").HasDefaultValue(0).IsRequired();
         builder.Property(x => x.ReservedQuantity).HasColumnName("reserved_quantity").HasDefaultValue(0).IsRequired();
-        builder.Property(x => x.UnavailableQuantity).HasColumnName("unavailable_quantity").HasDefaultValue(0).IsRequired();
         builder.Property(x => x.AvailableQuantity).HasColumnName("available_quantity");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()").IsRequired();
 
