@@ -6,13 +6,200 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Fulfillment.Application.Interfaces;
 using Fulfillment.Domain.Constants;
 using Fulfillment.Domain.Entities;
+using Fulfillment.Domain.Enums;
 using Fulfillment.Domain.Exceptions;
 
-public sealed partial class InventoryAppService
+public class InventoryService : IInventoryService, IInventoryAppService
 {
+    private readonly IFulfillmentDbContext _dbContext;
+
+    public InventoryService(IFulfillmentDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
     private sealed record AggregatedReservationItem(Guid SkuId, int Quantity);
+
+    #region Items
+
+    public async Task<InventoryItemResponse> DeclareInventoryAsync(DeclareInventoryRequest request, CancellationToken cancellationToken = default)
+    {
+        var existing = await _dbContext.InventoryItems
+            .FirstOrDefaultAsync(i => i.SkuId == request.SkuId && i.WarehouseId == request.WarehouseId, cancellationToken);
+
+        if (existing != null)
+        {
+            throw new BusinessRuleValidationException($"Inventory for SKU '{request.SkuId}' already declared in warehouse '{request.WarehouseId}'.");
+        }
+
+        var item = InventoryItem.Create(request.SkuId, request.WarehouseId, request.Quantity);
+
+        _dbContext.InventoryItems.Add(item);
+
+        if (request.Quantity > 0)
+        {
+            var ledger = InventoryLedger.Create(
+                item.Id,
+                InventoryMovementType.Initial.ToString().ToUpperInvariant(),
+                request.Quantity,
+                note: request.Note ?? "Initial inventory declaration.");
+
+            _dbContext.InventoryLedgers.Add(ledger);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapToResponse(item);
+    }
+
+    public async Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, CancellationToken cancellationToken = default)
+    {
+        ValidateAdjustRequest(request);
+
+        var item = await _dbContext.InventoryItems
+            .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken)
+            ?? throw new EntityNotFoundException("InventoryItem for SKU", request.SkuId);
+
+        item.Adjust(request.Quantity);
+
+        var movementType = request.Type switch
+        {
+            InventoryAdjustmentType.Intake => InventoryMovementType.Intake.ToString().ToUpperInvariant(),
+            InventoryAdjustmentType.Adjust => InventoryMovementType.Adjust.ToString().ToUpperInvariant(),
+            _ => throw new BusinessRuleValidationException("Unsupported adjustment type.")
+        };
+
+        var ledger = InventoryLedger.Create(
+            item.Id,
+            movementType,
+            request.Quantity,
+            note: request.Note);
+
+        _dbContext.InventoryLedgers.Add(ledger);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new AdjustInventoryResponse(
+            item.SkuId,
+            item.TotalQuantity,
+            item.ReservedQuantity,
+            item.AvailableQuantity ?? 0,
+            ledger.Id);
+    }
+
+    private static void ValidateAdjustRequest(AdjustInventoryRequest request)
+    {
+        if (request.Type == InventoryAdjustmentType.Intake && request.Quantity <= 0)
+        {
+            throw new BusinessRuleValidationException("Quantity for INTAKE must be greater than zero.");
+        }
+
+        if (request.Type == InventoryAdjustmentType.Adjust && request.Quantity == 0)
+        {
+            throw new BusinessRuleValidationException("Quantity for ADJUST cannot be zero.");
+        }
+    }
+
+    public async Task<InventoryItemResponse?> GetBySkuIdAsync(Guid skuId, CancellationToken cancellationToken = default)
+    {
+        var item = await _dbContext.InventoryItems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.SkuId == skuId, cancellationToken);
+
+        return item == null ? null : MapToResponse(item);
+    }
+
+    public async Task<IReadOnlyList<InventoryItemResponse>> GetByListSkuAsync(IReadOnlyList<Guid> skuIds, CancellationToken cancellationToken = default)
+    {
+        if (skuIds == null || skuIds.Count == 0)
+        {
+            return Array.Empty<InventoryItemResponse>();
+        }
+
+        var distinctSkuIds = skuIds.Distinct().ToList();
+
+        var items = await _dbContext.InventoryItems
+            .AsNoTracking()
+            .Where(i => distinctSkuIds.Contains(i.SkuId))
+            .ToListAsync(cancellationToken);
+
+        return items.Select(MapToResponse).ToList();
+    }
+
+    private static InventoryItemResponse MapToResponse(InventoryItem item) =>
+        new InventoryItemResponse(
+            item.Id,
+            item.SkuId,
+            item.WarehouseId,
+            item.TotalQuantity,
+            item.ReservedQuantity,
+            item.AvailableQuantity ?? (item.TotalQuantity - item.ReservedQuantity),
+            item.UpdatedAt);
+
+    #endregion
+
+    #region Ledgers
+
+    public async Task<InventoryLedgerResponse> RecordLedgerEntryAsync(RecordLedgerRequest request, CancellationToken cancellationToken = default)
+    {
+        var item = await _dbContext.InventoryItems
+            .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken)
+            ?? throw new EntityNotFoundException("InventoryItem for SKU", request.SkuId);
+
+        var ledger = InventoryLedger.Create(
+            item.Id,
+            request.MovementType,
+            request.Quantity,
+            referenceType: request.ReferenceType,
+            referenceId: request.ReferenceId,
+            note: request.Note,
+            reservationId: request.ReservationId);
+
+        _dbContext.InventoryLedgers.Add(ledger);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new InventoryLedgerResponse(
+            ledger.Id,
+            request.SkuId,
+            ledger.MovementType,
+            ledger.Quantity,
+            ledger.ReservationId,
+            ledger.ReferenceType,
+            ledger.ReferenceId,
+            ledger.Note,
+            ledger.CreatedAt);
+    }
+
+    public async Task<IReadOnlyList<InventoryLedgerResponse>> GetLedgersBySkuIdAsync(Guid skuId, CancellationToken cancellationToken = default)
+    {
+        var item = await _dbContext.InventoryItems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(i => i.SkuId == skuId, cancellationToken)
+            ?? throw new EntityNotFoundException("InventoryItem for SKU", skuId);
+
+        var ledgers = await _dbContext.InventoryLedgers
+            .AsNoTracking()
+            .Where(l => l.InventoryItemId == item.Id)
+            .OrderByDescending(l => l.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return ledgers.Select(l => new InventoryLedgerResponse(
+            l.Id,
+            skuId,
+            l.MovementType,
+            l.Quantity,
+            l.ReservationId,
+            l.ReferenceType,
+            l.ReferenceId,
+            l.Note,
+            l.CreatedAt)).ToList();
+    }
+
+    #endregion
+
+    #region Reservations
 
     public async Task<InventoryReservationResponse> CreateReservationAsync(CreateReservationRequest request, CancellationToken cancellationToken = default)
     {
@@ -184,7 +371,6 @@ public sealed partial class InventoryAppService
         var allItems = expiredReservations.SelectMany(r => r.ReservationItems).ToList();
         await ReleaseHoldItemsAsync(allItems, cancellationToken);
 
-        // Xóa thẳng tất cả các phiếu quá hạn rác khỏi kho tạm
         _dbContext.InventoryReservations.RemoveRange(expiredReservations);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -234,9 +420,6 @@ public sealed partial class InventoryAppService
         return reservationItems;
     }
 
-    /// <summary>
-    /// Tìm thông của reservation trong số cái xem đã thanh toán chưa 
-    /// </summary>
     private async Task<InventoryReservationResponse?> TryGetCommittedReservationAsync(string referenceId, CancellationToken cancellationToken)
     {
         var pastLedgers = await _dbContext.InventoryLedgers
@@ -303,5 +486,14 @@ public sealed partial class InventoryAppService
             r.ExpiresAt,
             r.CreatedAt,
             itemResponses);
+    }
+
+    #endregion
+}
+
+public class InventoryAppService : InventoryService
+{
+    public InventoryAppService(IFulfillmentDbContext dbContext) : base(dbContext)
+    {
     }
 }

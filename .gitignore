@@ -38,6 +38,10 @@ ehthumbs.db
 .env
 .env.*
 .env.local
+
+## AI Agent Review Artifacts (DO NOT COMMIT)
+.agents/review/
+
 !.env.example
 !.env.*.example
 *.pfx

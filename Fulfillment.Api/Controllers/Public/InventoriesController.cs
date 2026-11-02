@@ -11,11 +11,11 @@ using Fulfillment.Application.Services.Inventory;
 [Route("api/v1/inventories")]
 public sealed class InventoriesController : ControllerBase
 {
-    private readonly IInventoryAppService _inventoryAppService;
+    private readonly IInventoryService _inventoryService;
 
-    public InventoriesController(IInventoryAppService inventoryAppService)
+    public InventoriesController(IInventoryService inventoryService)
     {
-        _inventoryAppService = inventoryAppService;
+        _inventoryService = inventoryService;
     }
 
     /// <summary>Initializes warehouse inventory for a product SKU.</summary>
@@ -24,7 +24,7 @@ public sealed class InventoriesController : ControllerBase
         [FromBody] DeclareInventoryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryAppService.DeclareInventoryAsync(request, cancellationToken);
+        var result = await _inventoryService.DeclareInventoryAsync(request, cancellationToken);
         return Ok(result);
     }
 
@@ -34,7 +34,7 @@ public sealed class InventoriesController : ControllerBase
         [FromRoute] Guid skuId,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryAppService.GetBySkuIdAsync(skuId, cancellationToken);
+        var result = await _inventoryService.GetBySkuIdAsync(skuId, cancellationToken);
         if (result == null)
         {
             return NotFound();
@@ -49,7 +49,7 @@ public sealed class InventoriesController : ControllerBase
         [FromBody] IReadOnlyList<Guid> skuIds,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryAppService.GetByListSkuAsync(skuIds, cancellationToken);
+        var result = await _inventoryService.GetByListSkuAsync(skuIds, cancellationToken);
         return Ok(result);
     }
 }

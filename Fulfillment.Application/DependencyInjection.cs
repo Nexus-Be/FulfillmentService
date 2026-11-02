@@ -11,7 +11,8 @@ public static class DependencyInjection
     {
         services.AddScoped<IShipmentService, ShipmentService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
-        services.AddScoped<IInventoryAppService, InventoryAppService>();
+        services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<IInventoryAppService>(sp => (IInventoryAppService)sp.GetRequiredService<IInventoryService>());
         return services;
     }
 }

@@ -2,26 +2,35 @@ namespace Fulfillment.Application.Services.Inventory;
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using Fulfillment.Domain.Constants;
 using Fulfillment.Domain.Entities;
 
-public sealed record ReserveInventoryItemRequest(
-    [Required(ErrorMessage = "SKU ID is required.")]
+public sealed record InventoryItemResponse(
+    Guid Id,
     Guid SkuId,
+    Guid WarehouseId,
+    int TotalQuantity,
+    int ReservedQuantity,
+    int AvailableQuantity,
+    DateTimeOffset UpdatedAt);
 
-    [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0.")]
-    int Quantity);
+public sealed record AdjustInventoryResponse(
+    Guid SkuId,
+    int TotalQuantity,
+    int ReservedQuantity,
+    int AvailableQuantity,
+    Guid AdjustmentLedgerId);
 
-public sealed record CreateReservationRequest(
-    [Required(ErrorMessage = "Reference ID is required.")]
-    string ReferenceId,
-
-    [Required(ErrorMessage = "Items list cannot be null.")]
-    IReadOnlyList<ReserveInventoryItemRequest> Items,
-
-    int HoldMinutes = 30);
+public sealed record InventoryLedgerResponse(
+    Guid Id,
+    Guid SkuId,
+    string MovementType,
+    int Quantity,
+    Guid? ReservationId,
+    string? ReferenceType,
+    string? ReferenceId,
+    string? Note,
+    DateTimeOffset CreatedAt);
 
 public sealed record InventoryReservationItemResponse(
     Guid SkuId,
