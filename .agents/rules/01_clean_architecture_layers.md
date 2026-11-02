@@ -9,7 +9,7 @@
 * `Fulfillment.Domain`: Entities (`Warehouse`, `Shipment`, `InventoryItem`), Enums (`ShipmentStatus`, `WarehouseStatus`), Exceptions (`FulfillmentDomainException`).
 * `Fulfillment.Application`: Use cases in `Services/{Feature}/`, interface `IFulfillmentDbContext`, request/response records.
 * `Fulfillment.Infrastructure`: `AppDbContext`, EF Core configurations, migrations.
-* `Fulfillment.Api`: Thin controllers in `Controllers/Public/` and `Controllers/Internal/`, middlewares, extensions, composition root (`Program.cs`).
+* `Fulfillment.Api`: Thin controllers in `Controllers/Public/`, middlewares, extensions, composition root (`Program.cs`).
 
 ## 3. Feature Co-Location (Mandatory)
 * `Services/Warehouse/`: `IWarehouseService.cs`, `WarehouseService.cs`, `WarehouseRequests.cs`, `WarehouseResponses.cs`.
@@ -19,7 +19,7 @@
 ## 4. Thin 1-to-1 Controller Pairing
 * `WarehousesController.cs` -> injects `IWarehouseService`.
 * `ShipmentsController.cs` -> injects `IShipmentService`.
-* `InternalInventoriesController.cs` -> injects `IInventoryService` (for internal stock initialization/updates).
+* `InventoriesController.cs` -> injects `IInventoryService` (stock initialization and lookup used by Catalog).
 
 ## 5. Absolute Architectural Prohibitions
 * 🛑 Prohibit Repository Pattern over EF Core (inject `IFulfillmentDbContext` directly).

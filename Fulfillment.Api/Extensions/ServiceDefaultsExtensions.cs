@@ -108,7 +108,7 @@ public static class ServiceDefaultsExtensions
                 }
             });
 
-            options.OperationFilter<InternalOperationFilter>();
+            // options.OperationFilter<InternalOperationFilter>();
 
             var xmlDocumentationPath = Path.Combine(
                 AppContext.BaseDirectory,
@@ -150,7 +150,8 @@ public static class ServiceDefaultsExtensions
             }
         });
         app.UseGlobalExceptionHandler();
-        app.UseMiddleware<InternalServiceAuthMiddleware>();
+        // Internal service key check is temporarily disabled. Inter-service calls use plain REST routes.
+        // app.UseMiddleware<InternalServiceAuthMiddleware>();
 
         if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
         {

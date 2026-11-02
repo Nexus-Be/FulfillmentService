@@ -25,6 +25,12 @@ This project is indexed by GitNexus as **FulfillmentService** (404 symbols, 514 
 
 ---
 
+## Endpoint Workflow
+
+Before adding or changing any REST endpoint, follow the local checklist at `.agents/skills/new-feature-endpoint/SKILL.md`. It covers contract, persistence, Application, Api, tests, documentation handoff, and verification. This repository is Inward-Only, so the checklist is self-contained.
+
+---
+
 ## 🛑 NGUYÊN TẮC 1: BẮT BUỘC LẬP KẾ HOẠCH TRƯỚC KHI HÀNH ĐỘNG (PLAN-FIRST RULE)
 
 Mọi AI Agent khi nhận nhiệm vụ kỹ thuật tại FulfillmentService **BẮT BUỘC PHẢI LẬP VÀ TRÌNH BÀY PLAN** trước khi thực hiện bất kỳ hành động sửa đổi mã nguồn, thêm/xóa file, refactor, tạo migration database hay thay đổi cấu hình nào.
@@ -73,10 +79,9 @@ Khi bắt đầu làm việc tại FulfillmentService, AI Agent **BẮT BUỘC P
    - Toàn bộ thao tác phân trang vận đơn, kho bãi bắt buộc thực hiện trực tiếp tại Database qua `.Skip((page - 1) * pageSize).Take(pageSize)` và `.CountAsync()`.
    - Đóng gói dữ liệu trả về theo cấu trúc phân trang chuẩn `PagedData<T>` (`items` và metadata `pagination: { pageIndex, pageSize, totalCount, totalPages, hasPreviousPage, hasNextPage }`).
    - TUYỆT ĐỐI CẤM trả về danh sách thô lớn không giới hạn để Gateway tự phân trang.
-6. **QUY CHUẨN PHÂN TÁCH PUBLIC VÀ INTERNAL REST API (INTERNAL API SEGREGATION)**:
-   - Cấu trúc thư mục Controller tại `Fulfillment.Api/Controllers/` bắt buộc chia thành `Controllers/Public/` (`/api/v1/shipments`, `/api/v1/warehouses`) và `Controllers/Internal/` (`/api/v1/internal/inventories`).
-   - Mọi endpoint nội bộ khởi tạo hoặc điều chỉnh kho bãi (`InternalInventoriesController`) bắt buộc qua `InternalServiceAuthMiddleware` kiểm tra header `X-Internal-Service-Key`.
-   - TUYỆT ĐỐI CẤM mở endpoint khởi tạo tồn kho vật lý ra ngoài API Gateway.
+6. **INTERNAL API ĐANG TẠM KHÓA (2026-10-31)**:
+   - Route liên service dùng đường dẫn công khai, không còn `/api/v1/internal`.
+   - `InternalServiceAuthMiddleware` và `InternalServiceAuthHandler` đã comment đăng ký; không yêu cầu `X-Internal-Service-Key`.
 7. **QUY CHUẨN BẢO VỆ QUYỀN SỞ HỮU TÀI NGUYÊN (RESOURCE OWNERSHIP GOVERNANCE)**:
    - Tra cứu vận đơn theo đơn hàng hoặc thông tin vận chuyển chi tiết chỉ dành cho người mua sở hữu đơn hàng, người bán gửi hàng hoặc tài khoản `admin`/`staff`. Cấm để lộ vận đơn của người khác.
 

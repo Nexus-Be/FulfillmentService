@@ -63,7 +63,8 @@ public sealed class GlobalExceptionHandlerMiddleware
                 errorCode,
                 detail,
                 traceId,
-                items = batchEx.Failures
+                items = batchEx.Failures,
+                timestamp = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
             };
 
             await context.Response.WriteAsync(JsonSerializer.Serialize(batchProblemDetails, JsonOptions));
@@ -93,7 +94,8 @@ public sealed class GlobalExceptionHandlerMiddleware
                 traceId,
                 referenceId = committedEx.ReferenceId,
                 committedAt = committedEx.CommittedAt,
-                reservation = committedEx.Reservation
+                reservation = committedEx.Reservation,
+                timestamp = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
             };
 
             await context.Response.WriteAsync(JsonSerializer.Serialize(conflictProblemDetails, JsonOptions));
@@ -108,19 +110,19 @@ public sealed class GlobalExceptionHandlerMiddleware
                 "Insufficient stock",
                 iie.Message),
             BusinessRuleValidationException bve => (
-                StatusCodes.Status400BadRequest,
-                "BUSINESS_RULE_VIOLATION",
-                "Business rule violation",
+                bve.StatusCode != 0 ? bve.StatusCode : StatusCodes.Status400BadRequest,
+                bve.ErrorCode ?? "BUSINESS_RULE_VIOLATION",
+                GetStatusTitle(bve.StatusCode != 0 ? bve.StatusCode : StatusCodes.Status400BadRequest, "Business rule violation"),
                 bve.Message),
             EntityNotFoundException nfe => (
-                StatusCodes.Status404NotFound,
-                "NOT_FOUND",
-                "Resource not found",
+                nfe.StatusCode != 0 ? nfe.StatusCode : StatusCodes.Status404NotFound,
+                nfe.ErrorCode ?? "NOT_FOUND",
+                GetStatusTitle(nfe.StatusCode != 0 ? nfe.StatusCode : StatusCodes.Status404NotFound, "Resource not found"),
                 nfe.Message),
             DomainException dex => (
-                StatusCodes.Status400BadRequest,
-                "DOMAIN_ERROR",
-                "Domain error",
+                dex.StatusCode != 0 ? dex.StatusCode : StatusCodes.Status400BadRequest,
+                dex.ErrorCode ?? "DOMAIN_ERROR",
+                GetStatusTitle(dex.StatusCode != 0 ? dex.StatusCode : StatusCodes.Status400BadRequest, "Domain error"),
                 dex.Message),
             Microsoft.EntityFrameworkCore.DbUpdateException dbEx when dbEx.InnerException is Npgsql.PostgresException { SqlState: "23505" } => (
                 StatusCodes.Status400BadRequest,
@@ -153,16 +155,39 @@ public sealed class GlobalExceptionHandlerMiddleware
 
         var problemDetails = new
         {
-            type = $"https://tools.ietf.org/html/rfc9110#section-{(status >= 500 ? "15.6.1" : "15.5.1")}",
+            type = GetRfcType(status),
             title = errTitle,
             status,
             errorCode = code,
             detail = errDetail,
-            traceId
+            traceId,
+            timestamp = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
         };
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(problemDetails, JsonOptions));
     }
+
+    private static string GetRfcType(int statusCode) => statusCode switch
+    {
+        StatusCodes.Status400BadRequest => "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+        StatusCodes.Status401Unauthorized => "https://tools.ietf.org/html/rfc9110#section-15.5.3",
+        StatusCodes.Status403Forbidden => "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+        StatusCodes.Status404NotFound => "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+        StatusCodes.Status409Conflict => "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+        StatusCodes.Status429TooManyRequests => "https://tools.ietf.org/html/rfc9110#section-15.5.21",
+        _ => "https://tools.ietf.org/html/rfc9110#section-15.6.1"
+    };
+
+    private static string GetStatusTitle(int statusCode, string fallback) => statusCode switch
+    {
+        StatusCodes.Status401Unauthorized => "Unauthorized",
+        StatusCodes.Status403Forbidden => "Forbidden",
+        StatusCodes.Status404NotFound => "Not found",
+        StatusCodes.Status409Conflict => "Conflict",
+        StatusCodes.Status423Locked => "Account locked",
+        StatusCodes.Status429TooManyRequests => "Too many requests",
+        _ => fallback
+    };
 }
 
 public static class GlobalExceptionHandlerMiddlewareExtensions
