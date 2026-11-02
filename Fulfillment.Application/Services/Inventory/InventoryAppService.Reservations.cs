@@ -73,21 +73,7 @@ public sealed partial class InventoryAppService
         var reservation = InventoryReservation.Create(request.ReferenceId, request.HoldMinutes);
         _dbContext.InventoryReservations.Add(reservation);
 
-        var reservationItems = new List<InventoryReservationItem>();
-
-        foreach (var req in aggregatedRequests)
-        {
-            var item = itemMap[req.SkuId];
-            item.Hold(req.Quantity);
-
-            var resItem = new InventoryReservationItem
-            {
-                ReservationId = reservation.Id,
-                InventoryItemId = item.Id,
-                Quantity = req.Quantity
-            };
-            reservationItems.Add(resItem);
-        }
+        var reservationItems = HoldStockAndCreateReservationItems(reservation.Id, aggregatedRequests, itemMap);
 
         _dbContext.InventoryReservationItems.AddRange(reservationItems);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -237,6 +223,29 @@ public sealed partial class InventoryAppService
             .ToListAsync(cancellationToken);
 
         return items.ToDictionary(i => i.SkuId);
+    }
+
+    private static List<InventoryReservationItem> HoldStockAndCreateReservationItems(
+        Guid reservationId,
+        IReadOnlyList<AggregatedReservationItem> requests,
+        IReadOnlyDictionary<Guid, InventoryItem> itemMap)
+    {
+        var reservationItems = new List<InventoryReservationItem>(requests.Count);
+
+        foreach (var req in requests)
+        {
+            var item = itemMap[req.SkuId];
+            item.Hold(req.Quantity);
+
+            reservationItems.Add(new InventoryReservationItem
+            {
+                ReservationId = reservationId,
+                InventoryItemId = item.Id,
+                Quantity = req.Quantity
+            });
+        }
+
+        return reservationItems;
     }
 
     private async Task<InventoryReservationResponse?> TryGetCommittedReservationAsync(string referenceId, CancellationToken cancellationToken)
