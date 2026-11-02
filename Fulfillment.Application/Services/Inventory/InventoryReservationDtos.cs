@@ -30,10 +30,7 @@ public sealed record InventoryReservationItemResponse(
 public sealed record InventoryReservationResponse(
     Guid Id,
     string ReferenceId,
-    string Status,
     DateTimeOffset ExpiresAt,
-    DateTimeOffset? ConfirmedAt,
-    DateTimeOffset? ReleasedAt,
     DateTimeOffset CreatedAt,
     IReadOnlyList<InventoryReservationItemResponse> Items)
 {
@@ -55,10 +52,7 @@ public sealed record InventoryReservationResponse(
         return new InventoryReservationResponse(
             reservationId,
             referenceId,
-            ReservationStatus.Confirmed,
             committedAt,
-            committedAt,
-            null,
             committedAt,
             items);
     }
@@ -67,9 +61,6 @@ public sealed record InventoryReservationResponse(
         new(
             Guid.Empty,
             referenceId,
-            ReservationStatus.Released,
-            DateTimeOffset.UtcNow,
-            null,
             DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow,
             Array.Empty<InventoryReservationItemResponse>());

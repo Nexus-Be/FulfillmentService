@@ -62,7 +62,7 @@ public class InventoryReservationTests : IDisposable
         // Assert
         response.Should().NotBeNull();
         response.ReferenceId.Should().Be("ORD-001");
-        response.Status.Should().Be(ReservationStatus.Active);
+        response.Id.Should().NotBeEmpty();
         response.Items.Should().HaveCount(2);
 
         // Check InventoryItems in DB: ReservedQuantity updated, AvailableQuantity updated
@@ -154,8 +154,8 @@ public class InventoryReservationTests : IDisposable
 
         // Assert
         commitResponse.Should().NotBeNull();
-        commitResponse.Status.Should().Be(ReservationStatus.Confirmed);
-        commitResponse.ConfirmedAt.Should().NotBeNull();
+        commitResponse.Id.Should().NotBeEmpty();
+        commitResponse.Items.Should().HaveCount(1);
 
         // Total should decrease by 4, Reserved should return to 0
         var item = await _dbContext.InventoryItems.FirstAsync(i => i.SkuId == _sku1);
@@ -189,8 +189,7 @@ public class InventoryReservationTests : IDisposable
 
         // Assert
         secondCommit.Should().NotBeNull();
-        secondCommit.Status.Should().Be(ReservationStatus.Confirmed);
-        secondCommit.ConfirmedAt.Should().Be(firstCommit.ConfirmedAt, "Timestamp must reflect the first actual commit");
+        secondCommit.CreatedAt.Should().Be(firstCommit.CreatedAt, "Timestamp must reflect the first actual commit");
         secondCommit.Items.Should().HaveCount(1);
         secondCommit.Items[0].SkuId.Should().Be(_sku1);
         secondCommit.Items[0].Quantity.Should().Be(3);
@@ -217,7 +216,7 @@ public class InventoryReservationTests : IDisposable
         var response = await _service.ReleaseReservationAsync("ORD-RELEASE-1", "User cancelled checkout");
 
         // Assert
-        response.Status.Should().Be(ReservationStatus.Released);
+        response.ReferenceId.Should().Be("ORD-RELEASE-1");
 
         // Reserved quantity returns back to available
         var item = await _dbContext.InventoryItems.FirstAsync(i => i.SkuId == _sku1);

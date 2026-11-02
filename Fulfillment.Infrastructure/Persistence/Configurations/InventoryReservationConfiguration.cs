@@ -14,10 +14,7 @@ public class InventoryReservationConfiguration : IEntityTypeConfiguration<Invent
 
         builder.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(x => x.ReferenceId).HasColumnName("reference_id").HasMaxLength(100).IsRequired();
-        builder.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue(ReservationStatus.Active).IsRequired();
         builder.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
-        builder.Property(x => x.ConfirmedAt).HasColumnName("confirmed_at");
-        builder.Property(x => x.ReleasedAt).HasColumnName("released_at");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()").IsRequired();
 

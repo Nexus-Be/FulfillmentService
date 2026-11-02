@@ -27,11 +27,7 @@ public sealed partial class InventoryAppService
 
         if (existing != null)
         {
-            if (existing.IsActive)
-            {
-                return await MapToReservationResponseAsync(existing, cancellationToken);
-            }
-            throw new BusinessRuleValidationException($"Reservation for '{request.ReferenceId}' already exists with status '{existing.Status}'.");
+            return await MapToReservationResponseAsync(existing, cancellationToken);
         }
 
         var aggregatedRequests = AggregateReservationItems(request.Items);
@@ -99,7 +95,6 @@ public sealed partial class InventoryAppService
             throw new EntityNotFoundException("InventoryReservation for reference", referenceId);
         }
 
-        var committedAt = DateTimeOffset.UtcNow;
         var itemIds = reservation.ReservationItems.Select(ri => ri.InventoryItemId).Distinct().ToList();
         var items = await _dbContext.InventoryItems
             .Where(i => itemIds.Contains(i.Id))
@@ -122,24 +117,25 @@ public sealed partial class InventoryAppService
                     referenceId: referenceId,
                     note: $"Committed {resItem.Quantity} for order {referenceId}",
                     reservationId: reservation.Id);
-                ledger.CreatedAt = committedAt;
 
                 ledgers.Add(ledger);
             }
         }
 
+        var earliestLedger = ledgers.MinBy(l => l.CreatedAt);
+        var committedAt = earliestLedger?.CreatedAt ?? DateTimeOffset.UtcNow;
+
         var response = await MapToReservationResponseAsync(reservation, cancellationToken);
-        var confirmedResponse = response with
+        var committedResponse = response with
         {
-            Status = ReservationStatus.Confirmed,
-            ConfirmedAt = committedAt
+            CreatedAt = committedAt
         };
 
         _dbContext.InventoryLedgers.AddRange(ledgers);
         _dbContext.InventoryReservations.Remove(reservation);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return confirmedResponse;
+        return committedResponse;
     }
 
     public async Task<InventoryReservationResponse> ReleaseReservationAsync(string referenceId, string? reason = null, CancellationToken cancellationToken = default)
@@ -155,7 +151,7 @@ public sealed partial class InventoryAppService
             {
                 throw new ReservationAlreadyCommittedException(
                     referenceId,
-                    committed.ConfirmedAt ?? DateTimeOffset.UtcNow,
+                    committed.CreatedAt,
                     committed);
             }
 
@@ -165,16 +161,11 @@ public sealed partial class InventoryAppService
         await ReleaseHoldItemsAsync(reservation.ReservationItems, cancellationToken);
 
         var response = await MapToReservationResponseAsync(reservation, cancellationToken);
-        var releasedResponse = response with
-        {
-            Status = ReservationStatus.Released,
-            ReleasedAt = DateTimeOffset.UtcNow
-        };
 
         _dbContext.InventoryReservations.Remove(reservation);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return releasedResponse;
+        return response;
     }
 
     public async Task<int> AutoExpireReservationsAsync(CancellationToken cancellationToken = default)
@@ -182,7 +173,7 @@ public sealed partial class InventoryAppService
         var now = DateTimeOffset.UtcNow;
         var expiredReservations = await _dbContext.InventoryReservations
             .Include(r => r.ReservationItems)
-            .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt <= now)
+            .Where(r => r.ExpiresAt <= now)
             .ToListAsync(cancellationToken);
 
         if (expiredReservations.Count == 0)
@@ -309,10 +300,7 @@ public sealed partial class InventoryAppService
         return new InventoryReservationResponse(
             r.Id,
             r.ReferenceId,
-            r.Status,
             r.ExpiresAt,
-            r.ConfirmedAt,
-            r.ReleasedAt,
             r.CreatedAt,
             itemResponses);
     }
