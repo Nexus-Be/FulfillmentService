@@ -8,4 +8,5 @@ public sealed record WarehouseDto(
     string Name,
     string Type,
     string? Address,
-    bool IsDisabled);
+    bool IsDisabled,
+    Guid? SellerId = null);

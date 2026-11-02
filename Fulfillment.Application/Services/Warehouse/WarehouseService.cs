@@ -160,7 +160,8 @@ public sealed class WarehouseService : IWarehouseService
                 w.Name,
                 w.Type.ToString(),
                 w.Address,
-                !w.IsActive))
+                !w.IsActive,
+                w.SellerId))
 
             .ToListAsync(cancellationToken);
 
@@ -186,6 +187,7 @@ public sealed class WarehouseService : IWarehouseService
             w.Name,
             w.Type.ToString(),
             w.Address,
-            !w.IsActive);
+            !w.IsActive,
+            w.SellerId);
 
 }
