@@ -248,6 +248,13 @@ public sealed partial class InventoryAppService
         return reservationItems;
     }
 
+    /// <summary>
+    /// Tái tạo thông tin reservation từ lịch sử sổ cái (InventoryLedgers) nếu đơn hàng đã được commit trước đó.
+    /// Trả về <see cref="InventoryReservationResponse"/> nếu tìm thấy bản ghi commit trong sổ cái (hỗ trợ Idempotency); ngược lại trả về <c>null</c> nếu chưa từng commit.
+    /// </summary>
+    /// <param name="referenceId">Mã tham chiếu đơn hàng (Order/Reference ID).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Thông tin reservation đã commit nếu tìm thấy trong sổ cái, hoặc <c>null</c> nếu không tồn tại.</returns>
     private async Task<InventoryReservationResponse?> TryGetCommittedReservationAsync(string referenceId, CancellationToken cancellationToken)
     {
         var pastLedgers = await _dbContext.InventoryLedgers
