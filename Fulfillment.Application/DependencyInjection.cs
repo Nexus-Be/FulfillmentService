@@ -9,9 +9,10 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
-        services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IShipmentService, ShipmentService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
+        services.AddScoped<IInventoryService, InventoryService>();
+        services.AddScoped<IInventoryAppService>(sp => (IInventoryAppService)sp.GetRequiredService<IInventoryService>());
         return services;
     }
 }

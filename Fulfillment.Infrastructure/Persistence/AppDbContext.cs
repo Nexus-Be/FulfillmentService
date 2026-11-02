@@ -11,14 +11,16 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
     }
 
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<Carrier> Carriers => Set<Carrier>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
     public DbSet<InventoryReservationItem> InventoryReservationItems => Set<InventoryReservationItem>();
     public DbSet<InventoryLedger> InventoryLedgers => Set<InventoryLedger>();
-    public DbSet<Carrier> Carriers => Set<Carrier>();
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShipmentItem> ShipmentItems => Set<ShipmentItem>();
     public DbSet<ShipmentEvent> ShipmentEvents => Set<ShipmentEvent>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -26,5 +28,12 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         Seeds.FulfillmentSeedData.SeedAll(modelBuilder);
+    }
+}
+
+public class FulfillmentDbContext : AppDbContext
+{
+    public FulfillmentDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    {
     }
 }

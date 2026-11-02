@@ -1,9 +1,60 @@
 @Host = http://localhost:8006
+@SellerId = aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+@InternalKey = eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e
 
 ### 1. Health Probe
 GET {{Host}}/health
 Accept: application/json
 
-### 2. Swagger OpenAPI
-GET {{Host}}/swagger/v1/swagger.json
+### 2. Danh sách kho hàng hoạt động (Phân trang)
+GET {{Host}}/api/v1/warehouses?page=1&pageSize=10
 Accept: application/json
+
+### 3. Đăng ký kho cho Seller (Lần 1: Thành công 201 Created)
+POST {{Host}}/api/v1/warehouses
+Content-Type: application/json
+x-user-id: {{SellerId}}
+x-user-roles: seller
+
+{
+  "code": "WH_SELLER_HN",
+  "name": "Kho Ha Noi Official",
+  "type": "SellerWarehouse",
+  "address": "123 Xuan Thuy, Cau Giay, Ha Noi"
+}
+
+### 4. Đăng ký kho tiếp cho cùng Seller (Lần 2: Chặn lỗi 400 - Đảm bảo luật 1 Seller = 1 Kho)
+POST {{Host}}/api/v1/warehouses
+Content-Type: application/json
+x-user-id: {{SellerId}}
+x-user-roles: seller
+
+{
+  "code": "WH_SELLER_SG",
+  "name": "Kho Sai Gon",
+  "type": "SellerWarehouse",
+  "address": "456 Nguyen Hue, Quan 1, TP HCM"
+}
+
+### 5. Seller tự tra cứu kho của mình (/me)
+GET {{Host}}/api/v1/warehouses/me
+Accept: application/json
+x-user-id: {{SellerId}}
+x-user-roles: seller
+
+### 6. UserService gọi nội bộ để tự động tạo kho khi duyệt Shop
+POST {{Host}}/api/v1/internal/warehouses
+Content-Type: application/json
+X-Internal-Service-Key: {{InternalKey}}
+
+{
+  "seller_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+  "user_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+  "shop_name": "Shop Thoi Trang Tech",
+  "contact_name": "Nguyen Van B",
+  "contact_phone": "0912345678",
+  "pickup_address": "789 Le Duan, Quan Hoan Kiem, Ha Noi",
+  "province_id": 201,
+  "district_id": 1490,
+  "ward_code": "1A0807"
+}

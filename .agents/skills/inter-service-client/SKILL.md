@@ -25,6 +25,7 @@ description: Add or modify outbound typed REST clients in FulfillmentService (po
 3. **No Internal API Key:** Inter-service routes use standard public endpoints. Do not send `X-Internal-Service-Key`.
 4. **Idempotency on Status Transitions:** Milestone updates should pass an `Idempotency-Key` or tracking number in headers/payload to avoid redundant webhook triggers.
 5. **Timeout:** Enforce `client.Timeout = TimeSpan.FromSeconds(10)`.
+6. **W3C Distributed Tracing:** Transmit `traceparent` downstream when notifying CommerceService or NotificationService of shipment state transitions to maintain trace correlation in Tempo.
 
 ## Implementation Steps
 

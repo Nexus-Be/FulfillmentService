@@ -133,8 +133,23 @@ public static class ServiceDefaultsExtensions
 
     public static WebApplication UseServiceDefaults(this WebApplication app)
     {
+        app.Use(async (context, next) =>
+        {
+            var originalBody = context.Response.Body;
+            using var mem = new MemoryStream();
+            context.Response.Body = mem;
+            try
+            {
+                await next();
+            }
+            finally
+            {
+                mem.Position = 0;
+                await mem.CopyToAsync(originalBody);
+                context.Response.Body = originalBody;
+            }
+        });
         app.UseGlobalExceptionHandler();
-        // Internal service key check is temporarily disabled. Inter-service calls use plain REST routes.
         // app.UseMiddleware<InternalServiceAuthMiddleware>();
 
         if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))

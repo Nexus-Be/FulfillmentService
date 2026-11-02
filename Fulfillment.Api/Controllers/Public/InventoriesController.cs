@@ -1,6 +1,7 @@
 namespace Fulfillment.Api.Controllers.Public;
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
@@ -20,10 +21,10 @@ public sealed class InventoriesController : ControllerBase
     /// <summary>Initializes warehouse inventory for a product SKU.</summary>
     [HttpPost("initialize")]
     public async Task<ActionResult<InventoryItemResponse>> InitializeInventory(
-        [FromBody] InitializeInventoryRequest request,
+        [FromBody] DeclareInventoryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryService.InitializeInventoryAsync(request, cancellationToken);
+        var result = await _inventoryService.DeclareInventoryAsync(request, cancellationToken);
         return Ok(result);
     }
 
@@ -34,6 +35,21 @@ public sealed class InventoriesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _inventoryService.GetBySkuIdAsync(skuId, cancellationToken);
+        if (result == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>Retrieves inventory balances for a list of SKU IDs.</summary>
+    [HttpPost("by-skus")]
+    public async Task<ActionResult<IReadOnlyList<InventoryItemResponse>>> GetByListSku(
+        [FromBody] IReadOnlyList<Guid> skuIds,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryService.GetByListSkuAsync(skuIds, cancellationToken);
         return Ok(result);
     }
 }
