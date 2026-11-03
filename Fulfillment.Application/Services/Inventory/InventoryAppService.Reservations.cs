@@ -191,13 +191,12 @@ public sealed partial class InventoryAppService
         return expiredReservations.Count;
     }
 
-    private static IReadOnlyList<AggregatedReservationItem> AggregateReservationItems(IReadOnlyList<ReserveInventoryItemRequest> items)
+    private static List<AggregatedReservationItem> AggregateReservationItems(IReadOnlyList<ReserveInventoryItemRequest> items)
     {
-        return items
+        return [.. items
             .GroupBy(x => x.SkuId)
             .Select(g => new AggregatedReservationItem(g.Key, g.Sum(x => x.Quantity)))
-            .OrderBy(x => x.SkuId)
-            .ToList();
+            .OrderBy(x => x.SkuId)];
     }
 
     private async Task<Dictionary<Guid, InventoryItem>> GetInventoryItemMapBySkuIdsAsync(
@@ -214,7 +213,7 @@ public sealed partial class InventoryAppService
     private static List<InventoryReservationItem> HoldStockAndCreateReservationItems(
         Guid reservationId,
         IReadOnlyList<AggregatedReservationItem> requests,
-        IReadOnlyDictionary<Guid, InventoryItem> itemMap)
+        Dictionary<Guid, InventoryItem> itemMap)
     {
         var reservationItems = new List<InventoryReservationItem>(requests.Count);
 
@@ -235,7 +234,7 @@ public sealed partial class InventoryAppService
     }
 
     /// <summary>
-    /// Tìm thông của reservation trong số cái xem đã thanh toán chưa 
+    /// Tìm thông của reservation trong số cái xem đã thanh toán chưa
     /// </summary>
     private async Task<InventoryReservationResponse?> TryGetCommittedReservationAsync(string referenceId, CancellationToken cancellationToken)
     {
