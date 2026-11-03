@@ -31,7 +31,7 @@ public sealed partial class InventoryAppService
         }
 
         var aggregatedRequests = AggregateReservationItems(request.Items);
-        var skuIds = aggregatedRequests.Select(x => x.SkuId).ToList();
+        var skuIds = aggregatedRequests.Select(x => x.SkuId).ToArray();
         var itemMap = await GetInventoryItemMapBySkuIdsAsync(skuIds, cancellationToken);
 
         var failures = new List<ReservationItemFailure>();
@@ -200,7 +200,7 @@ public sealed partial class InventoryAppService
     }
 
     private async Task<Dictionary<Guid, InventoryItem>> GetInventoryItemMapBySkuIdsAsync(
-        IReadOnlyList<Guid> skuIds,
+        IReadOnlyCollection<Guid> skuIds,
         CancellationToken cancellationToken)
     {
         var items = await _dbContext.InventoryItems
