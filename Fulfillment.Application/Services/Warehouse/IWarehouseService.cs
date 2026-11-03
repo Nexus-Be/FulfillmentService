@@ -56,14 +56,4 @@ public interface IWarehouseService
     /// Bật hoặc tắt trạng thái hoạt động của một kho hàng.
     /// </summary>
     Task<WarehouseDto> SetActiveStatusAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Updates warehouse details by seller ID from internal callers.
-    /// </summary>
-    Task<WarehouseDto> UpdateBySellerIdAsync(Guid sellerId, InternalUpdateWarehouseRequest request, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Deactivates a warehouse by seller ID during compensation rollback.
-    /// </summary>
-    Task<bool> DeleteBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default);
 }

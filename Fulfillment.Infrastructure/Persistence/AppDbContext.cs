@@ -1,5 +1,6 @@
 namespace Fulfillment.Infrastructure.Persistence;
 
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Domain.Entities;
@@ -21,6 +22,8 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
     public DbSet<ShipmentEvent> ShipmentEvents => Set<ShipmentEvent>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -28,6 +31,11 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         Seeds.FulfillmentSeedData.SeedAll(modelBuilder);
+
+        // MassTransit Transactional Outbox entities
+        modelBuilder.AddInboxStateEntity();
+        modelBuilder.AddOutboxMessageEntity();
+        modelBuilder.AddOutboxStateEntity();
     }
 }
 

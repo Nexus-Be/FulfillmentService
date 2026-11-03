@@ -10,11 +10,11 @@ using Fulfillment.Application.Services.Inventory;
 [Route("api/v1/internal/inventories/reservations")]
 public sealed class InternalInventoryReservationsController : ControllerBase
 {
-    private readonly IInventoryService _inventoryService;
+    private readonly IInventoryAppService _inventoryAppService;
 
-    public InternalInventoryReservationsController(IInventoryService inventoryService)
+    public InternalInventoryReservationsController(IInventoryAppService inventoryAppService)
     {
-        _inventoryService = inventoryService;
+        _inventoryAppService = inventoryAppService;
     }
 
     [HttpPost]
@@ -22,7 +22,7 @@ public sealed class InternalInventoryReservationsController : ControllerBase
         [FromBody] CreateReservationRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryService.CreateReservationAsync(request, cancellationToken);
+        var result = await _inventoryAppService.CreateReservationAsync(request, cancellationToken);
         return Ok(result);
     }
 
@@ -31,7 +31,7 @@ public sealed class InternalInventoryReservationsController : ControllerBase
         [FromRoute] string referenceId,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryService.CommitReservationAsync(referenceId, cancellationToken);
+        var result = await _inventoryAppService.CommitReservationAsync(referenceId, cancellationToken);
         return Ok(result);
     }
 
@@ -41,14 +41,14 @@ public sealed class InternalInventoryReservationsController : ControllerBase
         [FromQuery] string? reason,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryService.ReleaseReservationAsync(referenceId, reason, cancellationToken);
+        var result = await _inventoryAppService.ReleaseReservationAsync(referenceId, reason, cancellationToken);
         return Ok(result);
     }
 
     [HttpPost("auto-expire")]
     public async Task<IActionResult> AutoExpireReservations(CancellationToken cancellationToken)
     {
-        var expiredCount = await _inventoryService.AutoExpireReservationsAsync(cancellationToken);
+        var expiredCount = await _inventoryAppService.AutoExpireReservationsAsync(cancellationToken);
         return Ok(new { expiredCount });
     }
 }

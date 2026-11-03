@@ -26,24 +26,5 @@ public sealed class InternalWarehousesController : ControllerBase
         var response = await _warehouseService.CreateInternalAsync(request, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, response);
     }
-
-    [HttpPut("{sellerId:guid}")]
-    public async Task<ActionResult<WarehouseDto>> UpdateInternal(
-        [FromRoute] Guid sellerId,
-        [FromBody] InternalUpdateWarehouseRequest request,
-        CancellationToken cancellationToken)
-    {
-        var response = await _warehouseService.UpdateBySellerIdAsync(sellerId, request, cancellationToken);
-        return Ok(response);
-    }
-
-    [HttpDelete("{sellerId:guid}")]
-    public async Task<IActionResult> DeleteInternal(
-        [FromRoute] Guid sellerId,
-        CancellationToken cancellationToken)
-    {
-        await _warehouseService.DeleteBySellerIdAsync(sellerId, cancellationToken);
-        return NoContent();
-    }
 }
 

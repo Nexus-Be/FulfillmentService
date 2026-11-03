@@ -161,7 +161,7 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
     }
 
     [Fact]
-    public async Task InternalCreate_WithoutServiceKey_Returns201Created()
+    public async Task InternalCreate_MissingServiceKey_Returns403Forbidden()
     {
         var request = new InternalCreateWarehouseRequest(
             SellerId: Guid.NewGuid(),
@@ -179,72 +179,7 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
 
         var response = await _client.SendAsync(httpRequest);
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task InternalUpdate_ExistingSeller_Returns200Ok()
-    {
-        var sellerId = Guid.NewGuid();
-        var createRequest = new InternalCreateWarehouseRequest(
-            SellerId: sellerId,
-            UserId: Guid.NewGuid(),
-            ShopName: "Original Shop",
-            ContactName: null,
-            ContactPhone: null,
-            PickupAddress: "Original Address",
-            ProvinceId: null,
-            DistrictId: null,
-            WardCode: null);
-
-        using var createMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/internal/warehouses");
-        createMsg.Content = JsonContent.Create(createRequest);
-        var createRes = await _client.SendAsync(createMsg);
-        Assert.Equal(HttpStatusCode.Created, createRes.StatusCode);
-
-        var updateRequest = new InternalUpdateWarehouseRequest(
-            ShopName: "Updated Shop Name",
-            ContactPhone: "0987654321",
-            PickupAddress: "789 Updated St",
-            ProvinceId: 201,
-            DistrictId: 1490,
-            WardCode: "1A0807");
-
-        using var updateMsg = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/internal/warehouses/{sellerId}");
-        updateMsg.Content = JsonContent.Create(updateRequest);
-        var updateRes = await _client.SendAsync(updateMsg);
-
-        Assert.Equal(HttpStatusCode.OK, updateRes.StatusCode);
-        var updated = await updateRes.Content.ReadFromJsonAsync<WarehouseDto>();
-        Assert.NotNull(updated);
-        Assert.Equal("Updated Shop Name", updated.Name);
-        Assert.Equal("789 Updated St", updated.Address);
-    }
-
-    [Fact]
-    public async Task InternalDelete_ExistingSeller_Returns204NoContent()
-    {
-        var sellerId = Guid.NewGuid();
-        var createRequest = new InternalCreateWarehouseRequest(
-            SellerId: sellerId,
-            UserId: Guid.NewGuid(),
-            ShopName: "Shop To Delete",
-            ContactName: null,
-            ContactPhone: null,
-            PickupAddress: "Temp Address",
-            ProvinceId: null,
-            DistrictId: null,
-            WardCode: null);
-
-        using var createMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/internal/warehouses");
-        createMsg.Content = JsonContent.Create(createRequest);
-        var createRes = await _client.SendAsync(createMsg);
-        Assert.Equal(HttpStatusCode.Created, createRes.StatusCode);
-
-        using var deleteMsg = new HttpRequestMessage(HttpMethod.Delete, $"/api/v1/internal/warehouses/{sellerId}");
-        var deleteRes = await _client.SendAsync(deleteMsg);
-
-        Assert.Equal(HttpStatusCode.NoContent, deleteRes.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }
 

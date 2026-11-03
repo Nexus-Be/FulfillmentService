@@ -2,16 +2,17 @@ namespace Fulfillment.Domain.Entities;
 
 using System;
 using System.Collections.Generic;
-using Fulfillment.Domain.Base;
 using Fulfillment.Domain.Exceptions;
 
-public class InventoryItem : BaseEntity<Guid>
+public class InventoryItem
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid SkuId { get; set; }
     public required Guid WarehouseId { get; set; }
     public int TotalQuantity { get; set; }
     public int ReservedQuantity { get; set; }
     public int? AvailableQuantity { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
     public Warehouse? Warehouse { get; set; }
@@ -22,13 +23,11 @@ public class InventoryItem : BaseEntity<Guid>
     {
         return new InventoryItem
         {
-            Id = Guid.NewGuid(),
             SkuId = skuId,
             WarehouseId = warehouseId,
             TotalQuantity = initialQuantity,
             ReservedQuantity = 0,
             AvailableQuantity = initialQuantity,
-            CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
     }
@@ -51,7 +50,6 @@ public class InventoryItem : BaseEntity<Guid>
         AvailableQuantity = TotalQuantity - ReservedQuantity;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
-
     public void Hold(int quantity)
     {
         if (quantity <= 0)

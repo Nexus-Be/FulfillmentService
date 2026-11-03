@@ -180,45 +180,6 @@ public sealed class WarehouseService : IWarehouseService
         return MapToDto(warehouse);
     }
 
-    public async Task<WarehouseDto> UpdateBySellerIdAsync(Guid sellerId, InternalUpdateWarehouseRequest request, CancellationToken cancellationToken = default)
-    {
-        var warehouse = await _dbContext.Warehouses
-            .FirstOrDefaultAsync(w => w.SellerId == sellerId, cancellationToken)
-            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse for Seller", sellerId);
-
-        if (!string.IsNullOrWhiteSpace(request.ShopName))
-        {
-            warehouse.Name = request.ShopName.Trim();
-        }
-        if (!string.IsNullOrWhiteSpace(request.PickupAddress))
-        {
-            warehouse.Address = request.PickupAddress.Trim();
-        }
-
-        warehouse.UpdatedAt = DateTimeOffset.UtcNow;
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return MapToDto(warehouse);
-    }
-
-    public async Task<bool> DeleteBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default)
-    {
-        var warehouse = await _dbContext.Warehouses
-            .FirstOrDefaultAsync(w => w.SellerId == sellerId, cancellationToken);
-
-        if (warehouse == null)
-        {
-            return false;
-        }
-
-        warehouse.IsActive = false;
-        warehouse.IsDeleted = true;
-        warehouse.DeletedAt = DateTimeOffset.UtcNow;
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        return true;
-    }
-
     private static WarehouseDto MapToDto(Warehouse w) =>
         new WarehouseDto(
             w.Id,
