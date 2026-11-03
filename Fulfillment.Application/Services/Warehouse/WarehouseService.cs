@@ -1,4 +1,4 @@
-namespace Fulfillment.Application.Services.Warehouse;
+﻿namespace Fulfillment.Application.Services.Warehouse;
 
 using System;
 using System.Collections.Generic;
@@ -158,7 +158,7 @@ public sealed class WarehouseService : IWarehouseService
                 w.Id,
                 w.Code,
                 w.Name,
-                w.Type.ToString(),
+                w.Type,
                 w.Address,
                 !w.IsActive,
                 w.SellerId))
@@ -185,7 +185,7 @@ public sealed class WarehouseService : IWarehouseService
             w.Id,
             w.Code,
             w.Name,
-            w.Type.ToString(),
+            w.Type,
             w.Address,
             !w.IsActive,
             w.SellerId);
