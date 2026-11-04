@@ -191,6 +191,98 @@ public sealed partial class InventoryAppService
         return expiredReservations.Count;
     }
 
+    public async Task<ReleaseReservationResponse> ReleasePartialReservationAsync(
+        string referenceId,
+        ReleaseReservationItemsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var reservation = await _dbContext.InventoryReservations
+            .Include(r => r.ReservationItems)
+            .FirstOrDefaultAsync(r => r.ReferenceId == referenceId, cancellationToken);
+
+        if (reservation == null)
+        {
+            return new ReleaseReservationResponse(referenceId, "ALREADY_RELEASED", 0);
+        }
+
+        var skuIds = request.Items.Select(i => i.SkuId).Distinct().ToList();
+        var inventoryItems = await _dbContext.InventoryItems
+            .Where(i => skuIds.Contains(i.SkuId))
+            .ToListAsync(cancellationToken);
+        var skuToItemMap = inventoryItems.ToDictionary(i => i.SkuId);
+
+        int releasedCount = 0;
+        foreach (var reqItem in request.Items)
+        {
+            if (!skuToItemMap.TryGetValue(reqItem.SkuId, out var invItem))
+            {
+                continue;
+            }
+
+            var resItem = reservation.ReservationItems
+                .FirstOrDefault(ri => ri.InventoryItemId == invItem.Id);
+
+            if (resItem == null)
+            {
+                continue;
+            }
+
+            var qtyToRelease = Math.Min(resItem.Quantity, reqItem.Quantity);
+            invItem.ReleaseHold(qtyToRelease);
+            releasedCount++;
+
+            if (resItem.Quantity <= qtyToRelease)
+            {
+                _dbContext.InventoryReservationItems.Remove(resItem);
+            }
+            else
+            {
+                resItem.Quantity -= qtyToRelease;
+            }
+        }
+
+        if (reservation.ReservationItems.All(ri => ri.Quantity <= 0))
+        {
+            _dbContext.InventoryReservations.Remove(reservation);
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ReleaseReservationResponse(referenceId, "PARTIALLY_RELEASED", releasedCount);
+    }
+
+    public async Task<BatchReleaseReservationsResponse> BatchReleaseReservationsAsync(
+        BatchReleaseReservationsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.ReferenceIds.Count == 0)
+        {
+            return new BatchReleaseReservationsResponse(0, 0);
+        }
+
+        var reservations = await _dbContext.InventoryReservations
+            .Include(r => r.ReservationItems)
+            .Where(r => request.ReferenceIds.Contains(r.ReferenceId))
+            .ToListAsync(cancellationToken);
+
+        if (reservations.Count == 0)
+        {
+            return new BatchReleaseReservationsResponse(0, 0);
+        }
+
+        var allItems = reservations.SelectMany(r => r.ReservationItems).ToList();
+        await ReleaseHoldItemsAsync(allItems, cancellationToken);
+
+        _dbContext.InventoryReservations.RemoveRange(reservations);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new BatchReleaseReservationsResponse(reservations.Count, request.ReferenceIds.Count - reservations.Count);
+    }
+
     private static List<AggregatedReservationItem> AggregateReservationItems(IReadOnlyList<ReserveInventoryItemRequest> items)
     {
         return [.. items

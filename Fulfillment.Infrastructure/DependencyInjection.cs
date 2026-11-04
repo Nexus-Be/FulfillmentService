@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Fulfillment.Application.Interfaces;
+using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Infrastructure.Carriers;
+using Fulfillment.Infrastructure.HttpClients;
 using Fulfillment.Infrastructure.Persistence;
 
 public static class DependencyInjection
@@ -20,6 +22,8 @@ public static class DependencyInjection
         services.AddScoped<IFulfillmentDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         services.AddCarrierServices(configuration);
+
+        services.AddScoped<ICommerceWebhookClient, CommerceWebhookClient>();
 
         return services;
     }

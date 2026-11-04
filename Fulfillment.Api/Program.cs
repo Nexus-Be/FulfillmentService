@@ -1,6 +1,7 @@
 using System;
 using Fulfillment.Api.Common;
 using Fulfillment.Api.Extensions;
+using Fulfillment.Api.Workers;
 using Fulfillment.Application;
 using Fulfillment.Infrastructure;
 using Fulfillment.Infrastructure.Persistence;
@@ -26,6 +27,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
+builder.Services.AddHostedService<ReservationAutoExpireWorker>();
 
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
