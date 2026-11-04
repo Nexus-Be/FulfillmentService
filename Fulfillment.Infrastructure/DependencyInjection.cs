@@ -1,10 +1,12 @@
 namespace Fulfillment.Infrastructure;
 
-using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Fulfillment.Application.Interfaces;
+using Fulfillment.Application.Interfaces.Shipping;
+using Fulfillment.Infrastructure.Carriers;
+using Fulfillment.Infrastructure.HttpClients;
 using Fulfillment.Infrastructure.Persistence;
 
 public static class DependencyInjection
@@ -19,33 +21,9 @@ public static class DependencyInjection
 
         services.AddScoped<IFulfillmentDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-        // MassTransit + RabbitMQ + Transactional Outbox
-        services.AddMassTransit(x =>
-        {
-            x.SetKebabCaseEndpointNameFormatter();
+        services.AddCarrierServices(configuration);
 
-            x.AddEntityFrameworkOutbox<AppDbContext>(o =>
-            {
-                o.UsePostgres();
-                o.UseBusOutbox();
-            });
-
-            x.UsingRabbitMq((context, cfg) =>
-            {
-                var rabbitHost = configuration["RabbitMq:Host"] ?? "localhost";
-                var rabbitPort = ushort.TryParse(configuration["RabbitMq:Port"], out var port) ? port : (ushort)5672;
-                var rabbitUser = configuration["RabbitMq:User"] ?? "guest";
-                var rabbitPass = configuration["RabbitMq:Password"] ?? "guest";
-
-                cfg.Host(rabbitHost, rabbitPort, "/", h =>
-                {
-                    h.Username(rabbitUser);
-                    h.Password(rabbitPass);
-                });
-
-                cfg.ConfigureEndpoints(context);
-            });
-        });
+        services.AddScoped<ICommerceWebhookClient, CommerceWebhookClient>();
 
         // Identity propagation delegating handler for outgoing inter-service HTTP requests
         services.AddTransient<Services.Common.IdentityPropagationHandler>();

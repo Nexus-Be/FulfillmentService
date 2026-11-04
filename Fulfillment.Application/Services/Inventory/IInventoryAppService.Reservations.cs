@@ -27,6 +27,16 @@ public partial interface IInventoryAppService
     Task<InventoryReservationResponse> ReleaseReservationAsync(string referenceId, string? reason = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Releases a partial reservation for rejected SubOrder items while keeping the rest intact.
+    /// </summary>
+    Task<ReleaseReservationResponse> ReleasePartialReservationAsync(string referenceId, ReleaseReservationItemsRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Batch releases expired or timed-out reservations in a single transaction.
+    /// </summary>
+    Task<BatchReleaseReservationsResponse> BatchReleaseReservationsAsync(BatchReleaseReservationsRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// [FUL-11]
     /// Scans and automatically releases expired reservations.
     /// Quét định kỳ nhả các thẻ giữ chỗ quá hạn về lại tồn kho khả dụng.

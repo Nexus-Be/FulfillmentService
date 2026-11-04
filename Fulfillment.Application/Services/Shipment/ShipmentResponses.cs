@@ -12,3 +12,9 @@ public sealed record ShipmentResponse(
     string ReceiverName,
     string ReceiverPhone,
     string ReceiverAddress);
+
+public sealed record CreateShipmentResponse(
+    Guid ShipmentId,
+    string TrackingNumber,
+    string LabelUrl,
+    string Status);

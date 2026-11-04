@@ -45,6 +45,25 @@ public sealed class InternalInventoryReservationsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{referenceId}/release-items")]
+    public async Task<IActionResult> ReleaseReservationItems(
+        [FromRoute] string referenceId,
+        [FromBody] ReleaseReservationItemsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryAppService.ReleasePartialReservationAsync(referenceId, request, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("batch-release")]
+    public async Task<IActionResult> BatchReleaseReservations(
+        [FromBody] BatchReleaseReservationsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryAppService.BatchReleaseReservationsAsync(request, cancellationToken);
+        return Ok(result);
+    }
+
     [HttpPost("auto-expire")]
     public async Task<IActionResult> AutoExpireReservations(CancellationToken cancellationToken)
     {
@@ -52,4 +71,3 @@ public sealed class InternalInventoryReservationsController : ControllerBase
         return Ok(new { expiredCount });
     }
 }
-

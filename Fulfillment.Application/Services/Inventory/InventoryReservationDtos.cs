@@ -65,3 +65,25 @@ public sealed record InventoryReservationResponse(
             DateTimeOffset.UtcNow,
             Array.Empty<InventoryReservationItemResponse>());
 }
+
+public sealed record ReleaseReservationItem(
+    [Required] Guid SkuId,
+    [Range(1, int.MaxValue)] int Quantity);
+
+public sealed record ReleaseReservationItemsRequest(
+    [Required] Guid SubOrderId,
+    [Required] string Reason,
+    [Required] IReadOnlyList<ReleaseReservationItem> Items);
+
+public sealed record BatchReleaseReservationsRequest(
+    [Required] IReadOnlyList<string> ReferenceIds,
+    [Required] string Reason);
+
+public sealed record ReleaseReservationResponse(
+    string ReferenceId,
+    string Status,
+    int ReleasedCount);
+
+public sealed record BatchReleaseReservationsResponse(
+    int ReleasedCount,
+    int FailedCount);
