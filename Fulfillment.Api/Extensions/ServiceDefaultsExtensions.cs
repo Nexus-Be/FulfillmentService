@@ -150,6 +150,7 @@ public static class ServiceDefaultsExtensions
             }
         });
         app.UseGlobalExceptionHandler();
+        app.UseMiddleware<UserContextMiddleware>();
         app.UseMiddleware<InternalServiceAuthMiddleware>();
 
         if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))

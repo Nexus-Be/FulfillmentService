@@ -47,6 +47,9 @@ public static class DependencyInjection
             });
         });
 
+        // Identity propagation delegating handler for outgoing inter-service HTTP requests
+        services.AddTransient<Services.Common.IdentityPropagationHandler>();
+
         return services;
     }
 }
