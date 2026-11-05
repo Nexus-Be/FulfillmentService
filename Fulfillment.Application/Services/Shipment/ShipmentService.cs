@@ -65,16 +65,24 @@ public sealed class ShipmentService : IShipmentService
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // Dynamically resolve warehouse details for the seller, or fallback to default system warehouse
+        var warehouse = await _dbContext.Warehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
+            ?? await _dbContext.Warehouses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.IsActive, cancellationToken);
+
         var fromAddress = new ShippingAddress(
-            FullName: "Seller Warehouse",
-            Phone: "0900000000",
-            AddressLine: "Warehouse Address",
+            FullName: warehouse?.Name ?? "Seller Warehouse",
+            Phone: string.Empty,
+            AddressLine: warehouse?.Address ?? "Warehouse Address",
             DistrictId: request.FromDistrictId);
 
         var toAddress = new ShippingAddress(
-            FullName: "Recipient",
-            Phone: "0900000000",
-            AddressLine: "Recipient Address",
+            FullName: "Estimated Recipient",
+            Phone: string.Empty,
+            AddressLine: "Recipient Shipping Address",
             WardCode: request.ToWardCode,
             DistrictId: request.ToDistrictId);
 
@@ -92,14 +100,14 @@ public sealed class ShipmentService : IShipmentService
             return new ShippingQuoteResponse(
                 Fee: result.TotalFee,
                 IsEstimatedFallback: false,
-                ServiceName: result.ServiceCode ?? "GHN_STANDARD");
+                ServiceName: result.ServiceCode ?? $"{carrier.Code}_STANDARD");
         }
-        catch (CarrierTimeoutException)
+        catch (CarrierException)
         {
             return new ShippingQuoteResponse(
                 Fee: 35000.00m,
                 IsEstimatedFallback: true,
-                ServiceName: "GHN_STANDARD_FALLBACK");
+                ServiceName: $"{carrier.Code}_STANDARD_FALLBACK");
         }
     }
 
@@ -107,9 +115,10 @@ public sealed class ShipmentService : IShipmentService
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // Idempotency check: strictly verify if shipment already created for this SubOrder
         var existing = await _dbContext.Shipments
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.OrderId == request.SubOrderId || s.OrderId == request.OrderId, cancellationToken);
+            .FirstOrDefaultAsync(s => s.OrderId == request.SubOrderId, cancellationToken);
 
         if (existing != null)
         {
@@ -117,20 +126,29 @@ public sealed class ShipmentService : IShipmentService
                 existing.Id,
                 existing.TrackingNumber ?? string.Empty,
                 $"https://fulfillment.nexus.internal/labels/{existing.Id}.pdf",
-                existing.Status);
+                existing.Status.ToString());
         }
 
-        var warehouse = await _dbContext.Warehouses.FirstOrDefaultAsync(w => w.IsActive, cancellationToken);
-        var warehouseId = warehouse?.Id ?? Guid.Parse("00000000-0000-0000-0000-000000000001");
+        // Dynamically resolve warehouse for the seller
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
+            ?? await _dbContext.Warehouses
+                .FirstOrDefaultAsync(w => w.IsActive, cancellationToken)
+            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse for seller", request.SellerId);
 
-        var carrierEntity = await _dbContext.Carriers.FirstOrDefaultAsync(c => c.IsActive, cancellationToken);
-        var carrierId = carrierEntity?.Id ?? Guid.Parse("00000000-0000-0000-0000-000000000002");
-
+        // Dynamically resolve active carrier entity matching the resolver carrier code
         var carrier = _carrierResolver.Get();
+        var carrierEntity = await _dbContext.Carriers
+            .FirstOrDefaultAsync(c => c.Code == carrier.Code && c.IsActive, cancellationToken)
+            ?? await _dbContext.Carriers
+                .FirstOrDefaultAsync(c => c.IsActive, cancellationToken)
+            ?? throw new EntityNotFoundException("CARRIER_NOT_FOUND", "Carrier", carrier.Code);
+
         var fromAddress = new ShippingAddress(
-            FullName: warehouse?.Name ?? "Main Warehouse",
-            Phone: "0901234567",
-            AddressLine: warehouse?.Address ?? "Warehouse WH_001, Hanoi, Vietnam");
+            FullName: warehouse.Name,
+            Phone: request.RecipientPhone,
+            AddressLine: warehouse.Address ?? "Warehouse Storage, Ho Chi Minh, Vietnam",
+            DistrictId: request.ToDistrictId > 0 ? null : null);
 
         var toAddress = new ShippingAddress(
             FullName: request.RecipientName,
@@ -151,17 +169,21 @@ public sealed class ShipmentService : IShipmentService
         {
             Id = Guid.NewGuid(),
             OrderId = request.SubOrderId,
-            WarehouseId = warehouseId,
-            CarrierId = carrierId,
+            WarehouseId = warehouse.Id,
+            CarrierId = carrierEntity.Id,
+            ServiceType = ShippingServiceType.Standard,
             TrackingNumber = carrierResult.TrackingCode,
-            Status = ShipmentStatus.ReadyToPick.ToString(),
+            Status = ShipmentStatus.ReadyToPick,
             ShippingFee = carrierResult.ShippingFee,
             ReceiverName = request.RecipientName,
             ReceiverPhone = request.RecipientPhone,
             ReceiverAddress = request.ShippingAddress,
             EstimatedDeliveryAt = carrierResult.ExpectedDeliveryTime,
             CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
+            UpdatedAt = DateTimeOffset.UtcNow,
+            IsDeleted = false,
+            CreatedBy = request.SellerId,
+            UpdatedBy = request.SellerId
         };
 
         _dbContext.Shipments.Add(shipment);
@@ -171,6 +193,6 @@ public sealed class ShipmentService : IShipmentService
             shipment.Id,
             shipment.TrackingNumber ?? carrierResult.TrackingCode,
             carrierResult.LabelUrl ?? $"https://fulfillment.nexus.internal/labels/{shipment.Id}.pdf",
-            shipment.Status);
+            shipment.Status.ToString());
     }
 }

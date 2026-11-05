@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Fulfillment.Application.Exceptions;
 using Fulfillment.Domain.Exceptions;
 
 public sealed class GlobalExceptionHandlerMiddleware
@@ -134,6 +135,16 @@ public sealed class GlobalExceptionHandlerMiddleware
                 "VAL_INVALID_ARGUMENT",
                 "Invalid argument",
                 aex.Message),
+            CarrierTimeoutException cte => (
+                StatusCodes.Status504GatewayTimeout,
+                "CARRIER_TIMEOUT",
+                "Carrier gateway timeout",
+                cte.Message),
+            CarrierException ce => (
+                StatusCodes.Status502BadGateway,
+                "CARRIER_INTEGRATION_ERROR",
+                "Carrier gateway error",
+                ce.Message),
             _ => (
                 StatusCodes.Status500InternalServerError,
                 "INTERNAL_SERVER_ERROR",
@@ -175,6 +186,8 @@ public sealed class GlobalExceptionHandlerMiddleware
         StatusCodes.Status404NotFound => "https://tools.ietf.org/html/rfc9110#section-15.5.5",
         StatusCodes.Status409Conflict => "https://tools.ietf.org/html/rfc9110#section-15.5.10",
         StatusCodes.Status429TooManyRequests => "https://tools.ietf.org/html/rfc9110#section-15.5.21",
+        StatusCodes.Status502BadGateway => "https://tools.ietf.org/html/rfc9110#section-15.6.3",
+        StatusCodes.Status504GatewayTimeout => "https://tools.ietf.org/html/rfc9110#section-15.6.5",
         _ => "https://tools.ietf.org/html/rfc9110#section-15.6.1"
     };
 
@@ -186,6 +199,8 @@ public sealed class GlobalExceptionHandlerMiddleware
         StatusCodes.Status409Conflict => "Conflict",
         StatusCodes.Status423Locked => "Account locked",
         StatusCodes.Status429TooManyRequests => "Too many requests",
+        StatusCodes.Status502BadGateway => "Bad gateway",
+        StatusCodes.Status504GatewayTimeout => "Gateway timeout",
         _ => fallback
     };
 }

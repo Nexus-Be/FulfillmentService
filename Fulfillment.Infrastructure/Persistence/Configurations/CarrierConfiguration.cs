@@ -8,15 +8,12 @@ public class CarrierConfiguration : IEntityTypeConfiguration<Carrier>
 {
     public void Configure(EntityTypeBuilder<Carrier> builder)
     {
-        builder.ToTable("carriers");
+        builder.ToTable("Carriers");
         builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
-        builder.Property(x => x.Code).HasColumnName("code").HasMaxLength(30).IsRequired();
-        builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
-        builder.Property(x => x.Priority).HasColumnName("priority").HasDefaultValue(0).IsRequired();
-        builder.Property(x => x.IsActive).HasColumnName("is_active").HasDefaultValue(true).IsRequired();
-        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
+        builder.Property(x => x.Code).HasMaxLength(30).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.Priority).HasDefaultValue(0).IsRequired();
 
         builder.HasIndex(x => x.Code).IsUnique();
 

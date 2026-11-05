@@ -54,7 +54,7 @@ public sealed class GhnWebhookController : ControllerBase
         }
 
         var newStatus = GhnStatusMapper.Map(payload.Status);
-        shipment.Status = newStatus.ToString();
+        shipment.Status = newStatus;
         shipment.UpdatedAt = DateTimeOffset.UtcNow;
 
         if (newStatus == ShipmentStatus.Delivered)
@@ -88,4 +88,3 @@ public sealed class GhnWebhookController : ControllerBase
         return Ok(new { message = "Webhook processed successfully.", status = newStatus.ToString() });
     }
 }
-
