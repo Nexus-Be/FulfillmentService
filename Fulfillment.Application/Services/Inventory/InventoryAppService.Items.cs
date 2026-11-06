@@ -19,7 +19,7 @@ public sealed partial class InventoryAppService
 
         if (existing != null)
         {
-            throw new BusinessRuleValidationException($"Inventory for SKU '{request.SkuId}' already declared in warehouse '{request.WarehouseId}'.");
+            return MapToResponse(existing);
         }
 
         var item = InventoryItem.Create(request.SkuId, request.WarehouseId, request.Quantity);
