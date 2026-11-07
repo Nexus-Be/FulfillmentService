@@ -64,3 +64,6 @@ appsettings*.json
 .agents/history/
 .agents/review/
 
+
+.vscode/
+_Minh/

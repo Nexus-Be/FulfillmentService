@@ -2,6 +2,7 @@ namespace Fulfillment.UnitTests;
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -57,18 +58,21 @@ public class InventoryItemTests : IDisposable
     }
 
     [Fact]
-    public async Task DeclareInventory_WhenAlreadyDeclared_ShouldThrowValidationException()
+    public async Task DeclareInventory_WhenAlreadyDeclared_ShouldReturnExistingItem()
     {
         // Arrange
         var skuId = Guid.NewGuid();
         var request = new DeclareInventoryRequest(skuId, _warehouseId, 50, "First declaration");
-        await _service.DeclareInventoryAsync(request);
+        var firstResponse = await _service.DeclareInventoryAsync(request);
 
-        // Act
-        var act = async () => await _service.DeclareInventoryAsync(request);
+        // Act - Idempotent declaration should not throw, returns existing item
+        var secondResponse = await _service.DeclareInventoryAsync(request);
 
         // Assert
-        await act.Should().ThrowAsync<BusinessRuleValidationException>();
+        secondResponse.Should().NotBeNull();
+        secondResponse.Id.Should().Be(firstResponse.Id);
+        secondResponse.SkuId.Should().Be(skuId);
+        secondResponse.TotalQuantity.Should().Be(50);
     }
 
     [Fact]
@@ -78,25 +82,30 @@ public class InventoryItemTests : IDisposable
         var skuId = Guid.NewGuid();
         await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuId, _warehouseId, 30));
 
-        // Act: Intake 20
-        var request = new AdjustInventoryRequest(skuId, InventoryAdjustmentType.Intake, 20, "Supplier restock");
+        var request = new AdjustInventoryRequest(skuId, InventoryAdjustmentType.Intake, 20, "Restock batch");
+
+        // Act
         var response = await _service.AdjustInventoryAsync(request);
 
         // Assert
         response.TotalQuantity.Should().Be(50);
         response.AvailableQuantity.Should().Be(50);
 
-        var ledgers = await _dbContext.InventoryLedgers.ToListAsync();
-        ledgers.Should().Contain(l => l.MovementType == "INTAKE" && l.Quantity == 20);
+        var ledger = await _dbContext.InventoryLedgers.FirstOrDefaultAsync(l => l.Id == response.AdjustmentLedgerId);
+        ledger.Should().NotBeNull();
+        ledger!.MovementType.Should().Be("INTAKE");
+        ledger.Quantity.Should().Be(20);
+        ledger.Note.Should().Be("Restock batch");
     }
 
     [Fact]
-    public async Task AdjustInventory_WhenAdjustBelowReserved_ShouldThrowBusinessRuleValidationException()
+    public async Task AdjustInventory_WhenResultAvailableNegative_ShouldThrowException()
     {
-        // Arrange: 10 in stock, reserve 8
+        // Arrange
         var skuId = Guid.NewGuid();
         var declared = await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuId, _warehouseId, 10));
 
+        // Reserve 8 items
         var item = await _dbContext.InventoryItems.FirstAsync(i => i.Id == declared.Id);
         item.Hold(8);
         await _dbContext.SaveChangesAsync();
@@ -138,5 +147,31 @@ public class InventoryItemTests : IDisposable
         list.Should().Contain(i => i.SkuId == sku1);
         list.Should().Contain(i => i.SkuId == sku2);
     }
-}
 
+    [Theory]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":1,\"quantity\":10}", InventoryAdjustmentType.Intake)]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":2,\"quantity\":-5}", InventoryAdjustmentType.Adjust)]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":\"Intake\",\"quantity\":10}", InventoryAdjustmentType.Intake)]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":\"Adjust\",\"quantity\":-5}", InventoryAdjustmentType.Adjust)]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":\"1\",\"quantity\":10}", InventoryAdjustmentType.Intake)]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":\"2\",\"quantity\":-5}", InventoryAdjustmentType.Adjust)]
+    public void AdjustInventoryRequest_DeserializesBothNumberAndStringEnumCorrectly(string json, InventoryAdjustmentType expectedType)
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var request = JsonSerializer.Deserialize<AdjustInventoryRequest>(json, options);
+
+        request.Should().NotBeNull();
+        request!.Type.Should().Be(expectedType);
+    }
+
+    [Theory]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":3,\"quantity\":10}")]
+    [InlineData("{\"skuId\":\"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\"type\":\"InvalidType\",\"quantity\":10}")]
+    public void AdjustInventoryRequest_ThrowsOnInvalidTypeValue(string json)
+    {
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        var act = () => JsonSerializer.Deserialize<AdjustInventoryRequest>(json, options);
+
+        act.Should().Throw<JsonException>();
+    }
+}

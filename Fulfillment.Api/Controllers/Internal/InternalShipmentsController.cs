@@ -27,4 +27,3 @@ public sealed class InternalShipmentsController : ControllerBase
         return Ok(result);
     }
 }
-

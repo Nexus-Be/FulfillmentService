@@ -28,6 +28,16 @@ public sealed class InventoriesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Adjusts inventory balance for a product SKU (Intake or Adjust).</summary>
+    [HttpPost("adjust")]
+    public async Task<ActionResult<AdjustInventoryResponse>> AdjustInventory(
+        [FromBody] AdjustInventoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryAppService.AdjustInventoryAsync(request, cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>Retrieves inventory balance by SKU ID.</summary>
     [HttpGet("{skuId:guid}")]
     public async Task<ActionResult<InventoryItemResponse>> GetBySkuId(
@@ -50,6 +60,16 @@ public sealed class InventoriesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _inventoryAppService.GetByListSkuAsync(skuIds, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Retrieves inventory transaction ledgers for a product SKU.</summary>
+    [HttpGet("{skuId:guid}/ledgers")]
+    public async Task<ActionResult<IReadOnlyList<InventoryLedgerResponse>>> GetLedgersBySkuId(
+        [FromRoute] Guid skuId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryAppService.GetLedgersBySkuIdAsync(skuId, cancellationToken);
         return Ok(result);
     }
 }

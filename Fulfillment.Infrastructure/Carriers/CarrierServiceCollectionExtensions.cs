@@ -23,17 +23,32 @@ public static class CarrierServiceCollectionExtensions
             .Validate(o => !string.IsNullOrWhiteSpace(o.DefaultCarrierCode), "Configuration 'Carriers:DefaultCarrierCode' is missing or empty.")
             .ValidateOnStart();
 
-        services.Configure<GhnOptions>(o =>
-        {
-            var section = configuration.GetSection(GhnOptions.SectionName);
-            o.BaseUrl = section["BaseUrl"] ?? "https://dev-online-gateway.ghn.vn";
-            o.Token = section["Token"] ?? string.Empty;
-            o.ShopId = section["ShopId"] ?? string.Empty;
-            if (int.TryParse(section["TimeoutSeconds"], out var timeout) && timeout > 0)
+        services.AddOptions<GhnOptions>()
+            .Configure(o =>
             {
-                o.TimeoutSeconds = timeout;
-            }
-        });
+                var section = configuration.GetSection(GhnOptions.SectionName);
+                o.Environment = section["Environment"] ?? "Staging";
+                o.BaseUrl = section["BaseUrl"] ?? "https://dev-online-gateway.ghn.vn";
+                o.Token = section["Token"] ?? string.Empty;
+                o.ShopId = section["ShopId"] ?? string.Empty;
+                if (int.TryParse(section["TimeoutSeconds"], out var timeout) && timeout > 0)
+                {
+                    o.TimeoutSeconds = timeout;
+                }
+            })
+            .Validate(o =>
+            {
+                if (string.Equals(o.Environment, "Staging", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!Uri.TryCreate(o.BaseUrl, UriKind.Absolute, out var uri) ||
+                        !string.Equals(uri.Host, "dev-online-gateway.ghn.vn", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }, "Security guardrail violation: Staging GHN BaseUrl host must strictly be 'dev-online-gateway.ghn.vn'. Production URLs are forbidden.")
+            .ValidateOnStart();
 
         services.AddScoped<GhnGateway>();
         services.AddScoped<ICarrierGateway>(sp => sp.GetRequiredService<GhnGateway>());

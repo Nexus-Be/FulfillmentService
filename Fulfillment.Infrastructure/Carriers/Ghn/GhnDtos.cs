@@ -211,6 +211,5 @@ public sealed class GhnWebhookPayload
     public decimal? TotalFee { get; set; }
 
     [JsonPropertyName("Time")]
-    public string? Time { get; set; }
+    public object? Time { get; set; }
 }
-
