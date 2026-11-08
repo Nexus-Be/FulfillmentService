@@ -1,4 +1,4 @@
-﻿namespace Fulfillment.Application.Services.Warehouse;
+namespace Fulfillment.Application.Services.Warehouse;
 
 using System;
 using System.Collections.Generic;
@@ -107,11 +107,16 @@ public sealed class WarehouseService : IWarehouseService
             warehouse.CreatedAt);
     }
 
-    public async Task<WarehouseDto> UpdateAsync(Guid id, UpdateWarehouseRequest request, Guid currentUserId, CancellationToken cancellationToken = default)
+    public async Task<WarehouseDto> UpdateAsync(Guid id, UpdateWarehouseRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", id);
+
+        if (!isAdmin && currentUserId != Guid.Empty && warehouse.SellerId != currentUserId)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to update this warehouse.", 403);
+        }
 
         warehouse.Name = request.Name.Trim();
         warehouse.Address = request.Address?.Trim();
@@ -168,11 +173,16 @@ public sealed class WarehouseService : IWarehouseService
         return new PagedData<WarehouseDto>(items, PaginationMetadata.Create(safePage, safePageSize, totalCount));
     }
 
-    public async Task<WarehouseDto> SetActiveStatusAsync(Guid id, bool isActive, CancellationToken cancellationToken = default)
+    public async Task<WarehouseDto> SetActiveStatusAsync(Guid id, bool isActive, Guid currentUserId = default, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", id);
+
+        if (!isAdmin && currentUserId != Guid.Empty && warehouse.SellerId != currentUserId)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to change status of this warehouse.", 403);
+        }
 
         warehouse.IsActive = isActive;
         await _dbContext.SaveChangesAsync(cancellationToken);

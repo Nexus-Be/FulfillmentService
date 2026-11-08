@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Fulfillment.Api.Extensions;
+using Fulfillment.Api.Filters;
 using Fulfillment.Application.Services.Inventory;
 
 [ApiController]
@@ -20,21 +22,33 @@ public sealed class InventoriesController : ControllerBase
 
     /// <summary>Initializes warehouse inventory for a product SKU.</summary>
     [HttpPost("initialize")]
-    public async Task<ActionResult<InventoryItemResponse>> InitializeInventory(
+    [RequireRole("seller", "admin")]
+    public async Task<IActionResult> InitializeInventory(
         [FromBody] DeclareInventoryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryAppService.DeclareInventoryAsync(request, cancellationToken);
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.DeclareInventoryAsync(request, userId, this.IsAdmin(), cancellationToken);
         return Ok(result);
     }
 
     /// <summary>Adjusts inventory balance for a product SKU (Intake or Adjust).</summary>
     [HttpPost("adjust")]
-    public async Task<ActionResult<AdjustInventoryResponse>> AdjustInventory(
+    [RequireRole("seller", "admin")]
+    public async Task<IActionResult> AdjustInventory(
         [FromBody] AdjustInventoryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryAppService.AdjustInventoryAsync(request, cancellationToken);
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.AdjustInventoryAsync(request, userId, this.IsAdmin(), cancellationToken);
         return Ok(result);
     }
 
@@ -65,6 +79,7 @@ public sealed class InventoriesController : ControllerBase
 
     /// <summary>Retrieves inventory transaction ledgers for a product SKU.</summary>
     [HttpGet("{skuId:guid}/ledgers")]
+    [RequireRole("seller", "admin", "staff")]
     public async Task<ActionResult<IReadOnlyList<InventoryLedgerResponse>>> GetLedgersBySkuId(
         [FromRoute] Guid skuId,
         CancellationToken cancellationToken)

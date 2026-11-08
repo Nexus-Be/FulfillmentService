@@ -27,7 +27,7 @@ public interface IWarehouseService
     /// Updates details of an existing warehouse.
     /// Cập nhật thông tin chi tiết một kho hàng hiện có.
     /// </summary>
-    Task<WarehouseDto> UpdateAsync(Guid id, UpdateWarehouseRequest request, Guid currentUserId, CancellationToken cancellationToken = default);
+    Task<WarehouseDto> UpdateAsync(Guid id, UpdateWarehouseRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// [FUL-12]
@@ -55,5 +55,5 @@ public interface IWarehouseService
     /// Activates or deactivates a warehouse.
     /// Bật hoặc tắt trạng thái hoạt động của một kho hàng.
     /// </summary>
-    Task<WarehouseDto> SetActiveStatusAsync(Guid id, bool isActive, CancellationToken cancellationToken = default);
+    Task<WarehouseDto> SetActiveStatusAsync(Guid id, bool isActive, Guid currentUserId = default, bool isAdmin = false, CancellationToken cancellationToken = default);
 }

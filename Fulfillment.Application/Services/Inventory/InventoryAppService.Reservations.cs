@@ -299,7 +299,9 @@ public sealed partial class InventoryAppService
             .Where(i => skuIds.Contains(i.SkuId))
             .ToListAsync(cancellationToken);
 
-        return items.ToDictionary(i => i.SkuId);
+        return items
+            .GroupBy(i => i.SkuId)
+            .ToDictionary(g => g.Key, g => g.First());
     }
 
     private static List<InventoryReservationItem> HoldStockAndCreateReservationItems(

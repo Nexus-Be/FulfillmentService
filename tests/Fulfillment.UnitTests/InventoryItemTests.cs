@@ -25,6 +25,17 @@ public class InventoryItemTests : IDisposable
             .Options;
 
         _dbContext = new AppDbContext(options);
+
+        // Seed default active warehouse
+        _dbContext.Warehouses.Add(new Fulfillment.Domain.Entities.Warehouse
+        {
+            Id = _warehouseId,
+            Code = "WH_DEFAULT",
+            Name = "Default Warehouse",
+            IsActive = true
+        });
+        _dbContext.SaveChanges();
+
         _service = new InventoryAppService(_dbContext);
     }
 

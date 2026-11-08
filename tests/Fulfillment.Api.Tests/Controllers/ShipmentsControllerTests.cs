@@ -169,7 +169,10 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         // BƯỚC 4: TRA CỨU VẬN ĐƠN THEO SUB-ORDER ID (GET /api/v1/shipments/order/{subOrderId})
         // -----------------------------------------------------------------------------
         _output.WriteLine($"👉 [BƯỚC 4] TRA CỨU VẬN ĐƠN THEO SUB-ORDER ID (GET /api/v1/shipments/order/{subOrderId})");
-        var getByOrderResponse = await _client.GetAsync($"/api/v1/shipments/order/{subOrderId}");
+        using var getByOrderRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/shipments/order/{subOrderId}");
+        getByOrderRequest.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        getByOrderRequest.Headers.Add("x-user-roles", "buyer");
+        var getByOrderResponse = await _client.SendAsync(getByOrderRequest);
         var getByOrderRaw = await getByOrderResponse.Content.ReadAsStringAsync();
         _output.WriteLine($"   Status code: {(int)getByOrderResponse.StatusCode} {getByOrderResponse.StatusCode}");
         _output.WriteLine($"   Response Body:\n{getByOrderRaw}");
@@ -185,7 +188,10 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         // BƯỚC 5: TRA CỨU VẬN ĐƠN THEO TRACKING NUMBER (GET /api/v1/shipments/tracking/{trackingNumber})
         // -----------------------------------------------------------------------------
         _output.WriteLine($"👉 [BƯỚC 5] TRA CỨU VẬN ĐƠN THEO TRACKING CODE (GET /api/v1/shipments/tracking/{trackingNumber})");
-        var getByTrackingResponse = await _client.GetAsync($"/api/v1/shipments/tracking/{trackingNumber}");
+        using var getByTrackingRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/shipments/tracking/{trackingNumber}");
+        getByTrackingRequest.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        getByTrackingRequest.Headers.Add("x-user-roles", "buyer");
+        var getByTrackingResponse = await _client.SendAsync(getByTrackingRequest);
         var getByTrackingRaw = await getByTrackingResponse.Content.ReadAsStringAsync();
         _output.WriteLine($"   Status code: {(int)getByTrackingResponse.StatusCode} {getByTrackingResponse.StatusCode}");
         _output.WriteLine($"   Response Body:\n{getByTrackingRaw}");
@@ -201,7 +207,10 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         // BƯỚC 6: KIỂM TRA TRA CỨU MÃ KHÔNG TỒN TẠI (NEGATIVE CASE 404 NOT FOUND)
         // -----------------------------------------------------------------------------
         _output.WriteLine("👉 [BƯỚC 6] KIỂM TRA MÃ VẬN ĐƠN KHÔNG TỒN TẠI (GET /api/v1/shipments/tracking/UNKNOWN_XYZ)");
-        var notFoundResponse = await _client.GetAsync("/api/v1/shipments/tracking/UNKNOWN_TRACKING_12345");
+        using var notFoundRequest = new HttpRequestMessage(HttpMethod.Get, "/api/v1/shipments/tracking/UNKNOWN_TRACKING_12345");
+        notFoundRequest.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        notFoundRequest.Headers.Add("x-user-roles", "buyer");
+        var notFoundResponse = await _client.SendAsync(notFoundRequest);
         var notFoundRaw = await notFoundResponse.Content.ReadAsStringAsync();
         _output.WriteLine($"   Status code: {(int)notFoundResponse.StatusCode} {notFoundResponse.StatusCode}");
         _output.WriteLine($"   Response Body (ProblemDetails RFC 9110):\n{notFoundRaw}");
@@ -234,7 +243,10 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         // BƯỚC 8: XÁC MINH TRẠNG THÁI DB ĐÃ CHUYỂN SANG 'InTransit'
         // -----------------------------------------------------------------------------
         _output.WriteLine($"👉 [BƯỚC 8] XÁC MINH TRẠNG THÁI TRONG DB SAU KHI WEBHOOK GỌI (GET tracking/{trackingNumber})");
-        var inTransitResponse = await _client.GetAsync($"/api/v1/shipments/tracking/{trackingNumber}");
+        using var inTransitRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/shipments/tracking/{trackingNumber}");
+        inTransitRequest.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        inTransitRequest.Headers.Add("x-user-roles", "buyer");
+        var inTransitResponse = await _client.SendAsync(inTransitRequest);
         var inTransitRaw = await inTransitResponse.Content.ReadAsStringAsync();
         _output.WriteLine($"   Response Body:\n{inTransitRaw}");
 
@@ -267,7 +279,10 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         // BƯỚC 10: XÁC MINH TRẠNG THÁI CUỐI CÙNG LÀ 'Delivered'
         // -----------------------------------------------------------------------------
         _output.WriteLine($"👉 [BƯỚC 10] XÁC MINH TRẠNG THÁI HOÀN TẤT TRONG DB (GET tracking/{trackingNumber})");
-        var deliveredResponse = await _client.GetAsync($"/api/v1/shipments/tracking/{trackingNumber}");
+        using var deliveredRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/shipments/tracking/{trackingNumber}");
+        deliveredRequest.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        deliveredRequest.Headers.Add("x-user-roles", "buyer");
+        var deliveredResponse = await _client.SendAsync(deliveredRequest);
         var deliveredRaw = await deliveredResponse.Content.ReadAsStringAsync();
         _output.WriteLine($"   Response Body:\n{deliveredRaw}");
 
