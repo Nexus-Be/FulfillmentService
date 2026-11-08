@@ -98,18 +98,23 @@ public class WarehousesController : ControllerBase
             return errorResult;
         }
 
-        var warehouse = await _warehouseService.UpdateAsync(id, request, userId, ct);
+        var warehouse = await _warehouseService.UpdateAsync(id, request, userId, this.IsAdmin(), ct);
         return Ok(warehouse);
     }
 
     [HttpPatch("{id:guid}/status")]
-    [RequireRole("admin")]
+    [RequireRole("seller", "admin")]
     public async Task<IActionResult> SetActiveStatus(
         [FromRoute] Guid id,
         [FromQuery] bool isActive,
         CancellationToken ct)
     {
-        var warehouse = await _warehouseService.SetActiveStatusAsync(id, isActive, ct);
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var warehouse = await _warehouseService.SetActiveStatusAsync(id, isActive, userId, this.IsAdmin(), ct);
         return Ok(warehouse);
     }
 }

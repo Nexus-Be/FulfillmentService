@@ -14,6 +14,20 @@ public sealed partial class InventoryAppService
 {
     public async Task<InventoryItemResponse> DeclareInventoryAsync(DeclareInventoryRequest request, CancellationToken cancellationToken = default)
     {
+        return await DeclareInventoryAsync(request, Guid.Empty, isAdmin: true, cancellationToken);
+    }
+
+    public async Task<InventoryItemResponse> DeclareInventoryAsync(DeclareInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.Id == request.WarehouseId, cancellationToken)
+            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", request.WarehouseId);
+
+        if (!isAdmin && currentUserId != Guid.Empty && warehouse.SellerId != currentUserId)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to manage inventory in this warehouse.", 403);
+        }
+
         var existing = await _dbContext.InventoryItems
             .FirstOrDefaultAsync(i => i.SkuId == request.SkuId && i.WarehouseId == request.WarehouseId, cancellationToken);
 
@@ -44,11 +58,48 @@ public sealed partial class InventoryAppService
 
     public async Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, CancellationToken cancellationToken = default)
     {
+        return await AdjustInventoryAsync(request, Guid.Empty, isAdmin: true, cancellationToken);
+    }
+
+    public async Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
+    {
         ValidateAdjustRequest(request);
 
-        var item = await _dbContext.InventoryItems
-            .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken)
-            ?? throw new EntityNotFoundException("InventoryItem for SKU", request.SkuId);
+        Warehouse? warehouse = null;
+        if (request.WarehouseId.HasValue && request.WarehouseId.Value != Guid.Empty)
+        {
+            warehouse = await _dbContext.Warehouses
+                .FirstOrDefaultAsync(w => w.Id == request.WarehouseId.Value, cancellationToken)
+                ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", request.WarehouseId.Value);
+
+            if (!isAdmin && currentUserId != Guid.Empty && warehouse.SellerId != currentUserId)
+            {
+                throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to manage inventory in this warehouse.", 403);
+            }
+        }
+        else if (!isAdmin && currentUserId != Guid.Empty)
+        {
+            warehouse = await _dbContext.Warehouses
+                .FirstOrDefaultAsync(w => w.SellerId == currentUserId && w.IsActive, cancellationToken)
+                ?? throw new BusinessRuleValidationException("WAREHOUSE_NOT_FOUND", "No active warehouse found for your seller account.", 404);
+        }
+
+        InventoryItem? item = null;
+        if (warehouse != null)
+        {
+            item = await _dbContext.InventoryItems
+                .FirstOrDefaultAsync(i => i.SkuId == request.SkuId && i.WarehouseId == warehouse.Id, cancellationToken);
+        }
+        else
+        {
+            item = await _dbContext.InventoryItems
+                .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken);
+        }
+
+        if (item == null)
+        {
+            throw new EntityNotFoundException("INVENTORY_NOT_FOUND", "InventoryItem for SKU", request.SkuId);
+        }
 
         item.Adjust(request.Quantity);
 

@@ -37,7 +37,9 @@ public sealed record AdjustInventoryRequest(
 
     int Quantity,
 
-    string? Note = null);
+    string? Note = null,
+
+    Guid? WarehouseId = null);
 
 public sealed record AdjustInventoryResponse(
     Guid SkuId,

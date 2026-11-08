@@ -15,11 +15,25 @@ public partial interface IInventoryAppService
     Task<InventoryItemResponse> DeclareInventoryAsync(DeclareInventoryRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// [FUL-01]
+    /// Declares initial inventory for a specific SKU with ownership validation.
+    /// Khai báo tồn kho ban đầu cho một SKU kèm kiểm tra quyền sở hữu kho.
+    /// </summary>
+    Task<InventoryItemResponse> DeclareInventoryAsync(DeclareInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// [FUL-02]
     /// Adjusts inventory quantity by restocking or performing stock adjustments.
     /// Điều chỉnh số lượng tồn kho bằng cách nhập kho hoặc điều chỉnh kiểm kê.
     /// </summary>
     Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// [FUL-02]
+    /// Adjusts inventory quantity by restocking or performing stock adjustments with ownership validation.
+    /// Điều chỉnh số lượng tồn kho bằng cách nhập kho hoặc điều chỉnh kiểm kê kèm kiểm tra quyền sở hữu kho.
+    /// </summary>
+    Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// [FUL-03]
