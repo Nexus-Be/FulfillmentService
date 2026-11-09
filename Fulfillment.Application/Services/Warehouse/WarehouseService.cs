@@ -67,7 +67,9 @@ public sealed class WarehouseService : IWarehouseService
     public async Task<InternalWarehouseResponse> CreateInternalAsync(InternalCreateWarehouseRequest request, CancellationToken cancellationToken = default)
     {
         var existingWarehouse = await _dbContext.Warehouses
-            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(
+                w => w.IsActive && (w.SellerId == request.SellerId || (request.UserId != Guid.Empty && w.SellerId == request.UserId)),
+                cancellationToken);
 
         if (existingWarehouse != null)
         {
@@ -78,7 +80,8 @@ public sealed class WarehouseService : IWarehouseService
                 existingWarehouse.CreatedAt);
         }
 
-        var generatedCode = "WH_" + request.SellerId.ToString("N")[..8].ToUpperInvariant();
+        var effectiveSellerId = request.UserId != Guid.Empty ? request.UserId : request.SellerId;
+        var generatedCode = "WH_" + effectiveSellerId.ToString("N")[..8].ToUpperInvariant();
         var isCodeTaken = await _dbContext.Warehouses
             .AnyAsync(w => w.Code == generatedCode, cancellationToken);
 
@@ -92,7 +95,7 @@ public sealed class WarehouseService : IWarehouseService
             Code = generatedCode,
             Name = request.ShopName.Trim(),
             Type = WarehouseType.SellerWarehouse.ToString(),
-            SellerId = request.SellerId,
+            SellerId = effectiveSellerId,
             Address = request.PickupAddress.Trim(),
             IsActive = true
         };
@@ -142,7 +145,135 @@ public sealed class WarehouseService : IWarehouseService
             .AsNoTracking()
             .FirstOrDefaultAsync(w => w.SellerId == sellerId && w.IsActive, cancellationToken);
 
+        // Hỗ trợ tra cứu chéo giữa SeedSellerUserId và SeedSellerProfileId nếu là tài khoản seed
+        if (warehouse == null)
+        {
+            var seedUserId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+            var seedProfileId = Guid.Parse("33333333-3333-3333-3333-333333333334");
+
+            if (sellerId == seedUserId)
+            {
+                warehouse = await _dbContext.Warehouses
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(w => w.SellerId == seedProfileId && w.IsActive, cancellationToken);
+            }
+            else if (sellerId == seedProfileId)
+            {
+                warehouse = await _dbContext.Warehouses
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(w => w.SellerId == seedUserId && w.IsActive, cancellationToken);
+            }
+        }
+
         return warehouse == null ? null : MapToDto(warehouse);
+    }
+
+    public async Task<WarehouseDto?> GetOrProvisionForSellerAsync(
+        Guid userId,
+        Guid? sellerProfileId = null,
+        string? shopName = null,
+        string? address = null,
+        CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.SellerId == userId && w.IsActive, cancellationToken);
+
+        if (warehouse == null && sellerProfileId.HasValue && sellerProfileId.Value != Guid.Empty)
+        {
+            var profileWarehouse = await _dbContext.Warehouses
+                .FirstOrDefaultAsync(w => w.SellerId == sellerProfileId.Value && w.IsActive, cancellationToken);
+
+            if (profileWarehouse != null)
+            {
+                profileWarehouse.SellerId = userId;
+                if (!string.IsNullOrWhiteSpace(shopName) && profileWarehouse.Name != shopName.Trim())
+                {
+                    profileWarehouse.Name = shopName.Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(address) && profileWarehouse.Address != address.Trim())
+                {
+                    profileWarehouse.Address = address.Trim();
+                }
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                return MapToDto(profileWarehouse);
+            }
+        }
+
+        if (warehouse == null)
+        {
+            var generatedCode = "WH_" + userId.ToString("N")[..8].ToUpperInvariant();
+            var isCodeTaken = await _dbContext.Warehouses.AnyAsync(w => w.Code == generatedCode, cancellationToken);
+            if (isCodeTaken)
+            {
+                generatedCode = "WH_" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            }
+
+            var resolvedName = !string.IsNullOrWhiteSpace(shopName)
+                ? shopName.Trim()
+                : $"Kho Riêng Gian Hàng ({generatedCode})";
+
+            var resolvedAddress = !string.IsNullOrWhiteSpace(address)
+                ? address.Trim()
+                : "Kho hàng riêng của Seller";
+
+            warehouse = new Warehouse
+            {
+                Code = generatedCode,
+                Name = resolvedName,
+                Type = WarehouseType.SellerWarehouse.ToString(),
+                SellerId = userId,
+                Address = resolvedAddress,
+                IsActive = true
+            };
+
+            _dbContext.Warehouses.Add(warehouse);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return MapToDto(warehouse);
+    }
+
+    public async Task<WarehouseDto?> UpdateBySellerIdAsync(
+        Guid sellerId,
+        InternalUpdateSellerWarehouseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.SellerId == sellerId && w.IsActive, cancellationToken);
+
+        if (warehouse == null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ShopName))
+        {
+            warehouse.Name = request.ShopName.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.PickupAddress))
+        {
+            warehouse.Address = request.PickupAddress.Trim();
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return MapToDto(warehouse);
+    }
+
+    public async Task<bool> DeleteBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.SellerId == sellerId, cancellationToken);
+
+        if (warehouse == null)
+        {
+            return false;
+        }
+
+        // Đánh dấu tắt hoặc xóa khỏi DB khi UserService rollback
+        warehouse.IsActive = false;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async Task<PagedData<WarehouseDto>> ListActiveAsync(int page, int pageSize, CancellationToken cancellationToken = default)

@@ -55,20 +55,62 @@ public class WarehousesController : ControllerBase
 
     [HttpGet("me")]
     [RequireRole("seller")]
-    public async Task<IActionResult> GetMyWarehouse(CancellationToken ct)
+    public async Task<IActionResult> GetMyWarehouse(
+        [FromQuery] Guid? sellerId = null,
+        [FromQuery] string? shopName = null,
+        [FromQuery] string? address = null,
+        CancellationToken ct = default)
     {
         if (!this.TryGetUserId(out var userId, out var errorResult))
         {
             return errorResult;
         }
 
-        var warehouse = await _warehouseService.GetBySellerIdAsync(userId, ct);
+        var warehouse = await _warehouseService.GetOrProvisionForSellerAsync(userId, sellerId, shopName, address, ct);
         if (warehouse == null)
         {
             return this.NotFoundError("WAREHOUSE_NOT_FOUND", "No active warehouse registered for your seller account.");
         }
 
         return Ok(warehouse);
+    }
+
+    [HttpPost("initialize")]
+    public async Task<ActionResult<InternalWarehouseResponse>> Initialize(
+        [FromBody] InternalCreateWarehouseRequest request,
+        CancellationToken ct)
+    {
+        var response = await _warehouseService.CreateInternalAsync(request, ct);
+        return StatusCode(StatusCodes.Status201Created, response);
+    }
+
+    [HttpPut("seller/{sellerId:guid}")]
+    public async Task<IActionResult> UpdateBySellerId(
+        [FromRoute] Guid sellerId,
+        [FromBody] InternalUpdateSellerWarehouseRequest request,
+        CancellationToken ct)
+    {
+        var warehouse = await _warehouseService.UpdateBySellerIdAsync(sellerId, request, ct);
+        if (warehouse == null)
+        {
+            return this.NotFoundError("WAREHOUSE_NOT_FOUND", $"No active warehouse found for seller '{sellerId}'.");
+        }
+
+        return Ok(warehouse);
+    }
+
+    [HttpDelete("seller/{sellerId:guid}")]
+    public async Task<IActionResult> DeleteBySellerId(
+        [FromRoute] Guid sellerId,
+        CancellationToken ct)
+    {
+        var deleted = await _warehouseService.DeleteBySellerIdAsync(sellerId, ct);
+        if (!deleted)
+        {
+            return NoContent();
+        }
+
+        return NoContent();
     }
 
     [HttpPost]
