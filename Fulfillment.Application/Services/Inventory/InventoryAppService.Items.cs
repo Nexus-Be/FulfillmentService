@@ -98,7 +98,15 @@ public sealed partial class InventoryAppService
 
         if (item == null)
         {
-            throw new EntityNotFoundException("INVENTORY_NOT_FOUND", "InventoryItem for SKU", request.SkuId);
+            if (warehouse != null && request.Type == InventoryAdjustmentType.Intake && request.Quantity > 0)
+            {
+                item = InventoryItem.Create(request.SkuId, warehouse.Id, 0);
+                _dbContext.InventoryItems.Add(item);
+            }
+            else
+            {
+                throw new EntityNotFoundException("INVENTORY_NOT_FOUND", "InventoryItem for SKU", request.SkuId);
+            }
         }
 
         item.Adjust(request.Quantity);

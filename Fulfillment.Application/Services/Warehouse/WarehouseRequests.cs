@@ -66,3 +66,22 @@ public sealed record InternalWarehouseResponse(
 
     [property: JsonPropertyName("created_at")]
     DateTimeOffset CreatedAt);
+
+public sealed record InternalUpdateSellerWarehouseRequest(
+    [property: JsonPropertyName("shop_name")]
+    string? ShopName,
+
+    [property: JsonPropertyName("contact_phone")]
+    string? ContactPhone,
+
+    [property: JsonPropertyName("pickup_address")]
+    string? PickupAddress,
+
+    [property: JsonPropertyName("province_id")]
+    int? ProvinceId,
+
+    [property: JsonPropertyName("district_id")]
+    int? DistrictId,
+
+    [property: JsonPropertyName("ward_code")]
+    string? WardCode);

@@ -56,4 +56,33 @@ public interface IWarehouseService
     /// Bật hoặc tắt trạng thái hoạt động của một kho hàng.
     /// </summary>
     Task<WarehouseDto> SetActiveStatusAsync(Guid id, bool isActive, Guid currentUserId = default, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// [FUL-12]
+    /// Retrieves or auto-provisions a single personal warehouse for a seller.
+    /// Lấy hoặc tự động khởi tạo kho riêng duy nhất cho người bán.
+    /// </summary>
+    Task<WarehouseDto?> GetOrProvisionForSellerAsync(
+        Guid userId,
+        Guid? sellerProfileId = null,
+        string? shopName = null,
+        string? address = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// [FUL-12]
+    /// Updates warehouse name and pickup address by seller ID.
+    /// Cập nhật tên kho và địa chỉ lấy hàng theo mã người bán.
+    /// </summary>
+    Task<WarehouseDto?> UpdateBySellerIdAsync(
+        Guid sellerId,
+        InternalUpdateSellerWarehouseRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// [FUL-12]
+    /// Deactivates or removes warehouse associated with a seller (used during rollback).
+    /// Vô hiệu hóa hoặc xóa kho gắn với người bán (dùng khi rollback mở shop).
+    /// </summary>
+    Task<bool> DeleteBySellerIdAsync(Guid sellerId, CancellationToken cancellationToken = default);
 }
