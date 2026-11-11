@@ -70,4 +70,32 @@ public sealed class InternalInventoryReservationsController : ControllerBase
         var expiredCount = await _inventoryAppService.AutoExpireReservationsAsync(cancellationToken);
         return Ok(new { expiredCount });
     }
+
+    /// <summary>
+    /// [Auction] Internal endpoint for AuctionService to lock item for live auction.
+    /// </summary>
+    [HttpPost("/api/v1/internal/fulfillment/auction-reserve")]
+    public async Task<IActionResult> AuctionReserve(
+        [FromBody] CreateReservationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _inventoryAppService.CreateReservationAsync(request, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// [Auction] Internal endpoint for AuctionService to release item when auction cancelled/expired.
+    /// </summary>
+    [HttpPost("/api/v1/internal/fulfillment/auction-release/{referenceId}")]
+    [HttpPost("/api/v1/internal/fulfillment/auction-release")]
+    public async Task<IActionResult> AuctionRelease(
+        [FromRoute] string? referenceId,
+        [FromQuery] string? refId,
+        [FromQuery] string? reason,
+        CancellationToken cancellationToken)
+    {
+        var targetRefId = !string.IsNullOrWhiteSpace(referenceId) ? referenceId : refId ?? string.Empty;
+        var result = await _inventoryAppService.ReleaseReservationAsync(targetRefId, reason ?? "AUCTION_CANCELLED", cancellationToken);
+        return Ok(result);
+    }
 }

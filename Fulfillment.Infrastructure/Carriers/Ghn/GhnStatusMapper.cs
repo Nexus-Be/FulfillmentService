@@ -21,7 +21,7 @@ public static class GhnStatusMapper
             "delivering" or "money_collect_delivering" => ShipmentStatus.InTransit,
             "delivered" => ShipmentStatus.Delivered,
             "delivery_fail" => ShipmentStatus.DeliveryFailed,
-            "return" or "returning" or "returned" => ShipmentStatus.Returned,
+            "return" or "returning" or "returned" or "return_to_origin" => ShipmentStatus.Returned,
             "cancel" => ShipmentStatus.Cancelled,
             _ => ShipmentStatus.ReadyToPick
         };

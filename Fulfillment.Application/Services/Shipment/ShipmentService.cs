@@ -195,4 +195,54 @@ public sealed class ShipmentService : IShipmentService
             carrierResult.LabelUrl ?? $"https://fulfillment.nexus.internal/labels/{shipment.Id}.pdf",
             shipment.Status.ToString());
     }
+
+    public async Task<ConfirmReturnResponse> ConfirmReturnAsync(Guid orderId, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
+    {
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Items)
+            .Include(s => s.Warehouse)
+            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment for Order", orderId);
+
+        if (!isAdmin && currentUserId != Guid.Empty && shipment.Warehouse?.SellerId != currentUserId)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to confirm return for this shipment.", 403);
+        }
+
+        // Hoàn tồn kho cho các item thuộc shipment này
+        int totalRestored = 0;
+        foreach (var item in shipment.Items)
+        {
+            var invItem = await _dbContext.InventoryItems
+                .FirstOrDefaultAsync(i => i.SkuId == item.SkuId && i.WarehouseId == shipment.WarehouseId, cancellationToken);
+
+            if (invItem != null)
+            {
+                invItem.Adjust(item.Quantity);
+                totalRestored += item.Quantity;
+
+                var ledger = Domain.Entities.InventoryLedger.Create(
+                    invItem.Id,
+                    "RETURN",
+                    item.Quantity,
+                    referenceType: "ORDER_RETURN",
+                    referenceId: orderId.ToString(),
+                    note: $"Restored stock from returned order '{orderId}'.");
+
+                _dbContext.InventoryLedgers.Add(ledger);
+            }
+        }
+
+        // Cập nhật trạng thái shipment sang Returned
+        shipment.Status = ShipmentStatus.Returned;
+        shipment.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new ConfirmReturnResponse(
+            Success: true,
+            Code: "STOCK_RESTORED",
+            Message: "Return confirmed successfully. Product stock has been restored to available inventory.",
+            Data: new ConfirmReturnData(orderId, totalRestored));
+    }
 }

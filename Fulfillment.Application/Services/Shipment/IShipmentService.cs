@@ -30,4 +30,11 @@ public interface IShipmentService
     /// Khởi tạo vận đơn thực tế gửi sang hãng vận chuyển kèm cơ chế chống trùng lặp theo đơn hàng con (SubOrder).
     /// </summary>
     Task<CreateShipmentResponse> CreateShipmentAsync(CreateShipmentRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// [P2-07]
+    /// Seller confirms received returned parcel and automatically restores inventory stock.
+    /// Người bán xác nhận nhận lại kiện hàng chuyển hoàn và tự động hoàn trả số lượng vào kho.
+    /// </summary>
+    Task<ConfirmReturnResponse> ConfirmReturnAsync(Guid orderId, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
 }

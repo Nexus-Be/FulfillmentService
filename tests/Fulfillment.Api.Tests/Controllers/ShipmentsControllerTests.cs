@@ -291,8 +291,24 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         Assert.Equal("Delivered", deliveredResult.Status);
         _output.WriteLine($"   ✅ [PASS] Trạng thái vận đơn cuối cùng là '{deliveredResult.Status}'.\n");
 
+        // -----------------------------------------------------------------------------
+        // BƯỚC 11: TEST LUỒNG P2-07 SELLER XÁC NHẬN NHẬN LẠI HÀNG HOÀN (CONFIRM RETURN)
+        // -----------------------------------------------------------------------------
+        _output.WriteLine($"👉 [BƯỚC 11] SELLER XÁC NHẬN HÀNG HOÀN & TỰ ĐỘNG HOÀN KHO (POST /api/v1/seller/orders/{subOrderId}/confirm-return)");
+        using var confirmReturnRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/seller/orders/{subOrderId}/confirm-return");
+        confirmReturnRequest.Headers.Add("x-user-id", sellerId.ToString());
+        confirmReturnRequest.Headers.Add("x-user-roles", "seller");
+        var confirmReturnResponse = await _client.SendAsync(confirmReturnRequest);
+        var confirmReturnRaw = await confirmReturnResponse.Content.ReadAsStringAsync();
+        _output.WriteLine($"   Status code: {(int)confirmReturnResponse.StatusCode} {confirmReturnResponse.StatusCode}");
+        _output.WriteLine($"   Response Body:\n{confirmReturnRaw}");
+
+        Assert.Equal(HttpStatusCode.OK, confirmReturnResponse.StatusCode);
+        Assert.Contains("STOCK_RESTORED", confirmReturnRaw);
+        _output.WriteLine("   ✅ [PASS] P2-07: Seller xác nhận hàng hoàn và hoàn kho thành công!\n");
+
         _output.WriteLine("================================================================================");
-        _output.WriteLine("🎉 HOÀN THÀNH TOÀN BỘ 10 BƯỚC E2E TEST: SHIPMENT MODULE HOẠT ĐỘNG HOÀN HẢO! 100% PASS");
+        _output.WriteLine("🎉 HOÀN THÀNH TOÀN BỘ 11 BƯỚC E2E TEST: SHIPMENT MODULE HOẠT ĐỘNG HOÀN HẢO! 100% PASS");
         _output.WriteLine("================================================================================");
     }
 }

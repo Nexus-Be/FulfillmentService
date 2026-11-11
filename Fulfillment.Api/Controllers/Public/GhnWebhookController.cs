@@ -14,6 +14,8 @@ using Microsoft.Extensions.Logging;
 [ApiController]
 [Route("webhooks/ghn")]
 [Route("api/v1/webhooks/ghn")]
+[Route("api/v1/fulfillment/webhook/ghn")]
+[Route("api/v1/fulfillment/webhooks/ghn")]
 public sealed class GhnWebhookController : ControllerBase
 {
     private readonly IFulfillmentDbContext _dbContext;
