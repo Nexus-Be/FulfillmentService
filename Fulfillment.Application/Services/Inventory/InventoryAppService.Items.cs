@@ -63,68 +63,16 @@ public sealed partial class InventoryAppService
 
     public async Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
-        ValidateAdjustRequest(request);
+        ValidateAdjustmentParameters(request.Type, request.Quantity);
 
-        Warehouse? warehouse = null;
-        if (request.WarehouseId.HasValue && request.WarehouseId.Value != Guid.Empty)
-        {
-            warehouse = await _dbContext.Warehouses
-                .FirstOrDefaultAsync(w => w.Id == request.WarehouseId.Value, cancellationToken)
-                ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", request.WarehouseId.Value);
+        var warehouse = await ResolveWarehouseForAdjustmentAsync(request.WarehouseId, currentUserId, isAdmin, cancellationToken);
 
-            if (!isAdmin && currentUserId != Guid.Empty && warehouse.SellerId != currentUserId)
-            {
-                throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to manage inventory in this warehouse.", 403);
-            }
-        }
-        else if (!isAdmin && currentUserId != Guid.Empty)
-        {
-            warehouse = await _dbContext.Warehouses
-                .FirstOrDefaultAsync(w => w.SellerId == currentUserId && w.IsActive, cancellationToken)
-                ?? throw new BusinessRuleValidationException("WAREHOUSE_NOT_FOUND", "No active warehouse found for your seller account.", 404);
-        }
+        InventoryItem? existingItem = warehouse != null
+            ? await _dbContext.InventoryItems.FirstOrDefaultAsync(i => i.SkuId == request.SkuId && i.WarehouseId == warehouse.Id, cancellationToken)
+            : await _dbContext.InventoryItems.FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken);
 
-        InventoryItem? item = null;
-        if (warehouse != null)
-        {
-            item = await _dbContext.InventoryItems
-                .FirstOrDefaultAsync(i => i.SkuId == request.SkuId && i.WarehouseId == warehouse.Id, cancellationToken);
-        }
-        else
-        {
-            item = await _dbContext.InventoryItems
-                .FirstOrDefaultAsync(i => i.SkuId == request.SkuId, cancellationToken);
-        }
+        var (item, ledger) = ApplyAdjustment(existingItem, warehouse, request.SkuId, request.Type, request.Quantity, request.Note);
 
-        if (item == null)
-        {
-            if (warehouse != null && request.Type == InventoryAdjustmentType.Intake && request.Quantity > 0)
-            {
-                item = InventoryItem.Create(request.SkuId, warehouse.Id, 0);
-                _dbContext.InventoryItems.Add(item);
-            }
-            else
-            {
-                throw new EntityNotFoundException("INVENTORY_NOT_FOUND", "InventoryItem for SKU", request.SkuId);
-            }
-        }
-
-        item.Adjust(request.Quantity);
-
-        var movementType = request.Type switch
-        {
-            InventoryAdjustmentType.Intake => InventoryMovementType.Intake.ToString().ToUpperInvariant(),
-            InventoryAdjustmentType.Adjust => InventoryMovementType.Adjust.ToString().ToUpperInvariant(),
-            _ => throw new BusinessRuleValidationException("Unsupported adjustment type.")
-        };
-
-        var ledger = InventoryLedger.Create(
-            item.Id,
-            movementType,
-            request.Quantity,
-            note: request.Note);
-
-        _dbContext.InventoryLedgers.Add(ledger);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new AdjustInventoryResponse(
@@ -135,14 +83,149 @@ public sealed partial class InventoryAppService
             ledger.Id);
     }
 
-    private static void ValidateAdjustRequest(AdjustInventoryRequest request)
+    public async Task<BatchAdjustInventoryResponse> BatchAdjustInventoryAsync(BatchAdjustInventoryRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.Type == InventoryAdjustmentType.Intake && request.Quantity <= 0)
+        return await BatchAdjustInventoryAsync(request, Guid.Empty, isAdmin: true, cancellationToken);
+    }
+
+    public async Task<BatchAdjustInventoryResponse> BatchAdjustInventoryAsync(BatchAdjustInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
+    {
+        if (request.Items == null || request.Items.Count == 0)
+        {
+            throw new BusinessRuleValidationException("VAL_INVALID_INPUT", "At least one inventory adjustment item is required.");
+        }
+
+        foreach (var entry in request.Items)
+        {
+            ValidateAdjustmentParameters(entry.Type, entry.Quantity);
+        }
+
+        var warehouse = await ResolveWarehouseForAdjustmentAsync(request.WarehouseId, currentUserId, isAdmin, cancellationToken);
+
+        var distinctSkuIds = request.Items.Select(x => x.SkuId).Distinct().ToList();
+        var itemQuery = _dbContext.InventoryItems.Where(i => distinctSkuIds.Contains(i.SkuId));
+        if (warehouse != null)
+        {
+            itemQuery = itemQuery.Where(i => i.WarehouseId == warehouse.Id);
+        }
+
+        var existingItems = await itemQuery.ToListAsync(cancellationToken);
+        var itemsBySku = existingItems
+            .GroupBy(i => i.SkuId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var responses = new List<AdjustInventoryResponse>(request.Items.Count);
+        var resolvedWarehouseId = warehouse?.Id ?? Guid.Empty;
+
+        foreach (var entry in request.Items)
+        {
+            itemsBySku.TryGetValue(entry.SkuId, out var existingItem);
+            var effectiveNote = !string.IsNullOrWhiteSpace(entry.Note) ? entry.Note : request.Note;
+
+            var (item, ledger) = ApplyAdjustment(existingItem, warehouse, entry.SkuId, entry.Type, entry.Quantity, effectiveNote);
+            itemsBySku[entry.SkuId] = item;
+
+            if (resolvedWarehouseId == Guid.Empty)
+            {
+                resolvedWarehouseId = item.WarehouseId;
+            }
+
+            responses.Add(new AdjustInventoryResponse(
+                item.SkuId,
+                item.TotalQuantity,
+                item.ReservedQuantity,
+                item.AvailableQuantity ?? 0,
+                ledger.Id));
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new BatchAdjustInventoryResponse(
+            resolvedWarehouseId,
+            responses.Count,
+            responses);
+    }
+
+    private async Task<Warehouse?> ResolveWarehouseForAdjustmentAsync(
+        Guid? requestedWarehouseId,
+        Guid currentUserId,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        if (requestedWarehouseId.HasValue && requestedWarehouseId.Value != Guid.Empty)
+        {
+            var warehouse = await _dbContext.Warehouses
+                .FirstOrDefaultAsync(w => w.Id == requestedWarehouseId.Value, cancellationToken)
+                ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", requestedWarehouseId.Value);
+
+            if (!isAdmin && currentUserId != Guid.Empty && warehouse.SellerId != currentUserId)
+            {
+                throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to manage inventory in this warehouse.", 403);
+            }
+
+            return warehouse;
+        }
+
+        if (!isAdmin && currentUserId != Guid.Empty)
+        {
+            return await _dbContext.Warehouses
+                .FirstOrDefaultAsync(w => w.SellerId == currentUserId && w.IsActive, cancellationToken)
+                ?? throw new BusinessRuleValidationException("WAREHOUSE_NOT_FOUND", "No active warehouse found for your seller account.", 404);
+        }
+
+        return null;
+    }
+
+    private (InventoryItem Item, InventoryLedger Ledger) ApplyAdjustment(
+        InventoryItem? existingItem,
+        Warehouse? warehouse,
+        Guid skuId,
+        InventoryAdjustmentType type,
+        int quantity,
+        string? note)
+    {
+        var item = existingItem;
+        if (item == null)
+        {
+            if (warehouse != null && type == InventoryAdjustmentType.Intake && quantity > 0)
+            {
+                item = InventoryItem.Create(skuId, warehouse.Id, 0);
+                _dbContext.InventoryItems.Add(item);
+            }
+            else
+            {
+                throw new EntityNotFoundException("INVENTORY_NOT_FOUND", "InventoryItem for SKU", skuId);
+            }
+        }
+
+        item.Adjust(quantity);
+
+        var movementType = type switch
+        {
+            InventoryAdjustmentType.Intake => InventoryMovementType.Intake.ToString().ToUpperInvariant(),
+            InventoryAdjustmentType.Adjust => InventoryMovementType.Adjust.ToString().ToUpperInvariant(),
+            _ => throw new BusinessRuleValidationException("Unsupported adjustment type.")
+        };
+
+        var ledger = InventoryLedger.Create(
+            item.Id,
+            movementType,
+            quantity,
+            note: note);
+
+        _dbContext.InventoryLedgers.Add(ledger);
+
+        return (item, ledger);
+    }
+
+    private static void ValidateAdjustmentParameters(InventoryAdjustmentType type, int quantity)
+    {
+        if (type == InventoryAdjustmentType.Intake && quantity <= 0)
         {
             throw new BusinessRuleValidationException("Quantity for INTAKE must be greater than zero.");
         }
 
-        if (request.Type == InventoryAdjustmentType.Adjust && request.Quantity == 0)
+        if (type == InventoryAdjustmentType.Adjust && quantity == 0)
         {
             throw new BusinessRuleValidationException("Quantity for ADJUST cannot be zero.");
         }

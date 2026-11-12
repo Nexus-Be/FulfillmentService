@@ -52,6 +52,22 @@ public sealed class InventoriesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Adjusts inventory balances for multiple product SKUs in one atomic batch (Intake or Adjust).</summary>
+    [HttpPost("batch-adjust")]
+    [RequireRole("seller", "admin")]
+    public async Task<IActionResult> BatchAdjustInventory(
+        [FromBody] BatchAdjustInventoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.BatchAdjustInventoryAsync(request, userId, this.IsAdmin(), cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>Retrieves inventory balance by SKU ID.</summary>
     [HttpGet("{skuId:guid}")]
     public async Task<ActionResult<InventoryItemResponse>> GetBySkuId(

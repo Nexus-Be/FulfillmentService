@@ -1,6 +1,7 @@
 namespace Fulfillment.Application.Services.Inventory;
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -47,6 +48,32 @@ public sealed record AdjustInventoryResponse(
     int ReservedQuantity,
     int AvailableQuantity,
     Guid AdjustmentLedgerId);
+
+public sealed record BatchAdjustInventoryItemRequest(
+    [Required(ErrorMessage = "SKU ID is required.")]
+    Guid SkuId,
+
+    [Required(ErrorMessage = "Adjustment type is required.")]
+    [property: JsonConverter(typeof(InventoryAdjustmentTypeJsonConverter))]
+    InventoryAdjustmentType Type,
+
+    int Quantity,
+
+    string? Note = null);
+
+public sealed record BatchAdjustInventoryRequest(
+    [Required(ErrorMessage = "Items list is required.")]
+    [MinLength(1, ErrorMessage = "At least one inventory adjustment item is required.")]
+    IReadOnlyList<BatchAdjustInventoryItemRequest> Items,
+
+    string? Note = null,
+
+    Guid? WarehouseId = null);
+
+public sealed record BatchAdjustInventoryResponse(
+    Guid WarehouseId,
+    int TotalItemsAdjusted,
+    IReadOnlyList<AdjustInventoryResponse> Items);
 
 public sealed class InventoryAdjustmentTypeJsonConverter : JsonConverter<InventoryAdjustmentType>
 {

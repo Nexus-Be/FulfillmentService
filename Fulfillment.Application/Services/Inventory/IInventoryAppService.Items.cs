@@ -36,6 +36,20 @@ public partial interface IInventoryAppService
     Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// [FUL-02B]
+    /// Adjusts inventory quantities for a batch of SKUs atomically using delta (+/-) adjustments.
+    /// Điều chỉnh số lượng tồn kho hàng loạt cho nhiều SKU trong cùng một transaction theo nguyên tắc cộng/trừ (+/-).
+    /// </summary>
+    Task<BatchAdjustInventoryResponse> BatchAdjustInventoryAsync(BatchAdjustInventoryRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// [FUL-02B]
+    /// Adjusts inventory quantities for a batch of SKUs atomically with warehouse ownership validation.
+    /// Điều chỉnh số lượng tồn kho hàng loạt cho nhiều SKU kèm kiểm tra quyền sở hữu kho.
+    /// </summary>
+    Task<BatchAdjustInventoryResponse> BatchAdjustInventoryAsync(BatchAdjustInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// [FUL-03]
     /// Retrieves inventory information for a specific SKU.
     /// Lấy thông tin tồn kho chi tiết cho một SKU cụ thể.

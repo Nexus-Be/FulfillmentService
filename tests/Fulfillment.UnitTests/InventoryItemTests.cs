@@ -185,4 +185,131 @@ public class InventoryItemTests : IDisposable
 
         act.Should().Throw<JsonException>();
     }
+
+    [Fact]
+    public async Task BatchAdjustInventory_WhenValidMixedIntakeAndAdjust_ShouldUpdateAllAndWriteLedgers()
+    {
+        // Arrange
+        var skuExisting1 = Guid.NewGuid();
+        var skuExisting2 = Guid.NewGuid();
+        var skuNewIntake = Guid.NewGuid();
+
+        await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuExisting1, _warehouseId, 20));
+        await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuExisting2, _warehouseId, 15));
+
+        var request = new BatchAdjustInventoryRequest(
+            Items: new List<BatchAdjustInventoryItemRequest>
+            {
+                new(skuExisting1, InventoryAdjustmentType.Intake, 30),
+                new(skuExisting2, InventoryAdjustmentType.Adjust, -5, "Damaged during inspection"),
+                new(skuNewIntake, InventoryAdjustmentType.Intake, 40)
+            },
+            Note: "Batch receipt #12",
+            WarehouseId: _warehouseId);
+
+        // Act
+        var response = await _service.BatchAdjustInventoryAsync(request);
+
+        // Assert
+        response.WarehouseId.Should().Be(_warehouseId);
+        response.TotalItemsAdjusted.Should().Be(3);
+        response.Items.Should().HaveCount(3);
+
+        response.Items[0].SkuId.Should().Be(skuExisting1);
+        response.Items[0].TotalQuantity.Should().Be(50);
+
+        response.Items[1].SkuId.Should().Be(skuExisting2);
+        response.Items[1].TotalQuantity.Should().Be(10);
+
+        response.Items[2].SkuId.Should().Be(skuNewIntake);
+        response.Items[2].TotalQuantity.Should().Be(40);
+
+        var ledger1 = await _dbContext.InventoryLedgers.FirstOrDefaultAsync(l => l.Id == response.Items[0].AdjustmentLedgerId);
+        ledger1.Should().NotBeNull();
+        ledger1!.MovementType.Should().Be("INTAKE");
+        ledger1.Quantity.Should().Be(30);
+        ledger1.Note.Should().Be("Batch receipt #12");
+
+        var ledger2 = await _dbContext.InventoryLedgers.FirstOrDefaultAsync(l => l.Id == response.Items[1].AdjustmentLedgerId);
+        ledger2.Should().NotBeNull();
+        ledger2!.MovementType.Should().Be("ADJUST");
+        ledger2.Quantity.Should().Be(-5);
+        ledger2.Note.Should().Be("Damaged during inspection");
+    }
+
+    [Fact]
+    public async Task BatchAdjustInventory_WhenOneItemViolatesRule_ShouldNotSaveAnyChanges()
+    {
+        // Arrange
+        var skuValid = Guid.NewGuid();
+        var skuInvalid = Guid.NewGuid();
+        await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuValid, _warehouseId, 20));
+        await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuInvalid, _warehouseId, 5));
+
+        var request = new BatchAdjustInventoryRequest(
+            Items: new List<BatchAdjustInventoryItemRequest>
+            {
+                new(skuValid, InventoryAdjustmentType.Intake, 100),
+                new(skuInvalid, InventoryAdjustmentType.Adjust, -10)
+            },
+            Note: "Should rollback atomically",
+            WarehouseId: _warehouseId);
+
+        // Act
+        var act = async () => await _service.BatchAdjustInventoryAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<BusinessRuleValidationException>();
+
+        var validItemAfter = await _service.GetBySkuIdAsync(skuValid);
+        validItemAfter!.TotalQuantity.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task BatchAdjustInventory_WhenSellerDoesNotOwnWarehouse_ShouldThrowForbidden()
+    {
+        // Arrange
+        var ownerId = Guid.NewGuid();
+        var otherSellerId = Guid.NewGuid();
+        var warehouseId = Guid.NewGuid();
+
+        _dbContext.Warehouses.Add(new Fulfillment.Domain.Entities.Warehouse
+        {
+            Id = warehouseId,
+            SellerId = ownerId,
+            Code = "WH_OWNER",
+            Name = "Owner Warehouse",
+            IsActive = true
+        });
+        await _dbContext.SaveChangesAsync();
+
+        var request = new BatchAdjustInventoryRequest(
+            Items: new List<BatchAdjustInventoryItemRequest>
+            {
+                new(Guid.NewGuid(), InventoryAdjustmentType.Intake, 10)
+            },
+            WarehouseId: warehouseId);
+
+        // Act
+        var act = async () => await _service.BatchAdjustInventoryAsync(request, otherSellerId, isAdmin: false);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<BusinessRuleValidationException>();
+        ex.Which.StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task BatchAdjustInventory_WhenItemsEmpty_ShouldThrowValidationException()
+    {
+        // Arrange
+        var request = new BatchAdjustInventoryRequest(
+            Items: Array.Empty<BatchAdjustInventoryItemRequest>(),
+            WarehouseId: _warehouseId);
+
+        // Act
+        var act = async () => await _service.BatchAdjustInventoryAsync(request);
+
+        // Assert
+        await act.Should().ThrowAsync<BusinessRuleValidationException>();
+    }
 }
