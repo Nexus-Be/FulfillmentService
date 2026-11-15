@@ -102,7 +102,10 @@ public static class HttpContextExtensions
 
     public static bool IsAdmin(this HttpContext context)
     {
-        return context.HasRole("admin") || context.HasRole("administrator");
+        return context.HasRole("admin") ||
+               context.HasRole("administrator") ||
+               context.HasRole("staff") ||
+               context.HasRole("support_staff");
     }
 
     public static string? GetTraceId(this HttpContext context)

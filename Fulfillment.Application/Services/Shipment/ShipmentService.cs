@@ -104,10 +104,7 @@ public sealed class ShipmentService : IShipmentService
         }
         catch (CarrierException)
         {
-            return new ShippingQuoteResponse(
-                Fee: 35000.00m,
-                IsEstimatedFallback: true,
-                ServiceName: $"{carrier.Code}_STANDARD_FALLBACK");
+            throw new BusinessRuleValidationException("SHIPPING_QUOTE_FAILED", "Carrier service is temporarily unavailable to calculate shipping fee.", 400);
         }
     }
 
@@ -201,12 +198,26 @@ public sealed class ShipmentService : IShipmentService
         var shipment = await _dbContext.Shipments
             .Include(s => s.Items)
             .Include(s => s.Warehouse)
-            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
+            .FirstOrDefaultAsync(s => s.OrderId == orderId || s.Id == orderId, cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment for Order", orderId);
 
-        if (!isAdmin && currentUserId != Guid.Empty && shipment.Warehouse?.SellerId != currentUserId)
+        var isOwner = isAdmin ||
+                      (currentUserId != Guid.Empty &&
+                       (shipment.Warehouse?.SellerId == currentUserId || shipment.CreatedBy == currentUserId));
+
+        if (!isOwner)
         {
             throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to confirm return for this shipment.", 403);
+        }
+
+        // Idempotency check: if return was already confirmed, return success without duplicate stock adjustment
+        if (shipment.Status == ShipmentStatus.Returned)
+        {
+            return new ConfirmReturnResponse(
+                Success: true,
+                Code: "ALREADY_RETURNED",
+                Message: "Return has already been confirmed for this shipment.",
+                Data: new ConfirmReturnData(orderId, 0));
         }
 
         // Hoàn tồn kho cho các item thuộc shipment này

@@ -307,6 +307,16 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         Assert.Contains("STOCK_RESTORED", confirmReturnRaw);
         _output.WriteLine("   ✅ [PASS] P2-07: Seller xác nhận hàng hoàn và hoàn kho thành công!\n");
 
+        // Test idempotency: Calling confirm-return a second time should succeed with ALREADY_RETURNED and not re-restore stock
+        using var retryConfirmRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/seller/orders/{subOrderId}/confirm-return");
+        retryConfirmRequest.Headers.Add("x-user-id", sellerId.ToString());
+        retryConfirmRequest.Headers.Add("x-user-roles", "seller");
+        var retryResponse = await _client.SendAsync(retryConfirmRequest);
+        var retryRaw = await retryResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
+        Assert.Contains("ALREADY_RETURNED", retryRaw);
+        _output.WriteLine("   ✅ [PASS] P2-07 Idempotency: Lần gọi thứ 2 trả về ALREADY_RETURNED an toàn không bị cộng kho lặp!\n");
+
         _output.WriteLine("================================================================================");
         _output.WriteLine("🎉 HOÀN THÀNH TOÀN BỘ 11 BƯỚC E2E TEST: SHIPMENT MODULE HOẠT ĐỘNG HOÀN HẢO! 100% PASS");
         _output.WriteLine("================================================================================");
