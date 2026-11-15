@@ -21,21 +21,13 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
     public DbSet<ShipmentEvent> ShipmentEvents => Set<ShipmentEvent>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
-    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
-    public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<WebhookAuditLog> WebhookAuditLogs => Set<WebhookAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
         Seeds.FulfillmentSeedData.SeedAll(modelBuilder);
-    }
-}
-
-public class FulfillmentDbContext : AppDbContext
-{
-    public FulfillmentDbContext(DbContextOptions<AppDbContext> options) : base(options)
-    {
     }
 }
