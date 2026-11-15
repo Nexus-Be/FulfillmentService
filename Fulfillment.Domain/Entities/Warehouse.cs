@@ -9,8 +9,12 @@ public class Warehouse
     public Guid? SellerId { get; set; }
     public required string Code { get; set; }
     public required string Name { get; set; }
-    public string Type { get; set; } = "OWN";
     public string? Address { get; set; }
+    public string? ContactPhone { get; set; }
+    public string? ProvinceName { get; set; }
+    public int? DistrictId { get; set; }
+    public string? WardCode { get; set; }
+    public int? GhnShopId { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsDisabled
     {

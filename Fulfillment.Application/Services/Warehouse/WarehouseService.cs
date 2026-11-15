@@ -1,37 +1,38 @@
 namespace Fulfillment.Application.Services.Warehouse;
 
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Fulfillment.Application.Common;
 using Fulfillment.Application.Common.Models;
+using Fulfillment.Application.Exceptions;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Domain.Entities;
-using Fulfillment.Domain.Enums;
 using Fulfillment.Domain.Exceptions;
 
-public sealed class WarehouseService : IWarehouseService
+public class WarehouseService : IWarehouseService
 {
     private readonly IFulfillmentDbContext _dbContext;
 
     public WarehouseService(IFulfillmentDbContext dbContext)
     {
-        _dbContext = dbContext;
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
     public async Task<WarehouseDto> CreateAsync(CreateWarehouseRequest request, Guid sellerId, CancellationToken cancellationToken = default)
     {
-        if (sellerId != Guid.Empty)
-        {
-            var hasActiveWarehouse = await _dbContext.Warehouses
-                .AnyAsync(w => w.SellerId == sellerId && w.IsActive, cancellationToken);
+        ArgumentNullException.ThrowIfNull(request);
 
-            if (hasActiveWarehouse)
+        var effectiveSellerId = sellerId != Guid.Empty ? sellerId : request.SellerId;
+        if (effectiveSellerId.HasValue && effectiveSellerId.Value != Guid.Empty)
+        {
+            var alreadyExists = await _dbContext.Warehouses
+                .AnyAsync(w => w.SellerId == effectiveSellerId.Value && w.IsActive, cancellationToken);
+            if (alreadyExists)
             {
-                throw new BusinessRuleValidationException("A warehouse has already been registered for this seller. Each seller is allowed only one warehouse.");
+                throw new BusinessRuleValidationException("SELLER_ALREADY_HAS_WAREHOUSE", "A warehouse is already registered for this seller account.", 400);
             }
         }
 
@@ -41,20 +42,20 @@ public sealed class WarehouseService : IWarehouseService
 
         if (isCodeTaken)
         {
-            throw new BusinessRuleValidationException($"Warehouse code '{normalizedCode}' is already in use.");
+            throw new BusinessRuleValidationException("WAREHOUSE_CODE_TAKEN", $"Warehouse code '{normalizedCode}' is already in use.", 400);
         }
-
-        var warehouseType = Enum.TryParse<WarehouseType>(request.Type, ignoreCase: true, out var parsedType)
-            ? parsedType
-            : WarehouseType.SellerWarehouse;
 
         var warehouse = new Warehouse
         {
             Code = normalizedCode,
             Name = request.Name.Trim(),
-            Type = warehouseType.ToString(),
-            SellerId = sellerId != Guid.Empty ? sellerId : request.SellerId,
+            SellerId = effectiveSellerId,
             Address = request.Address?.Trim(),
+            ContactPhone = request.ContactPhone?.Trim(),
+            ProvinceName = request.ProvinceName?.Trim(),
+            DistrictId = request.DistrictId,
+            WardCode = request.WardCode?.Trim(),
+            GhnShopId = request.GhnShopId,
             IsActive = true
         };
 
@@ -66,6 +67,8 @@ public sealed class WarehouseService : IWarehouseService
 
     public async Task<InternalWarehouseResponse> CreateInternalAsync(InternalCreateWarehouseRequest request, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var existingWarehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(
                 w => w.IsActive && (w.SellerId == request.SellerId || (request.UserId != Guid.Empty && w.SellerId == request.UserId)),
@@ -94,9 +97,12 @@ public sealed class WarehouseService : IWarehouseService
         {
             Code = generatedCode,
             Name = request.ShopName.Trim(),
-            Type = WarehouseType.SellerWarehouse.ToString(),
             SellerId = effectiveSellerId,
             Address = request.PickupAddress.Trim(),
+            ContactPhone = request.ContactPhone?.Trim(),
+            ProvinceName = request.ProvinceName?.Trim() ?? request.ProvinceId?.ToString(),
+            DistrictId = request.DistrictId,
+            WardCode = request.WardCode?.Trim(),
             IsActive = true
         };
 
@@ -112,6 +118,8 @@ public sealed class WarehouseService : IWarehouseService
 
     public async Task<WarehouseDto> UpdateAsync(Guid id, UpdateWarehouseRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.Id == id, cancellationToken)
             ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", id);
@@ -122,7 +130,12 @@ public sealed class WarehouseService : IWarehouseService
         }
 
         warehouse.Name = request.Name.Trim();
-        warehouse.Address = request.Address?.Trim();
+        if (request.Address != null) warehouse.Address = request.Address.Trim();
+        if (request.ContactPhone != null) warehouse.ContactPhone = request.ContactPhone.Trim();
+        if (request.ProvinceName != null) warehouse.ProvinceName = request.ProvinceName.Trim();
+        if (request.DistrictId.HasValue) warehouse.DistrictId = request.DistrictId.Value;
+        if (request.WardCode != null) warehouse.WardCode = request.WardCode.Trim();
+        if (request.GhnShopId.HasValue) warehouse.GhnShopId = request.GhnShopId.Value;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -145,7 +158,6 @@ public sealed class WarehouseService : IWarehouseService
             .AsNoTracking()
             .FirstOrDefaultAsync(w => w.SellerId == sellerId && w.IsActive, cancellationToken);
 
-        // Hỗ trợ tra cứu chéo giữa SeedSellerUserId và SeedSellerProfileId nếu là tài khoản seed
         if (warehouse == null)
         {
             var seedUserId = Guid.Parse("33333333-3333-3333-3333-333333333333");
@@ -220,7 +232,6 @@ public sealed class WarehouseService : IWarehouseService
             {
                 Code = generatedCode,
                 Name = resolvedName,
-                Type = WarehouseType.SellerWarehouse.ToString(),
                 SellerId = userId,
                 Address = resolvedAddress,
                 IsActive = true
@@ -238,6 +249,8 @@ public sealed class WarehouseService : IWarehouseService
         InternalUpdateSellerWarehouseRequest request,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.SellerId == sellerId && w.IsActive, cancellationToken);
 
@@ -256,6 +269,26 @@ public sealed class WarehouseService : IWarehouseService
             warehouse.Address = request.PickupAddress.Trim();
         }
 
+        if (!string.IsNullOrWhiteSpace(request.ContactPhone))
+        {
+            warehouse.ContactPhone = request.ContactPhone.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ProvinceName))
+        {
+            warehouse.ProvinceName = request.ProvinceName.Trim();
+        }
+
+        if (request.DistrictId.HasValue)
+        {
+            warehouse.DistrictId = request.DistrictId.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.WardCode))
+        {
+            warehouse.WardCode = request.WardCode.Trim();
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
         return MapToDto(warehouse);
     }
@@ -270,7 +303,6 @@ public sealed class WarehouseService : IWarehouseService
             return false;
         }
 
-        // Đánh dấu tắt hoặc xóa khỏi DB khi UserService rollback
         warehouse.IsActive = false;
         await _dbContext.SaveChangesAsync(cancellationToken);
         return true;
@@ -294,11 +326,14 @@ public sealed class WarehouseService : IWarehouseService
                 w.Id,
                 w.Code,
                 w.Name,
-                w.Type,
                 w.Address,
+                w.ContactPhone,
+                w.ProvinceName,
+                w.DistrictId,
+                w.WardCode,
+                w.GhnShopId,
                 !w.IsActive,
                 w.SellerId))
-
             .ToListAsync(cancellationToken);
 
         return new PagedData<WarehouseDto>(items, PaginationMetadata.Create(safePage, safePageSize, totalCount));
@@ -326,9 +361,12 @@ public sealed class WarehouseService : IWarehouseService
             w.Id,
             w.Code,
             w.Name,
-            w.Type,
             w.Address,
+            w.ContactPhone,
+            w.ProvinceName,
+            w.DistrictId,
+            w.WardCode,
+            w.GhnShopId,
             !w.IsActive,
             w.SellerId);
-
 }

@@ -17,6 +17,22 @@ public class Shipment : AuditableEntity<Guid>
     public required string ReceiverName { get; set; }
     public required string ReceiverPhone { get; set; }
     public required string ReceiverAddress { get; set; }
+    public string? ToProvinceName { get; set; }
+    public int? ToDistrictId { get; set; }
+    public string? ToWardCode { get; set; }
+    public int Weight { get; set; } = 500;
+    public int Length { get; set; } = 20;
+    public int Width { get; set; } = 15;
+    public int Height { get; set; } = 10;
+    public int? ConvertedWeight { get; set; }
+    public int CodAmount { get; set; } = 0;
+    public int InsuranceValue { get; set; } = 0;
+    public int PaymentTypeId { get; set; } = 1;
+    public GHNRequiredNote RequiredNote { get; set; } = GHNRequiredNote.CHOXEMHANGKHONGTHU;
+    public string? Note { get; set; }
+    public string? ClientOrderCode { get; set; }
+    public string? GhnOrderCode { get; set; }
+    public string? PrintToken { get; set; }
     public DateTimeOffset? EstimatedDeliveryAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
 

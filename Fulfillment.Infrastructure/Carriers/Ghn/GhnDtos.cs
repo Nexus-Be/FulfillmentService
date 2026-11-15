@@ -212,4 +212,28 @@ public sealed class GhnWebhookPayload
 
     [JsonPropertyName("Time")]
     public object? Time { get; set; }
+
+    [JsonPropertyName("ReasonCode")]
+    public string? ReasonCode { get; set; }
+
+    [JsonPropertyName("Reason")]
+    public string? Reason { get; set; }
+
+    [JsonPropertyName("ShipperName")]
+    public string? ShipperName { get; set; }
+
+    [JsonPropertyName("ShipperPhone")]
+    public string? ShipperPhone { get; set; }
+
+    [JsonPropertyName("Warehouse")]
+    public string? Warehouse { get; set; }
+
+    [JsonPropertyName("Type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("POD")]
+    public string? PodUrl { get; set; }
+
+    [JsonPropertyName("ConvertedWeight")]
+    public int? ConvertedWeight { get; set; }
 }

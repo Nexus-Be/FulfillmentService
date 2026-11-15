@@ -19,6 +19,12 @@ public class ShipmentEventConfiguration : IEntityTypeConfiguration<ShipmentEvent
         builder.Property(x => x.ExternalEventId).HasColumnName("external_event_id").HasMaxLength(100);
         builder.Property(x => x.OccurredAt).HasColumnName("occurred_at").IsRequired();
         builder.Property(x => x.RawPayload).HasColumnName("raw_payload").HasColumnType("jsonb");
+        builder.Property(x => x.ReasonCode).HasColumnName("reason_code").HasMaxLength(50);
+        builder.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(500);
+        builder.Property(x => x.ShipperName).HasColumnName("shipper_name").HasMaxLength(100);
+        builder.Property(x => x.ShipperPhone).HasColumnName("shipper_phone").HasMaxLength(20);
+        builder.Property(x => x.PodUrl).HasColumnName("pod_url").HasMaxLength(500);
+        builder.Property(x => x.WarehouseName).HasColumnName("warehouse_name").HasMaxLength(200);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()").IsRequired();
         builder.Property(x => x.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false).IsRequired();

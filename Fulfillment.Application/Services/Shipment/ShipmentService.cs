@@ -1,6 +1,8 @@
 namespace Fulfillment.Application.Services.Shipment;
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +19,9 @@ public sealed class ShipmentService : IShipmentService
     private readonly IFulfillmentDbContext _dbContext;
     private readonly ICarrierResolver _carrierResolver;
 
-    public ShipmentService(IFulfillmentDbContext dbContext, ICarrierResolver carrierResolver)
+    public ShipmentService(
+        IFulfillmentDbContext dbContext,
+        ICarrierResolver carrierResolver)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _carrierResolver = carrierResolver ?? throw new ArgumentNullException(nameof(carrierResolver));
@@ -25,47 +29,35 @@ public sealed class ShipmentService : IShipmentService
 
     public async Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
+
         var shipment = await _dbContext.Shipments
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber, cancellationToken)
+            .Include(s => s.Items)
+            .Include(s => s.Events)
+            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber || s.GhnOrderCode == trackingNumber, cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", trackingNumber);
 
-        return new ShipmentDto(
-            shipment.Id,
-            shipment.OrderId,
-            shipment.WarehouseId,
-            shipment.CarrierId,
-            shipment.TrackingNumber,
-            shipment.Status.ToString(),
-            shipment.ReceiverName,
-            shipment.ReceiverPhone,
-            shipment.ReceiverAddress);
+        return MapToDto(shipment);
     }
 
     public async Task<ShipmentDto> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
         var shipment = await _dbContext.Shipments
             .AsNoTracking()
+            .Include(s => s.Items)
+            .Include(s => s.Events)
             .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", orderId);
 
-        return new ShipmentDto(
-            shipment.Id,
-            shipment.OrderId,
-            shipment.WarehouseId,
-            shipment.CarrierId,
-            shipment.TrackingNumber,
-            shipment.Status.ToString(),
-            shipment.ReceiverName,
-            shipment.ReceiverPhone,
-            shipment.ReceiverAddress);
+        return MapToDto(shipment);
     }
 
     public async Task<ShippingQuoteResponse> CalculateShippingFeeAsync(ShopShippingQuoteRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        // Dynamically resolve warehouse details for the seller, or fallback to default system warehouse
+        // Dynamically resolve warehouse details for the seller, or fallback to default active warehouse
         var warehouse = await _dbContext.Warehouses
             .AsNoTracking()
             .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
@@ -73,11 +65,18 @@ public sealed class ShipmentService : IShipmentService
                 .AsNoTracking()
                 .FirstOrDefaultAsync(w => w.IsActive, cancellationToken);
 
+        int? fromDistrictId = request.FromDistrictId > 0 ? request.FromDistrictId : warehouse?.DistrictId;
+        if (!fromDistrictId.HasValue || fromDistrictId.Value <= 0)
+        {
+            throw new BusinessRuleValidationException("INVALID_FROM_DISTRICT", "FromDistrictId is required for calculating shipping fee.", 400);
+        }
+
         var fromAddress = new ShippingAddress(
             FullName: warehouse?.Name ?? "Seller Warehouse",
-            Phone: string.Empty,
+            Phone: warehouse?.ContactPhone ?? string.Empty,
             AddressLine: warehouse?.Address ?? "Warehouse Address",
-            DistrictId: request.FromDistrictId);
+            WardCode: warehouse?.WardCode,
+            DistrictId: fromDistrictId);
 
         var toAddress = new ShippingAddress(
             FullName: "Estimated Recipient",
@@ -94,17 +93,17 @@ public sealed class ShipmentService : IShipmentService
                 new CarrierFeeCalculationRequest(
                     FromAddress: fromAddress,
                     ToAddress: toAddress,
-                    TotalWeightInGrams: request.WeightInGrams),
+                    TotalWeightInGrams: request.WeightInGrams > 0 ? request.WeightInGrams : 500),
                 cancellationToken);
 
             return new ShippingQuoteResponse(
                 Fee: result.TotalFee,
                 IsEstimatedFallback: false,
-                ServiceName: result.ServiceCode ?? $"{carrier.Code}_STANDARD");
+                ServiceName: result.ServiceCode ?? "GHN_STANDARD");
         }
-        catch (CarrierException)
+        catch (CarrierIntegrationException ex)
         {
-            throw new BusinessRuleValidationException("SHIPPING_QUOTE_FAILED", "Carrier service is temporarily unavailable to calculate shipping fee.", 400);
+            throw new BusinessRuleValidationException("SHIPPING_QUOTE_FAILED", $"Failed to calculate shipping fee: {ex.Message}", 400);
         }
     }
 
@@ -121,7 +120,7 @@ public sealed class ShipmentService : IShipmentService
         {
             return new CreateShipmentResponse(
                 existing.Id,
-                existing.TrackingNumber ?? string.Empty,
+                existing.TrackingNumber ?? existing.GhnOrderCode ?? string.Empty,
                 $"https://fulfillment.nexus.internal/labels/{existing.Id}.pdf",
                 existing.Status.ToString());
         }
@@ -139,13 +138,15 @@ public sealed class ShipmentService : IShipmentService
             .FirstOrDefaultAsync(c => c.Code == carrier.Code && c.IsActive, cancellationToken)
             ?? await _dbContext.Carriers
                 .FirstOrDefaultAsync(c => c.IsActive, cancellationToken)
-            ?? throw new EntityNotFoundException("CARRIER_NOT_FOUND", "Carrier", carrier.Code);
+                ?? throw new EntityNotFoundException("CARRIER_NOT_FOUND", "Carrier", carrier.Code);
 
+        // Construct sender warehouse address (Fix Bug 1: take real warehouse ContactPhone and DistrictId)
         var fromAddress = new ShippingAddress(
             FullName: warehouse.Name,
-            Phone: request.RecipientPhone,
+            Phone: !string.IsNullOrWhiteSpace(warehouse.ContactPhone) ? warehouse.ContactPhone : "0900000000",
             AddressLine: warehouse.Address ?? "Warehouse Storage, Ho Chi Minh, Vietnam",
-            DistrictId: request.ToDistrictId > 0 ? null : null);
+            WardCode: warehouse.WardCode,
+            DistrictId: warehouse.DistrictId);
 
         var toAddress = new ShippingAddress(
             FullName: request.RecipientName,
@@ -154,13 +155,37 @@ public sealed class ShipmentService : IShipmentService
             WardCode: request.ToWardCode,
             DistrictId: request.ToDistrictId);
 
+        var carrierItems = request.Items != null && request.Items.Count > 0
+            ? request.Items.Select(i => new ShippingParcelItem(
+                SkuId: i.SkuId.ToString(),
+                Name: !string.IsNullOrWhiteSpace(i.Name) ? i.Name : "Product",
+                Quantity: i.Quantity,
+                WeightInGrams: i.WeightInGrams ?? 100,
+                LengthCm: i.LengthCm ?? 10,
+                WidthCm: i.WidthCm ?? 10,
+                HeightCm: i.HeightCm ?? 10)).ToList()
+            : null;
+
         var carrierResult = await carrier.CreateShipmentAsync(
             new CarrierCreateShipmentRequest(
                 InternalOrderCode: request.SubOrderId.ToString(),
                 FromAddress: fromAddress,
                 ToAddress: toAddress,
-                TotalWeightInGrams: request.WeightInGrams),
+                TotalWeightInGrams: request.WeightInGrams > 0 ? request.WeightInGrams : 500,
+                LengthCm: request.LengthCm > 0 ? request.LengthCm : 20,
+                WidthCm: request.WidthCm > 0 ? request.WidthCm : 15,
+                HeightCm: request.HeightCm > 0 ? request.HeightCm : 10,
+                CodAmount: request.CodAmount,
+                Note: request.Note,
+                Items: carrierItems),
             cancellationToken);
+
+        var requiredNoteEnum = GHNRequiredNote.CHOXEMHANGKHONGTHU;
+        if (!string.IsNullOrWhiteSpace(request.RequiredNote) &&
+            Enum.TryParse<GHNRequiredNote>(request.RequiredNote, true, out var parsedNote))
+        {
+            requiredNoteEnum = parsedNote;
+        }
 
         var shipment = new Domain.Entities.Shipment
         {
@@ -175,6 +200,21 @@ public sealed class ShipmentService : IShipmentService
             ReceiverName = request.RecipientName,
             ReceiverPhone = request.RecipientPhone,
             ReceiverAddress = request.ShippingAddress,
+            ToProvinceName = request.ToProvinceName,
+            ToDistrictId = request.ToDistrictId,
+            ToWardCode = request.ToWardCode,
+            Weight = request.WeightInGrams > 0 ? request.WeightInGrams : 500,
+            Length = request.LengthCm > 0 ? request.LengthCm : 20,
+            Width = request.WidthCm > 0 ? request.WidthCm : 15,
+            Height = request.HeightCm > 0 ? request.HeightCm : 10,
+            CodAmount = request.CodAmount,
+            InsuranceValue = request.InsuranceValue,
+            PaymentTypeId = 1,
+            RequiredNote = requiredNoteEnum,
+            Note = request.Note,
+            ClientOrderCode = request.SubOrderId.ToString(),
+            GhnOrderCode = carrierResult.TrackingCode,
+            PrintToken = carrierResult.TrackingCode,
             EstimatedDeliveryAt = carrierResult.ExpectedDeliveryTime,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow,
@@ -182,6 +222,35 @@ public sealed class ShipmentService : IShipmentService
             CreatedBy = request.SellerId,
             UpdatedBy = request.SellerId
         };
+
+        if (request.Items != null && request.Items.Count > 0)
+        {
+            foreach (var item in request.Items)
+            {
+                shipment.Items.Add(new ShipmentItem
+                {
+                    ShipmentId = shipment.Id,
+                    SkuId = item.SkuId,
+                    Quantity = item.Quantity,
+                    Name = !string.IsNullOrWhiteSpace(item.Name) ? item.Name : "Product",
+                    Price = item.Price,
+                    Weight = item.WeightInGrams ?? 100,
+                    Length = item.LengthCm ?? 10,
+                    Width = item.WidthCm ?? 10,
+                    Height = item.HeightCm ?? 10
+                });
+            }
+        }
+
+        shipment.Events.Add(new ShipmentEvent
+        {
+            ShipmentId = shipment.Id,
+            CarrierStatus = "ready_to_pick",
+            Status = ShipmentEventStatus.Created,
+            Description = "Shipment created and awaiting courier pickup.",
+            OccurredAt = DateTimeOffset.UtcNow,
+            WarehouseName = warehouse.Name
+        });
 
         _dbContext.Shipments.Add(shipment);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -248,6 +317,16 @@ public sealed class ShipmentService : IShipmentService
         shipment.Status = ShipmentStatus.Returned;
         shipment.UpdatedAt = DateTimeOffset.UtcNow;
 
+        shipment.Events.Add(new ShipmentEvent
+        {
+            ShipmentId = shipment.Id,
+            CarrierStatus = "returned",
+            Status = ShipmentEventStatus.Returned,
+            Description = "Seller confirmed return delivery. Stock restored.",
+            OccurredAt = DateTimeOffset.UtcNow,
+            WarehouseName = shipment.Warehouse?.Name
+        });
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new ConfirmReturnResponse(
@@ -255,5 +334,58 @@ public sealed class ShipmentService : IShipmentService
             Code: "STOCK_RESTORED",
             Message: "Return confirmed successfully. Product stock has been restored to available inventory.",
             Data: new ConfirmReturnData(orderId, totalRestored));
+    }
+
+    private static ShipmentDto MapToDto(Domain.Entities.Shipment s)
+    {
+        var items = s.Items?.Select(i => new ShipmentItemDto(
+            i.SkuId,
+            i.Quantity,
+            i.Name,
+            i.Price,
+            i.Weight,
+            i.Length,
+            i.Width,
+            i.Height)).ToList();
+
+        var events = s.Events?.Select(e => new ShipmentEventDto(
+            e.Id,
+            e.CarrierStatus,
+            e.Status.ToString(),
+            e.Description,
+            e.OccurredAt,
+            e.ReasonCode,
+            e.Reason,
+            e.ShipperName,
+            e.ShipperPhone,
+            e.PodUrl,
+            e.WarehouseName)).OrderBy(e => e.OccurredAt).ToList();
+
+        return new ShipmentDto(
+            s.Id,
+            s.OrderId,
+            s.WarehouseId,
+            s.CarrierId,
+            s.TrackingNumber,
+            s.Status.ToString(),
+            s.ReceiverName,
+            s.ReceiverPhone,
+            s.ReceiverAddress,
+            s.ToProvinceName,
+            s.ToDistrictId,
+            s.ToWardCode,
+            s.Weight,
+            s.Length,
+            s.Width,
+            s.Height,
+            s.ShippingFee,
+            s.CodAmount,
+            s.InsuranceValue,
+            s.PrintToken,
+            s.GhnOrderCode,
+            s.EstimatedDeliveryAt,
+            s.DeliveredAt,
+            items,
+            events);
     }
 }

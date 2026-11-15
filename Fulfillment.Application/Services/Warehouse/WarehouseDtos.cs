@@ -6,7 +6,11 @@ public sealed record WarehouseDto(
     Guid Id,
     string Code,
     string Name,
-    string Type,
     string? Address,
+    string? ContactPhone,
+    string? ProvinceName,
+    int? DistrictId,
+    string? WardCode,
+    int? GhnShopId,
     bool IsDisabled,
     Guid? SellerId = null);
