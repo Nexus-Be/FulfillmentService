@@ -22,6 +22,22 @@ public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
         builder.Property(x => x.ReceiverName).HasColumnName("receiver_name").HasMaxLength(255).IsRequired();
         builder.Property(x => x.ReceiverPhone).HasColumnName("receiver_phone").HasMaxLength(50).IsRequired();
         builder.Property(x => x.ReceiverAddress).HasColumnName("receiver_address").HasMaxLength(1000).IsRequired();
+        builder.Property(x => x.ToProvinceName).HasColumnName("to_province_name").HasMaxLength(100);
+        builder.Property(x => x.ToDistrictId).HasColumnName("to_district_id");
+        builder.Property(x => x.ToWardCode).HasColumnName("to_ward_code").HasMaxLength(20);
+        builder.Property(x => x.Weight).HasColumnName("weight").HasDefaultValue(500).IsRequired();
+        builder.Property(x => x.Length).HasColumnName("length").HasDefaultValue(20).IsRequired();
+        builder.Property(x => x.Width).HasColumnName("width").HasDefaultValue(15).IsRequired();
+        builder.Property(x => x.Height).HasColumnName("height").HasDefaultValue(10).IsRequired();
+        builder.Property(x => x.ConvertedWeight).HasColumnName("converted_weight");
+        builder.Property(x => x.CodAmount).HasColumnName("cod_amount").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.InsuranceValue).HasColumnName("insurance_value").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.PaymentTypeId).HasColumnName("payment_type_id").HasDefaultValue(1).IsRequired();
+        builder.Property(x => x.RequiredNote).HasColumnName("required_note").IsRequired();
+        builder.Property(x => x.Note).HasColumnName("note").HasMaxLength(500);
+        builder.Property(x => x.ClientOrderCode).HasColumnName("client_order_code").HasMaxLength(100);
+        builder.Property(x => x.GhnOrderCode).HasColumnName("ghn_order_code").HasMaxLength(50);
+        builder.Property(x => x.PrintToken).HasColumnName("print_token").HasMaxLength(200);
         builder.Property(x => x.EstimatedDeliveryAt).HasColumnName("estimated_delivery_at");
         builder.Property(x => x.DeliveredAt).HasColumnName("delivered_at");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
@@ -36,6 +52,8 @@ public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
         builder.HasIndex(x => x.OrderId);
         builder.HasIndex(x => x.WarehouseId);
         builder.HasIndex(x => x.CarrierId);
+        builder.HasIndex(x => x.TrackingNumber);
+        builder.HasIndex(x => x.GhnOrderCode);
 
         builder.HasOne(s => s.Warehouse)
             .WithMany(w => w.Shipments)

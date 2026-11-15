@@ -36,5 +36,8 @@ public interface IShipmentService
     /// Seller confirms received returned parcel and automatically restores inventory stock.
     /// Người bán xác nhận nhận lại kiện hàng chuyển hoàn và tự động hoàn trả số lượng vào kho.
     /// </summary>
+    /// <remarks>
+    /// Visual Flowchart: <see href="file:///d:/FSA/FulfillmentService/docs/diagrams/confirm_return_flow.svg">View Flowchart Diagram</see>
+    /// </remarks>
     Task<ConfirmReturnResponse> ConfirmReturnAsync(Guid orderId, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
 }
