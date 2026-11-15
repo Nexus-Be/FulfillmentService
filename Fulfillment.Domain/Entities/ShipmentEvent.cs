@@ -13,6 +13,12 @@ public class ShipmentEvent : BaseEntity<Guid>
     public string? ExternalEventId { get; set; }
     public required DateTimeOffset OccurredAt { get; set; }
     public string? RawPayload { get; set; }
+    public string? ReasonCode { get; set; }
+    public string? Reason { get; set; }
+    public string? ShipperName { get; set; }
+    public string? ShipperPhone { get; set; }
+    public string? PodUrl { get; set; }
+    public string? WarehouseName { get; set; }
 
     // Navigation
     public Shipment? Shipment { get; set; }
