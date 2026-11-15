@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Fulfillment.Api.Extensions;
 using Fulfillment.Api.Filters;
@@ -101,6 +102,111 @@ public sealed class InventoriesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _inventoryAppService.GetLedgersBySkuIdAsync(skuId, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Analyzes an uploaded Excel/CSV file with AI schema inference and returns a deterministic preview.</summary>
+    [HttpPost("import-preview")]
+    [RequireRole("seller", "admin")]
+    public async Task<IActionResult> ImportPreview(
+        IFormFile file,
+        [FromQuery] Guid? warehouseId,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { message = "No file was uploaded." });
+        }
+
+        using var stream = file.OpenReadStream();
+        var preview = await _inventoryAppService.PreviewImportAsync(stream, file.FileName, warehouseId, userId, this.IsAdmin(), cancellationToken);
+        return Ok(preview);
+    }
+
+    /// <summary>Confirms and commits smart inventory adjustments atomically into database.</summary>
+    [HttpPost("batch-commit-import")]
+    [RequireRole("seller", "admin")]
+    public async Task<IActionResult> BatchCommitImport(
+        [FromBody] BatchAdjustInventoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.BatchAdjustInventoryAsync(request, userId, this.IsAdmin(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Updates low stock alert threshold and toggle for a specific SKU.</summary>
+    [HttpPut("{skuId:guid}/threshold")]
+    [RequireRole("seller", "admin")]
+    public async Task<IActionResult> UpdateThreshold(
+        [FromRoute] Guid skuId,
+        [FromBody] UpdateStockThresholdRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.UpdateThresholdAsync(skuId, request, userId, this.IsAdmin(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Retrieves all SKU items currently below their low stock threshold.</summary>
+    [HttpGet("alerts/low-stock")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<IActionResult> GetLowStockAlerts(
+        [FromQuery] Guid? warehouseId,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.GetLowStockAlertsAsync(warehouseId, userId, this.IsAdmin(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Retrieves inventory items with no movement/activity for the given number of days.</summary>
+    [HttpGet("alerts/dead-stock")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<IActionResult> GetDeadStockAlerts(
+        [FromQuery] Guid? warehouseId,
+        [FromQuery] int days = 30,
+        CancellationToken cancellationToken = default)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.GetDeadStockAlertsAsync(warehouseId, days, userId, this.IsAdmin(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Retrieves aggregated inventory analytics and filtered items with sorting.</summary>
+    [HttpGet("analytics")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<IActionResult> GetAnalytics(
+        [FromQuery] InventoryAnalyticsFilterRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.GetAnalyticsAsync(request, userId, this.IsAdmin(), cancellationToken);
         return Ok(result);
     }
 }
