@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1200" width="100%" height="100%" style="background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <linearGradient id="decisionGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <linearGradient id="successGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="errorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+    <linearGradient id="processGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#4338ca" />
+    </linearGradient>
+
+    <!-- Filters for shadow -->
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+
+    <!-- Marker arrows -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#94a3b8" />
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#10b981" />
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444" />
+    </marker>
+  </defs>
+
+  <!-- Title Header -->
+  <rect x="50" y="30" width="900" height="70" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1" filter="url(#cardShadow)" />
+  <text x="500" y="62" fill="#38bdf8" font-size="20" font-weight="bold" text-anchor="middle">FULFILLMENT SERVICE — P2-07 LOGIC FLOWCHART</text>
+  <text x="500" y="86" fill="#94a3b8" font-size="13" text-anchor="middle">POST /api/v1/seller/orders/{orderId}/confirm-return (Seller Xác Nhận Hàng Hoàn &amp; Hoàn Kho)</text>
+
+  <!-- Node 1: Start -->
+  <g transform="translate(325, 130)" filter="url(#cardShadow)">
+    <rect width="350" height="60" rx="30" fill="url(#primaryGrad)" />
+    <text x="175" y="28" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">1. Client / Seller Gọi API</text>
+    <text x="175" y="48" fill="#e2e8f0" font-size="12" text-anchor="middle">orderId, currentUserId, roles (seller / admin)</text>
+  </g>
+
+  <!-- Line 1 -> 2 -->
+  <line x1="500" y1="190" x2="500" y2="230" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- Node 2: Check Find Shipment -->
+  <g transform="translate(350, 230)" filter="url(#cardShadow)">
+    <polygon points="150,0 300,55 150,110 0,55" fill="url(#decisionGrad)" />
+    <text x="150" y="48" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">Tìm thấy Shipment theo</text>
+    <text x="150" y="68" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">OrderId hoặc Id?</text>
+  </g>
+
+  <!-- Branch No -> 404 -->
+  <line x1="650" y1="285" x2="780" y2="285" stroke="#ef4444" stroke-width="2" marker-end="url(#arrowRed)" />
+  <text x="700" y="275" fill="#ef4444" font-size="12" font-weight="bold">Không</text>
+  <g transform="translate(780, 255)" filter="url(#cardShadow)">
+    <rect width="170" height="60" rx="8" fill="url(#errorGrad)" />
+    <text x="85" y="26" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">404 NOT FOUND</text>
+    <text x="85" y="45" fill="#fecaca" font-size="10" text-anchor="middle">SHIPMENT_NOT_FOUND</text>
+  </g>
+
+  <!-- Line 2 -> 3 -->
+  <line x1="500" y1="340" x2="500" y2="380" stroke="#10b981" stroke-width="2" marker-end="url(#arrowGreen)" />
+  <text x="510" y="365" fill="#10b981" font-size="12" font-weight="bold">Có</text>
+
+  <!-- Node 3: Check Ownership -->
+  <g transform="translate(310, 380)" filter="url(#cardShadow)">
+    <polygon points="190,0 380,60 190,120 0,60" fill="url(#decisionGrad)" />
+    <text x="190" y="48" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">Kiểm tra Quyền Sở Hữu?</text>
+    <text x="190" y="68" fill="#ffffff" font-size="11" text-anchor="middle">isAdmin || Warehouse.SellerId == UserId</text>
+    <text x="190" y="85" fill="#ffffff" font-size="11" text-anchor="middle">|| Shipment.CreatedBy == UserId</text>
+  </g>
+
+  <!-- Branch No -> 403 -->
+  <line x1="690" y1="440" x2="780" y2="440" stroke="#ef4444" stroke-width="2" marker-end="url(#arrowRed)" />
+  <text x="715" y="430" fill="#ef4444" font-size="12" font-weight="bold">Sai</text>
+  <g transform="translate(780, 410)" filter="url(#cardShadow)">
+    <rect width="170" height="60" rx="8" fill="url(#errorGrad)" />
+    <text x="85" y="26" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">403 FORBIDDEN</text>
+    <text x="85" y="45" fill="#fecaca" font-size="10" text-anchor="middle">No permission to return</text>
+  </g>
+
+  <!-- Line 3 -> 4 -->
+  <line x1="500" y1="500" x2="500" y2="540" stroke="#10b981" stroke-width="2" marker-end="url(#arrowGreen)" />
+  <text x="510" y="525" fill="#10b981" font-size="12" font-weight="bold">Hợp lệ</text>
+
+  <!-- Node 4: Check Idempotency -->
+  <g transform="translate(340, 540)" filter="url(#cardShadow)">
+    <polygon points="160,0 320,55 160,110 0,55" fill="url(#decisionGrad)" />
+    <text x="160" y="48" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">Trạng thái đã là</text>
+    <text x="160" y="68" fill="#ffffff" font-size="13" font-weight="bold" text-anchor="middle">ShipmentStatus.Returned?</text>
+  </g>
+
+  <!-- Branch Yes (Idempotency) -> 200 ALREADY_RETURNED -->
+  <line x1="660" y1="595" x2="760" y2="595" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow)" />
+  <text x="680" y="585" fill="#38bdf8" font-size="12" font-weight="bold">Đã Returned</text>
+  <g transform="translate(760, 565)" filter="url(#cardShadow)">
+    <rect width="210" height="65" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5" />
+    <text x="105" y="25" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">200 OK: ALREADY_RETURNED</text>
+    <text x="105" y="43" fill="#cbd5e1" font-size="11" text-anchor="middle">Chống cộng kho lặp (Bấm lại)</text>
+    <text x="105" y="58" fill="#94a3b8" font-size="10" text-anchor="middle">RestoredStock = 0</text>
+  </g>
+
+  <!-- Line 4 -> 5 -->
+  <line x1="500" y1="650" x2="500" y2="700" stroke="#10b981" stroke-width="2" marker-end="url(#arrowGreen)" />
+  <text x="510" y="680" fill="#10b981" font-size="12" font-weight="bold">Chưa</text>
+
+  <!-- Node 5: Loop Items & Restore Stock -->
+  <g transform="translate(275, 700)" filter="url(#cardShadow)">
+    <rect width="450" height="90" rx="10" fill="url(#processGrad)" />
+    <text x="225" y="28" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">Duyệt từng Item trong Kiện hàng</text>
+    <text x="225" y="52" fill="#e0e7ff" font-size="12" text-anchor="middle">• Tìm InventoryItem theo (SkuId, WarehouseId)</text>
+    <text x="225" y="72" fill="#e0e7ff" font-size="12" text-anchor="middle">• Gọi invItem.Adjust(+quantity) tăng Total &amp; Available</text>
+  </g>
+
+  <!-- Line 5 -> 6 -->
+  <line x1="500" y1="790" x2="500" y2="830" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- Node 6: Write Ledger -->
+  <g transform="translate(275, 830)" filter="url(#cardShadow)">
+    <rect width="450" height="75" rx="10" fill="url(#processGrad)" />
+    <text x="225" y="28" fill="#ffffff" font-size="14" font-weight="bold" text-anchor="middle">Ghi Sổ Cái Bất Biến (InventoryLedger)</text>
+    <text x="225" y="52" fill="#e0e7ff" font-size="12" text-anchor="middle">• MovementType: "RETURN" | RefType: "ORDER_RETURN"</text>
+    <text x="225" y="68" fill="#e0e7ff" font-size="11" text-anchor="middle">• ReferenceId = orderId (Audit Trail đối soát)</text>
+  </g>
+
+  <!-- Line 6 -> 7 -->
+  <line x1="500" y1="905" x2="500" y2="945" stroke="#94a3b8" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- Node 7: Update Status & Save -->
+  <g transform="translate(300, 945)" filter="url(#cardShadow)">
+    <rect width="400" height="70" rx="10" fill="#1e293b" stroke="#6366f1" stroke-width="1.5" />
+    <text x="200" y="28" fill="#a5b4fc" font-size="13" font-weight="bold" text-anchor="middle">Cập nhật Trạng thái &amp; Lưu Database</text>
+    <text x="200" y="50" fill="#cbd5e1" font-size="12" text-anchor="middle">• Shipment.Status = ShipmentStatus.Returned</text>
+    <text x="200" y="65" fill="#cbd5e1" font-size="11" text-anchor="middle">• await _dbContext.SaveChangesAsync()</text>
+  </g>
+
+  <!-- Line 7 -> 8 -->
+  <line x1="500" y1="1015" x2="500" y2="1060" stroke="#10b981" stroke-width="2" marker-end="url(#arrowGreen)" />
+
+  <!-- Node 8: Final Success -->
+  <g transform="translate(300, 1060)" filter="url(#cardShadow)">
+    <rect width="400" height="75" rx="12" fill="url(#successGrad)" />
+    <text x="200" y="30" fill="#ffffff" font-size="15" font-weight="bold" text-anchor="middle">🎉 200 OK: STOCK_RESTORED</text>
+    <text x="200" y="50" fill="#ecfdf5" font-size="12" text-anchor="middle">Success: true | RestoredStock: totalRestored</text>
+    <text x="200" y="66" fill="#ecfdf5" font-size="11" text-anchor="middle">Kho khả dụng đã được phục hồi thành công!</text>
+  </g>
+</svg>
