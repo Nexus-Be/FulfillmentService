@@ -2,17 +2,24 @@ namespace Fulfillment.Application.Services.Inventory;
 
 using System;
 using Fulfillment.Application.Interfaces;
+using Fulfillment.Application.Interfaces.AI;
 using Fulfillment.Domain.Entities;
 
 public sealed partial class InventoryAppService : IInventoryAppService
 {
     private readonly IFulfillmentDbContext _dbContext;
+    private readonly IAiSchemaInferenceService? _aiSchemaInferenceService;
+    private readonly IInventoryExcelParser? _excelParser;
 
-    public InventoryAppService(IFulfillmentDbContext dbContext)
+    public InventoryAppService(
+        IFulfillmentDbContext dbContext,
+        IAiSchemaInferenceService? aiSchemaInferenceService = null,
+        IInventoryExcelParser? excelParser = null)
     {
-        _dbContext = dbContext;
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _aiSchemaInferenceService = aiSchemaInferenceService;
+        _excelParser = excelParser;
     }
-
 
     private static InventoryItemResponse MapToResponse(InventoryItem item) =>
         new InventoryItemResponse(
@@ -22,5 +29,10 @@ public sealed partial class InventoryAppService : IInventoryAppService
             item.TotalQuantity,
             item.ReservedQuantity,
             item.AvailableQuantity ?? (item.TotalQuantity - item.ReservedQuantity),
-            item.UpdatedAt);
+            item.UpdatedAt,
+            item.SoldQuantity,
+            item.MinStockThreshold,
+            item.IsLowStockAlertEnabled,
+            item.IsLowStock,
+            item.LastMovementAt);
 }
