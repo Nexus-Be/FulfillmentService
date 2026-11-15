@@ -12,7 +12,13 @@ public class InventoryItem
     public int TotalQuantity { get; set; }
     public int ReservedQuantity { get; set; }
     public int? AvailableQuantity { get; set; }
+    public int SoldQuantity { get; set; } = 0;
+    public int MinStockThreshold { get; set; } = 10;
+    public bool IsLowStockAlertEnabled { get; set; } = true;
+    public DateTimeOffset LastMovementAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public bool IsLowStock => IsLowStockAlertEnabled && (AvailableQuantity ?? (TotalQuantity - ReservedQuantity)) <= MinStockThreshold;
 
     // Navigation
     public Warehouse? Warehouse { get; set; }
@@ -28,6 +34,10 @@ public class InventoryItem
             TotalQuantity = initialQuantity,
             ReservedQuantity = 0,
             AvailableQuantity = initialQuantity,
+            SoldQuantity = 0,
+            MinStockThreshold = 10,
+            IsLowStockAlertEnabled = true,
+            LastMovementAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
     }
@@ -48,8 +58,10 @@ public class InventoryItem
 
         TotalQuantity = newTotal;
         AvailableQuantity = TotalQuantity - ReservedQuantity;
+        LastMovementAt = DateTimeOffset.UtcNow;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
     public void Hold(int quantity)
     {
         if (quantity <= 0)
@@ -83,6 +95,8 @@ public class InventoryItem
         TotalQuantity -= quantity;
         ReservedQuantity -= quantity;
         AvailableQuantity = TotalQuantity - ReservedQuantity;
+        SoldQuantity += quantity;
+        LastMovementAt = DateTimeOffset.UtcNow;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

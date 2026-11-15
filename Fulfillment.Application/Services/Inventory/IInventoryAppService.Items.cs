@@ -62,4 +62,29 @@ public partial interface IInventoryAppService
     /// Lấy thông tin tồn kho cho danh sách các SKU.
     /// </summary>
     Task<IReadOnlyList<InventoryItemResponse>> GetByListSkuAsync(IReadOnlyList<Guid> skuIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates low stock alert threshold and alert toggle for a specific SKU.
+    /// </summary>
+    Task<InventoryItemResponse> UpdateThresholdAsync(Guid skuId, UpdateStockThresholdRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves all items currently below their low stock threshold.
+    /// </summary>
+    Task<IReadOnlyList<LowStockAlertItemResponse>> GetLowStockAlertsAsync(Guid? warehouseId, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves items with no movement/activity for the given number of days.
+    /// </summary>
+    Task<IReadOnlyList<DeadStockAlertItemResponse>> GetDeadStockAlertsAsync(Guid? warehouseId, int daysThreshold, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves aggregated inventory analytics and filtered items.
+    /// </summary>
+    Task<InventoryAnalyticsResponse> GetAnalyticsAsync(InventoryAnalyticsFilterRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Analyzes an uploaded Excel/CSV file with AI schema inference and returns a deterministic preview.
+    /// </summary>
+    Task<InventoryImportPreviewResponse> PreviewImportAsync(System.IO.Stream fileStream, string fileName, Guid? warehouseId, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
 }

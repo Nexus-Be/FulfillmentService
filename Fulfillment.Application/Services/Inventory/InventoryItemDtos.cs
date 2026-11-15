@@ -14,7 +14,12 @@ public sealed record InventoryItemResponse(
     int TotalQuantity,
     int ReservedQuantity,
     int AvailableQuantity,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    int SoldQuantity = 0,
+    int MinStockThreshold = 10,
+    bool IsLowStockAlertEnabled = true,
+    bool IsLowStock = false,
+    DateTimeOffset? LastMovementAt = null);
 
 public sealed record DeclareInventoryRequest(
     [Required(ErrorMessage = "SKU ID is required.")]
