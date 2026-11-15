@@ -15,8 +15,12 @@ public class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
         builder.Property(x => x.SellerId).HasColumnName("seller_id");
         builder.Property(x => x.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
         builder.Property(x => x.Name).HasColumnName("name").HasMaxLength(200).IsRequired();
-        builder.Property(x => x.Type).HasColumnName("type").HasMaxLength(20).HasDefaultValue("OWN").IsRequired();
         builder.Property(x => x.Address).HasColumnName("address").HasMaxLength(500);
+        builder.Property(x => x.ContactPhone).HasColumnName("contact_phone").HasMaxLength(20);
+        builder.Property(x => x.ProvinceName).HasColumnName("province_name").HasMaxLength(100);
+        builder.Property(x => x.DistrictId).HasColumnName("district_id");
+        builder.Property(x => x.WardCode).HasColumnName("ward_code").HasMaxLength(20);
+        builder.Property(x => x.GhnShopId).HasColumnName("ghn_shop_id");
         builder.Property(x => x.IsActive).HasColumnName("is_active").HasDefaultValue(true).IsRequired();
         builder.Ignore(x => x.IsDisabled);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();

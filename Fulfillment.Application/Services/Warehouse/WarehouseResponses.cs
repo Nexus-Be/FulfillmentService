@@ -6,6 +6,11 @@ public sealed record WarehouseResponse(
     Guid Id,
     string Code,
     string Name,
-    string Type,
     string? Address,
-    bool IsDisabled);
+    string? ContactPhone,
+    string? ProvinceName,
+    int? DistrictId,
+    string? WardCode,
+    int? GhnShopId,
+    bool IsDisabled,
+    Guid? SellerId = null);
