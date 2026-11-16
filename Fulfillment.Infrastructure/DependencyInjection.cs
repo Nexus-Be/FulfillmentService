@@ -53,6 +53,7 @@ public static class DependencyInjection
         services.AddHttpClient<IAiSchemaInferenceService, GeminiSchemaInferenceService>();
         services.AddScoped<IInventoryExcelParser, InventoryExcelParser>();
         services.AddScoped<IInventoryExcelExporter, InventoryExcelExporter>();
+        services.AddSingleton<IConcurrencyLockService, Services.KeyedConcurrencyLockService>();
 
         // Identity propagation delegating handler for outgoing inter-service HTTP requests
         services.AddTransient<Services.Common.IdentityPropagationHandler>();

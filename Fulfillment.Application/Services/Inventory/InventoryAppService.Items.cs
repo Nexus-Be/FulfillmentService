@@ -19,6 +19,10 @@ public sealed partial class InventoryAppService
 
     public async Task<InventoryItemResponse> DeclareInventoryAsync(DeclareInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"inv:sku:{request.SkuId}", cancellationToken: cancellationToken)
+            : null;
+
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.Id == request.WarehouseId, cancellationToken)
             ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse", request.WarehouseId);
@@ -63,6 +67,10 @@ public sealed partial class InventoryAppService
 
     public async Task<AdjustInventoryResponse> AdjustInventoryAsync(AdjustInventoryRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"inv:sku:{request.SkuId}", cancellationToken: cancellationToken)
+            : null;
+
         ValidateAdjustmentParameters(request.Type, request.Quantity);
 
         var warehouse = await ResolveWarehouseForAdjustmentAsync(request.WarehouseId, currentUserId, isAdmin, cancellationToken);
@@ -94,6 +102,11 @@ public sealed partial class InventoryAppService
         {
             throw new BusinessRuleValidationException("VAL_INVALID_INPUT", "At least one inventory adjustment item is required.");
         }
+
+        var lockKeys = request.Items.Select(x => $"inv:sku:{x.SkuId}");
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLocksAsync(lockKeys, cancellationToken: cancellationToken)
+            : null;
 
         foreach (var entry in request.Items)
         {

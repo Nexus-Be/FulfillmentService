@@ -21,6 +21,12 @@ public sealed partial class InventoryAppService
             throw new BusinessRuleValidationException("Reservation must contain at least one item.");
         }
 
+        var lockKeys = request.Items.Select(i => $"inv:sku:{i.SkuId}")
+            .Append($"inv:ref:{request.ReferenceId}");
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLocksAsync(lockKeys, cancellationToken: cancellationToken)
+            : null;
+
         var existing = await _dbContext.InventoryReservations
             .Include(r => r.ReservationItems)
             .FirstOrDefaultAsync(r => r.ReferenceId == request.ReferenceId, cancellationToken);
@@ -80,6 +86,10 @@ public sealed partial class InventoryAppService
 
     public async Task<InventoryReservationResponse> CommitReservationAsync(string referenceId, CancellationToken cancellationToken = default)
     {
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"inv:ref:{referenceId}", cancellationToken: cancellationToken)
+            : null;
+
         var reservation = await _dbContext.InventoryReservations
             .Include(r => r.ReservationItems)
             .FirstOrDefaultAsync(r => r.ReferenceId == referenceId, cancellationToken);
@@ -140,6 +150,10 @@ public sealed partial class InventoryAppService
 
     public async Task<InventoryReservationResponse> ReleaseReservationAsync(string referenceId, string? reason = null, CancellationToken cancellationToken = default)
     {
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"inv:ref:{referenceId}", cancellationToken: cancellationToken)
+            : null;
+
         var reservation = await _dbContext.InventoryReservations
             .Include(r => r.ReservationItems)
             .FirstOrDefaultAsync(r => r.ReferenceId == referenceId, cancellationToken);
@@ -197,6 +211,12 @@ public sealed partial class InventoryAppService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        var lockKeys = request.Items.Select(i => $"inv:sku:{i.SkuId}")
+            .Append($"inv:ref:{referenceId}");
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLocksAsync(lockKeys, cancellationToken: cancellationToken)
+            : null;
 
         var reservation = await _dbContext.InventoryReservations
             .Include(r => r.ReservationItems)
@@ -263,6 +283,11 @@ public sealed partial class InventoryAppService
         {
             return new BatchReleaseReservationsResponse(0, 0);
         }
+
+        var lockKeys = request.ReferenceIds.Select(r => $"inv:ref:{r}");
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLocksAsync(lockKeys, cancellationToken: cancellationToken)
+            : null;
 
         var reservations = await _dbContext.InventoryReservations
             .Include(r => r.ReservationItems)
