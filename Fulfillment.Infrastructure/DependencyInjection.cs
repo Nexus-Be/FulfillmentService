@@ -40,6 +40,13 @@ public static class DependencyInjection
                               ?? Environment.GetEnvironmentVariable("AI_API_KEY")
                               ?? string.Empty;
             }
+
+            var envModel = Environment.GetEnvironmentVariable("GEMINI_MODEL")
+                        ?? Environment.GetEnvironmentVariable("AI_MODEL");
+            if (!string.IsNullOrWhiteSpace(envModel))
+            {
+                options.Model = envModel;
+            }
         });
         services.AddHttpClient<IAiSchemaInferenceService, GeminiSchemaInferenceService>();
         services.AddScoped<IInventoryExcelParser, InventoryExcelParser>();
