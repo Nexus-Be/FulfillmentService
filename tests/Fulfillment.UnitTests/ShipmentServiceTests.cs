@@ -62,6 +62,11 @@ public class ShipmentServiceTests
             return Task.FromResult(new CarrierCancelResult(trackingCode, true, "Success"));
         }
 
+        public Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<string?>("mock_ghn_print_token");
+        }
+
         public ShipmentStatus MapStatus(string rawCarrierStatus) => ShipmentStatus.ReadyToPick;
     }
 

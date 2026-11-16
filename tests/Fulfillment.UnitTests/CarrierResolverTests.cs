@@ -34,6 +34,9 @@ public class CarrierResolverTests
         public Task<CarrierCancelResult> CancelAsync(string trackingCode, CancellationToken cancellationToken = default)
             => Task.FromResult(new CarrierCancelResult(trackingCode, true));
 
+        public Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("mock_print_token_123");
+
         public ShipmentStatus MapStatus(string rawCarrierStatus) => ShipmentStatus.ReadyToPick;
     }
 

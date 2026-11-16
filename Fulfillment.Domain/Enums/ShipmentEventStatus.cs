@@ -8,5 +8,6 @@ public enum ShipmentEventStatus
     OutForDelivery = 3,
     Delivered = 4,
     DeliveryFailed = 5,
-    Returned = 6
+    Returned = 6,
+    Cancelled = 7
 }

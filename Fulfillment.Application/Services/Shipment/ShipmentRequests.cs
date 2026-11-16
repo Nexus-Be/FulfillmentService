@@ -38,3 +38,6 @@ public sealed record UpdateShipmentStatusRequest(
     string TrackingNumber,
     string Status,
     string? Note = null);
+
+public sealed record CancelShipmentRequest(
+    string? Reason = null);

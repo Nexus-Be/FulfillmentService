@@ -33,6 +33,11 @@ public class AhamoveGateway : ICarrierGateway
         throw new NotSupportedException("Ahamove carrier integration is not supported yet.");
     }
 
+    public Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Ahamove carrier integration is not supported yet.");
+    }
+
     public ShipmentStatus MapStatus(string rawCarrierStatus)
     {
         throw new NotSupportedException("Ahamove carrier integration is not supported yet.");
