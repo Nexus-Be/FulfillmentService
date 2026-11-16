@@ -64,7 +64,7 @@ description: Add or change a REST endpoint in FulfillmentService (port 8006). Us
 - [ ] Files live in ``Fulfillment.Application/Services/{Feature}/`` as `I{Feature}Service.cs`, `{Feature}Service.cs`, `{Feature}Requests.cs`, `{Feature}Responses.cs`, optional `{Feature}Dtos.cs`.
 - [ ] Service injects ``IFulfillmentDbContext`` directly; no repository and no unit of work.
 - [ ] Reads use `AsNoTracking()`; multi-write operations use one transaction.
-- [ ] Sensitive mutations call `AddAuditLog(...)`.
+- [ ] Inventory adjustments audit via `InventoryLedger`; webhook callbacks audit via `WebhookAuditLog`.
 - [ ] Pagination runs in SQL with `Skip`/`Take` and `CountAsync`.
 - [ ] Errors use stable codes and English messages.
 - [ ] Cross-service interfaces live in `Application/Interfaces`, implementations in `Infrastructure/Services`, registration in `Infrastructure/DependencyInjection.cs`.
