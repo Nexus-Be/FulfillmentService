@@ -19,9 +19,6 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShipmentItem> ShipmentItems => Set<ShipmentItem>();
     public DbSet<ShipmentEvent> ShipmentEvents => Set<ShipmentEvent>();
-    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
-    public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
-    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<WebhookAuditLog> WebhookAuditLogs => Set<WebhookAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

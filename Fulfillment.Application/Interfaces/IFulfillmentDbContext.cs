@@ -16,7 +16,6 @@ public interface IFulfillmentDbContext
     DbSet<Shipment> Shipments { get; }
     DbSet<ShipmentItem> ShipmentItems { get; }
     DbSet<ShipmentEvent> ShipmentEvents { get; }
-    DbSet<AuditLog> AuditLogs { get; }
     DbSet<WebhookAuditLog> WebhookAuditLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
