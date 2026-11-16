@@ -12,17 +12,20 @@ public sealed partial class InventoryAppService : IInventoryAppService
     private readonly IAiSchemaInferenceService? _aiSchemaInferenceService;
     private readonly IInventoryExcelParser? _excelParser;
     private readonly IInventoryExcelExporter? _excelExporter;
+    private readonly IConcurrencyLockService? _lockService;
 
     public InventoryAppService(
         IFulfillmentDbContext dbContext,
         IAiSchemaInferenceService? aiSchemaInferenceService = null,
         IInventoryExcelParser? excelParser = null,
-        IInventoryExcelExporter? excelExporter = null)
+        IInventoryExcelExporter? excelExporter = null,
+        IConcurrencyLockService? lockService = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _aiSchemaInferenceService = aiSchemaInferenceService;
         _excelParser = excelParser;
         _excelExporter = excelExporter;
+        _lockService = lockService;
     }
 
     private static InventoryItemResponse MapToResponse(InventoryItem item) =>

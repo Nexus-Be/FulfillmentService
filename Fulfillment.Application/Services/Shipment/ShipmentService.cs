@@ -19,13 +19,16 @@ public sealed class ShipmentService : IShipmentService
 {
     private readonly IFulfillmentDbContext _dbContext;
     private readonly ICarrierResolver _carrierResolver;
+    private readonly IConcurrencyLockService? _lockService;
 
     public ShipmentService(
         IFulfillmentDbContext dbContext,
-        ICarrierResolver carrierResolver)
+        ICarrierResolver carrierResolver,
+        IConcurrencyLockService? lockService = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _carrierResolver = carrierResolver ?? throw new ArgumentNullException(nameof(carrierResolver));
+        _lockService = lockService;
     }
 
     public async Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default)
@@ -265,6 +268,10 @@ public sealed class ShipmentService : IShipmentService
 
     public async Task<ConfirmReturnResponse> ConfirmReturnAsync(Guid orderId, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"shipment:order:{orderId}", cancellationToken: cancellationToken)
+            : null;
+
         var shipment = await _dbContext.Shipments
             .Include(s => s.Items)
             .Include(s => s.Warehouse)
@@ -422,6 +429,10 @@ public sealed class ShipmentService : IShipmentService
         bool isAdmin = false,
         CancellationToken cancellationToken = default)
     {
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"shipment:id:{shipmentId}", cancellationToken: cancellationToken)
+            : null;
+
         var shipment = await _dbContext.Shipments
             .Include(s => s.Warehouse)
             .Include(s => s.Carrier)
