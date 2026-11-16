@@ -41,11 +41,13 @@ public static class DependencyInjection
                               ?? string.Empty;
             }
 
+            options.ApiKey = options.ApiKey?.Trim('"', '\'', ' ') ?? string.Empty;
+
             var envModel = Environment.GetEnvironmentVariable("GEMINI_MODEL")
                         ?? Environment.GetEnvironmentVariable("AI_MODEL");
             if (!string.IsNullOrWhiteSpace(envModel))
             {
-                options.Model = envModel;
+                options.Model = envModel.Trim('"', '\'', ' ');
             }
         });
         services.AddHttpClient<IAiSchemaInferenceService, GeminiSchemaInferenceService>();

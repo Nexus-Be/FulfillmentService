@@ -89,7 +89,22 @@ public class GeminiSchemaInferenceService : IAiSchemaInferenceService
                 return InferSchemaHeuristically(sampleRows);
             }
 
-            var parsed = JsonSerializer.Deserialize<GeminiInferenceResponse>(candidateText, new JsonSerializerOptions
+            var cleanJson = candidateText.Trim();
+            if (cleanJson.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
+            {
+                cleanJson = cleanJson[7..];
+            }
+            else if (cleanJson.StartsWith("```"))
+            {
+                cleanJson = cleanJson[3..];
+            }
+            if (cleanJson.EndsWith("```"))
+            {
+                cleanJson = cleanJson[..^3];
+            }
+            cleanJson = cleanJson.Trim();
+
+            var parsed = JsonSerializer.Deserialize<GeminiInferenceResponse>(cleanJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
