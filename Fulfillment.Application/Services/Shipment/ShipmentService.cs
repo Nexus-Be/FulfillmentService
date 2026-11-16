@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Fulfillment.Application.Common.Models;
 using Fulfillment.Application.Exceptions;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Application.Interfaces.Shipping;
@@ -334,6 +335,224 @@ public sealed class ShipmentService : IShipmentService
             Code: "STOCK_RESTORED",
             Message: "Return confirmed successfully. Product stock has been restored to available inventory.",
             Data: new ConfirmReturnData(orderId, totalRestored));
+    }
+
+    public async Task<PagedData<ShipmentDto>> ListShipmentsAsync(
+        ShipmentFilterRequest request,
+        Guid currentUserId,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var query = _dbContext.Shipments
+            .AsNoTracking()
+            .Include(s => s.Items)
+            .Include(s => s.Events)
+            .Include(s => s.Warehouse)
+            .AsQueryable();
+
+        // Enforce seller isolation: sellers only see shipments from their warehouse or created by them
+        if (!isAdmin)
+        {
+            query = query.Where(s =>
+                (s.Warehouse != null && s.Warehouse.SellerId == currentUserId) ||
+                s.CreatedBy == currentUserId);
+        }
+
+        if (request.WarehouseId.HasValue)
+        {
+            query = query.Where(s => s.WarehouseId == request.WarehouseId.Value);
+        }
+
+        if (request.OrderId.HasValue)
+        {
+            query = query.Where(s => s.OrderId == request.OrderId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.TrackingNumber))
+        {
+            var tracking = request.TrackingNumber.Trim();
+            query = query.Where(s =>
+                (s.TrackingNumber != null && s.TrackingNumber.Contains(tracking)) ||
+                (s.GhnOrderCode != null && s.GhnOrderCode.Contains(tracking)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            if (Enum.TryParse<ShipmentStatus>(request.Status, true, out var parsedStatus))
+            {
+                query = query.Where(s => s.Status == parsedStatus);
+            }
+            else
+            {
+                throw new BusinessRuleValidationException("VAL_INVALID_STATUS", $"Invalid shipment status '{request.Status}'.", 400);
+            }
+        }
+
+        if (request.FromDate.HasValue)
+        {
+            query = query.Where(s => s.CreatedAt >= request.FromDate.Value);
+        }
+
+        if (request.ToDate.HasValue)
+        {
+            query = query.Where(s => s.CreatedAt <= request.ToDate.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        int safePage = Math.Max(1, request.Page);
+        int safePageSize = Math.Clamp(request.PageSize, 1, 100);
+
+        var shipments = await query
+            .OrderByDescending(s => s.CreatedAt)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .ToListAsync(cancellationToken);
+
+        var dtos = shipments.Select(MapToDto).ToList();
+        return new PagedData<ShipmentDto>(dtos, PaginationMetadata.Create(safePage, safePageSize, totalCount));
+    }
+
+    public async Task<CancelShipmentResponse> CancelShipmentAsync(
+        Guid shipmentId,
+        string? reason,
+        Guid currentUserId,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default)
+    {
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Warehouse)
+            .Include(s => s.Carrier)
+            .Include(s => s.Events)
+            .FirstOrDefaultAsync(s => s.Id == shipmentId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", shipmentId);
+
+        var isOwner = isAdmin ||
+                      (currentUserId != Guid.Empty &&
+                       ((shipment.Warehouse != null && shipment.Warehouse.SellerId == currentUserId) || shipment.CreatedBy == currentUserId));
+
+        if (!isOwner)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to cancel this shipment.", 403);
+        }
+
+        if (shipment.Status == ShipmentStatus.Cancelled)
+        {
+            return new CancelShipmentResponse(
+                shipment.Id,
+                shipment.TrackingNumber ?? shipment.GhnOrderCode,
+                true,
+                "Shipment has already been cancelled.");
+        }
+
+        if (shipment.Status == ShipmentStatus.Delivered || shipment.Status == ShipmentStatus.Returned)
+        {
+            throw new BusinessRuleValidationException(
+                "SHIPMENT_CANNOT_BE_CANCELLED",
+                $"Shipment in status '{shipment.Status}' cannot be cancelled.",
+                400);
+        }
+
+        var trackingCode = shipment.GhnOrderCode ?? shipment.TrackingNumber;
+        if (!string.IsNullOrWhiteSpace(trackingCode))
+        {
+            var gateway = _carrierResolver.Get(shipment.Carrier?.Code);
+            var carrierResult = await gateway.CancelAsync(trackingCode, cancellationToken);
+            if (!carrierResult.Success)
+            {
+                throw new BusinessRuleValidationException(
+                    "CARRIER_CANCELLATION_FAILED",
+                    carrierResult.Message ?? "Failed to cancel shipment with the shipping carrier.",
+                    400);
+            }
+        }
+
+        shipment.Status = ShipmentStatus.Cancelled;
+        shipment.UpdatedAt = DateTimeOffset.UtcNow;
+
+        shipment.Events.Add(new ShipmentEvent
+        {
+            ShipmentId = shipment.Id,
+            CarrierStatus = "cancelled",
+            Status = ShipmentEventStatus.Cancelled,
+            Description = string.IsNullOrWhiteSpace(reason) ? "Shipment cancelled by seller/admin." : $"Shipment cancelled: {reason.Trim()}",
+            OccurredAt = DateTimeOffset.UtcNow,
+            Reason = reason?.Trim(),
+            WarehouseName = shipment.Warehouse?.Name
+        });
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return new CancelShipmentResponse(
+            shipment.Id,
+            trackingCode,
+            true,
+            "Shipment cancelled successfully.");
+    }
+
+    public async Task<PrintShippingLabelResponse> GetPrintLabelAsync(
+        Guid shipmentId,
+        string pageSize,
+        Guid currentUserId,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default)
+    {
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Warehouse)
+            .Include(s => s.Carrier)
+            .FirstOrDefaultAsync(s => s.Id == shipmentId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", shipmentId);
+
+        var isOwner = isAdmin ||
+                      (currentUserId != Guid.Empty &&
+                       ((shipment.Warehouse != null && shipment.Warehouse.SellerId == currentUserId) || shipment.CreatedBy == currentUserId));
+
+        if (!isOwner)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to print label for this shipment.", 403);
+        }
+
+        var trackingCode = shipment.GhnOrderCode ?? shipment.TrackingNumber;
+        if (string.IsNullOrWhiteSpace(trackingCode))
+        {
+            throw new BusinessRuleValidationException(
+                "SHIPMENT_TRACKING_NOT_FOUND",
+                "Shipment does not have a valid carrier tracking number.",
+                400);
+        }
+
+        var normalizedPageSize = pageSize?.Trim().ToUpperInvariant() switch
+        {
+            "80X80" or "80*80" => "80x80",
+            "52X70" or "52*70" => "52x70",
+            _ => "A5"
+        };
+
+        string? printToken = shipment.PrintToken;
+        if (string.IsNullOrWhiteSpace(printToken))
+        {
+            var gateway = _carrierResolver.Get(shipment.Carrier?.Code);
+            printToken = await gateway.GetPrintTokenAsync(trackingCode, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(printToken))
+            {
+                shipment.PrintToken = printToken;
+                shipment.UpdatedAt = DateTimeOffset.UtcNow;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        var printUrl = !string.IsNullOrWhiteSpace(printToken)
+            ? $"https://dev-online-gateway.ghn.vn/a5/public-api/print{normalizedPageSize}?token={printToken}"
+            : $"https://dev-online-gateway.ghn.vn/a5/public-api/print{normalizedPageSize}?token={trackingCode}";
+
+        return new PrintShippingLabelResponse(
+            shipment.Id,
+            trackingCode,
+            printToken,
+            printUrl,
+            normalizedPageSize);
     }
 
     private static ShipmentDto MapToDto(Domain.Entities.Shipment s)

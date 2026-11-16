@@ -60,3 +60,26 @@ public sealed record CreateShipmentDto(
     string ReceiverName,
     string ReceiverPhone,
     string ReceiverAddress);
+
+public sealed record ShipmentFilterRequest(
+    Guid? WarehouseId = null,
+    Guid? OrderId = null,
+    string? TrackingNumber = null,
+    string? Status = null,
+    DateTimeOffset? FromDate = null,
+    DateTimeOffset? ToDate = null,
+    int Page = 1,
+    int PageSize = 20);
+
+public sealed record CancelShipmentResponse(
+    Guid ShipmentId,
+    string? TrackingNumber,
+    bool IsSuccess,
+    string Message);
+
+public sealed record PrintShippingLabelResponse(
+    Guid ShipmentId,
+    string? TrackingNumber,
+    string? Token,
+    string PrintUrl,
+    string PageSize);

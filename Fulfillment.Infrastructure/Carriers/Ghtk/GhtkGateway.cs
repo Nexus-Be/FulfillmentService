@@ -33,6 +33,11 @@ public class GhtkGateway : ICarrierGateway
         throw new NotSupportedException("GHTK carrier integration is not supported yet.");
     }
 
+    public Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("GHTK carrier integration is not supported yet.");
+    }
+
     public ShipmentStatus MapStatus(string rawCarrierStatus)
     {
         throw new NotSupportedException("GHTK carrier integration is not supported yet.");

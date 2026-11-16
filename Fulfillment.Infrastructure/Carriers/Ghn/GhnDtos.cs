@@ -190,6 +190,18 @@ public sealed class GhnCancelOrderRequest
     public List<string> OrderCodes { get; set; } = new();
 }
 
+public sealed class GhnPrintTokenRequest
+{
+    [JsonPropertyName("order_codes")]
+    public List<string> OrderCodes { get; set; } = new();
+}
+
+public sealed class GhnPrintTokenData
+{
+    [JsonPropertyName("token")]
+    public string? Token { get; set; }
+}
+
 public sealed class GhnWebhookPayload
 {
     [JsonPropertyName("OrderCode")]

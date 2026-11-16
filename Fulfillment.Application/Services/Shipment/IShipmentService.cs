@@ -3,10 +3,29 @@ namespace Fulfillment.Application.Services.Shipment;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Fulfillment.Application.Common.Models;
 using Fulfillment.Application.Services.Shipping;
 
 public interface IShipmentService
 {
+    /// <summary>
+    /// Lists shipments with filtering and pagination, enforcing seller-level isolation.
+    /// Lấy danh sách vận đơn có lọc và phân trang, đảm bảo bảo vệ dữ liệu giữa các người bán.
+    /// </summary>
+    Task<PagedData<ShipmentDto>> ListShipmentsAsync(ShipmentFilterRequest request, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancels a shipment synchronously with the shipping carrier.
+    /// Hủy vận đơn và đồng bộ trực tiếp sang hãng vận chuyển (GHN).
+    /// </summary>
+    Task<CancelShipmentResponse> CancelShipmentAsync(Guid shipmentId, string? reason, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates or retrieves shipping label print token and formatted URL for thermal printing.
+    /// Tạo hoặc lấy mã in tem vận chuyển kèm đường dẫn in phiếu gửi hàng GHN (A5, 80x80, 52x70).
+    /// </summary>
+    Task<PrintShippingLabelResponse> GetPrintLabelAsync(Guid shipmentId, string pageSize, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Retrieves shipment details by unique tracking number.
     /// Lấy thông tin chi tiết vận đơn theo mã vận đơn vận chuyển.

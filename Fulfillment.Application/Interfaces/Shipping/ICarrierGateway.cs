@@ -17,6 +17,8 @@ public interface ICarrierGateway
 
     Task<CarrierCancelResult> CancelAsync(string trackingCode, CancellationToken cancellationToken = default);
 
+    Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default);
+
     ShipmentStatus MapStatus(string rawCarrierStatus);
 }
 

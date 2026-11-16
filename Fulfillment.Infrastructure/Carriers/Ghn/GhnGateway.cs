@@ -356,6 +356,41 @@ public class GhnGateway : ICarrierGateway
         }
     }
 
+    public async Task<string?> GetPrintTokenAsync(
+        string trackingCode,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(trackingCode);
+
+        try
+        {
+            var request = new GhnPrintTokenRequest
+            {
+                OrderCodes = new List<string> { trackingCode }
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/shiip/public-api/v2/a5/gen-token",
+                request,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("GHN Gen-Token failed: {ErrorText}", errorText);
+                return null;
+            }
+
+            var ghnResponse = await response.Content.ReadFromJsonAsync<GhnApiResponse<GhnPrintTokenData>>(cancellationToken: cancellationToken);
+            return ghnResponse?.Data?.Token;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GHN Gen-Token request error for {TrackingCode}", trackingCode);
+            return null;
+        }
+    }
+
     public ShipmentStatus MapStatus(string rawCarrierStatus)
     {
         return GhnStatusMapper.Map(rawCarrierStatus);
