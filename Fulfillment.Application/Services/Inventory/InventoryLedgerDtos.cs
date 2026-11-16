@@ -1,7 +1,9 @@
 namespace Fulfillment.Application.Services.Inventory;
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using Fulfillment.Application.Common.Models;
 
 public sealed record RecordLedgerRequest(
     [Required(ErrorMessage = "SKU ID is required.")]
@@ -26,4 +28,29 @@ public sealed record InventoryLedgerResponse(
     string? ReferenceType,
     string? ReferenceId,
     string? Note,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    Guid? WarehouseId = null,
+    string? WarehouseName = null);
+
+public sealed record InventoryLedgerFilterRequest(
+    Guid? WarehouseId = null,
+    Guid? SkuId = null,
+    IReadOnlyList<Guid>? SkuIds = null,
+    string? MovementType = null,
+    string? ReferenceType = null,
+    string? ReferenceId = null,
+    DateTimeOffset? FromDate = null,
+    DateTimeOffset? ToDate = null,
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 20);
+
+public sealed record InventoryLedgerSummaryResponse(
+    int TotalInboundQuantity,
+    int TotalOutboundQuantity,
+    int NetChange,
+    int TotalTransactions);
+
+public sealed record InventoryLedgerPagedResponse(
+    InventoryLedgerSummaryResponse Summary,
+    PagedData<InventoryLedgerResponse> Items);

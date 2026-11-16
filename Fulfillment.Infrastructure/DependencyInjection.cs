@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Application.Interfaces.AI;
+using Fulfillment.Application.Interfaces.Excel;
 using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Infrastructure.AI;
 using Fulfillment.Infrastructure.Carriers;
@@ -42,6 +43,7 @@ public static class DependencyInjection
         });
         services.AddHttpClient<IAiSchemaInferenceService, GeminiSchemaInferenceService>();
         services.AddScoped<IInventoryExcelParser, InventoryExcelParser>();
+        services.AddScoped<IInventoryExcelExporter, InventoryExcelExporter>();
 
         // Identity propagation delegating handler for outgoing inter-service HTTP requests
         services.AddTransient<Services.Common.IdentityPropagationHandler>();

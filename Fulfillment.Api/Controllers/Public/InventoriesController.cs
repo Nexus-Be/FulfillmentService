@@ -94,6 +94,56 @@ public sealed class InventoriesController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Retrieves paginated and filtered inventory transaction ledgers with audit summary.</summary>
+    [HttpGet("ledgers")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<IActionResult> GetLedgers(
+        [FromQuery] InventoryLedgerFilterRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.GetLedgersAsync(request, userId, this.IsAdmin(), cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Exports filtered inventory transaction ledgers to an Excel file (.xlsx).</summary>
+    [HttpGet("ledgers/export")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<IActionResult> ExportLedgers(
+        [FromQuery] InventoryLedgerFilterRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var fileBytes = await _inventoryAppService.ExportLedgersExcelAsync(request, userId, this.IsAdmin(), cancellationToken);
+        var fileName = $"so_cai_kho_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
+        return File(fileBytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+    }
+
+    /// <summary>Retrieves audit transaction ledgers linked to a specific business reference (Order, Auction, Import).</summary>
+    [HttpGet("ledgers/reference/{referenceType}/{referenceId}")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<IActionResult> GetLedgersByReference(
+        [FromRoute] string referenceType,
+        [FromRoute] string referenceId,
+        CancellationToken cancellationToken)
+    {
+        if (!this.TryGetUserId(out var userId, out var errorResult))
+        {
+            return errorResult;
+        }
+
+        var result = await _inventoryAppService.GetLedgersByReferenceAsync(referenceType, referenceId, userId, this.IsAdmin(), cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>Retrieves inventory transaction ledgers for a product SKU.</summary>
     [HttpGet("{skuId:guid}/ledgers")]
     [RequireRole("seller", "admin", "staff")]
