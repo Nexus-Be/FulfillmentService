@@ -40,96 +40,87 @@ public class GeminiSchemaInferenceService : IAiSchemaInferenceService
     {
         if (sampleRows == null || sampleRows.Count == 0)
         {
-            return CreateDefaultFallbackSchema();
+            throw new InvalidOperationException("No table data rows available for AI schema inference.");
         }
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
-            _logger.LogInformation("Gemini API key is not configured. Using deterministic heuristic schema inference.");
-            return InferSchemaHeuristically(sampleRows);
+            throw new InvalidOperationException("AI API key is not configured for smart schema inference. Please configure GEMINI_API_KEY.");
         }
 
-        try
-        {
-            var prompt = BuildPrompt(sampleRows);
-            var endpointUrl = $"{_options.Endpoint.TrimEnd('/')}/models/{_options.Model}:generateContent?key={_options.ApiKey}";
+        var prompt = BuildPrompt(sampleRows);
+        var endpointUrl = $"{_options.Endpoint.TrimEnd('/')}/models/{_options.Model}:generateContent?key={_options.ApiKey}";
 
-            var requestBody = new
+        var requestBody = new
+        {
+            contents = new[]
             {
-                contents = new[]
+                new
                 {
-                    new
+                    parts = new[]
                     {
-                        parts = new[]
-                        {
-                            new { text = prompt }
-                        }
+                        new { text = prompt }
                     }
-                },
-                generationConfig = new
-                {
-                    response_mime_type = "application/json"
                 }
-            };
-
-            var response = await _httpClient.PostAsJsonAsync(endpointUrl, requestBody, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            },
+            generationConfig = new
             {
-                var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning("Gemini API returned HTTP {StatusCode}: {ErrorText}. Falling back to heuristic inference.", response.StatusCode, errorText);
-                return InferSchemaHeuristically(sampleRows);
+                response_mime_type = "application/json"
             }
+        };
 
-            var jsonResult = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
-            var candidateText = jsonResult?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
-
-            if (string.IsNullOrWhiteSpace(candidateText))
-            {
-                _logger.LogWarning("Gemini API returned empty candidate text. Falling back to heuristic inference.");
-                return InferSchemaHeuristically(sampleRows);
-            }
-
-            var cleanJson = candidateText.Trim();
-            if (cleanJson.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
-            {
-                cleanJson = cleanJson[7..];
-            }
-            else if (cleanJson.StartsWith("```"))
-            {
-                cleanJson = cleanJson[3..];
-            }
-            if (cleanJson.EndsWith("```"))
-            {
-                cleanJson = cleanJson[..^3];
-            }
-            cleanJson = cleanJson.Trim();
-
-            var parsed = JsonSerializer.Deserialize<GeminiInferenceResponse>(cleanJson, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (parsed == null || parsed.SkuColIndex < 0 || parsed.QuantityColIndex < 0)
-            {
-                _logger.LogWarning("Gemini API returned incomplete schema. Falling back to heuristic inference.");
-                return InferSchemaHeuristically(sampleRows);
-            }
-
-            return new TableSchemaInferenceResult(
-                HeaderRowIndex: Math.Max(0, parsed.HeaderRowIndex),
-                SkuColIndex: parsed.SkuColIndex,
-                QuantityColIndex: parsed.QuantityColIndex,
-                OperationColIndex: parsed.OperationColIndex ?? -1,
-                NoteColIndex: parsed.NoteColIndex ?? -1,
-                Mode: !string.IsNullOrWhiteSpace(parsed.Mode) ? parsed.Mode.ToUpperInvariant() : "SINGLE_QTY_COL",
-                IntakeKeywords: parsed.IntakeKeywords ?? new List<string> { "nhap", "nhập", "+", "cộng", "in" },
-                AdjustKeywords: parsed.AdjustKeywords ?? new List<string> { "xuat", "xuất", "-", "trừ", "out" });
-        }
-        catch (Exception ex)
+        var response = await _httpClient.PostAsJsonAsync(endpointUrl, requestBody, cancellationToken);
+        if (!response.IsSuccessStatusCode)
         {
-            _logger.LogError(ex, "Failed to infer schema using Gemini API. Falling back to heuristic inference.");
-            return InferSchemaHeuristically(sampleRows);
+            var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("AI model '{Model}' returned HTTP {StatusCode}: {ErrorText}", _options.Model, response.StatusCode, errorText);
+            throw new InvalidOperationException($"AI schema inference failed with status {response.StatusCode}: {errorText}");
         }
+
+        var jsonResult = await response.Content.ReadFromJsonAsync<GeminiApiResponse>(cancellationToken: cancellationToken);
+        var candidateText = jsonResult?.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text;
+
+        if (string.IsNullOrWhiteSpace(candidateText))
+        {
+            _logger.LogError("AI model '{Model}' returned empty candidate text.", _options.Model);
+            throw new InvalidOperationException("AI schema inference returned an empty response.");
+        }
+
+        var cleanJson = candidateText.Trim();
+        if (cleanJson.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
+        {
+            cleanJson = cleanJson[7..];
+        }
+        else if (cleanJson.StartsWith("```"))
+        {
+            cleanJson = cleanJson[3..];
+        }
+        if (cleanJson.EndsWith("```"))
+        {
+            cleanJson = cleanJson[..^3];
+        }
+        cleanJson = cleanJson.Trim();
+
+        var parsed = JsonSerializer.Deserialize<GeminiInferenceResponse>(cleanJson, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+
+        if (parsed == null || parsed.SkuColIndex < 0 || parsed.QuantityColIndex < 0)
+        {
+            _logger.LogError("AI model '{Model}' returned incomplete schema: {CandidateText}", _options.Model, candidateText);
+            throw new InvalidOperationException("AI model was unable to identify valid SKU and Quantity columns in the provided file.");
+        }
+
+        return new TableSchemaInferenceResult(
+            HeaderRowIndex: Math.Max(0, parsed.HeaderRowIndex),
+            SkuColIndex: parsed.SkuColIndex,
+            QuantityColIndex: parsed.QuantityColIndex,
+            OperationColIndex: parsed.OperationColIndex ?? -1,
+            NoteColIndex: parsed.NoteColIndex ?? -1,
+            Mode: !string.IsNullOrWhiteSpace(parsed.Mode) ? parsed.Mode.ToUpperInvariant() : "SINGLE_QTY_COL",
+            IntakeKeywords: parsed.IntakeKeywords ?? new List<string> { "nhap", "nhập", "+", "cộng", "in" },
+            AdjustKeywords: parsed.AdjustKeywords ?? new List<string> { "xuat", "xuất", "-", "trừ", "out" });
     }
 
     private static string BuildPrompt(IReadOnlyList<IReadOnlyList<string>> sampleRows)
