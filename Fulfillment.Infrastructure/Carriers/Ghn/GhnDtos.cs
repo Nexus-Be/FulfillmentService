@@ -244,7 +244,17 @@ public sealed class GhnWebhookPayload
     public string? Type { get; set; }
 
     [JsonPropertyName("POD")]
-    public string? PodUrl { get; set; }
+    public string? Pod { get; set; }
+
+    [JsonPropertyName("PodURL")]
+    public string? PodUrlField { get; set; }
+
+    [JsonIgnore]
+    public string? PodUrl
+    {
+        get => !string.IsNullOrWhiteSpace(Pod) ? Pod : PodUrlField;
+        set => Pod = value;
+    }
 
     [JsonPropertyName("ConvertedWeight")]
     public int? ConvertedWeight { get; set; }

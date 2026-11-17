@@ -63,7 +63,7 @@ public sealed class DeliveryNotificationOutbox
                     shipperName = sn.GetString();
                 if (root.TryGetProperty("ShipperPhone", out var sp) || root.TryGetProperty("shipperPhone", out sp))
                     shipperPhone = sp.GetString();
-                if (root.TryGetProperty("POD", out var pod) || root.TryGetProperty("podUrl", out pod) || root.TryGetProperty("PodUrl", out pod))
+                if (root.TryGetProperty("POD", out var pod) || root.TryGetProperty("PodURL", out pod) || root.TryGetProperty("podUrl", out pod) || root.TryGetProperty("PodUrl", out pod))
                     podUrl = pod.GetString();
                 if (root.TryGetProperty("Warehouse", out var wh) || root.TryGetProperty("warehouse", out wh) || root.TryGetProperty("location", out wh))
                     location = wh.GetString();
