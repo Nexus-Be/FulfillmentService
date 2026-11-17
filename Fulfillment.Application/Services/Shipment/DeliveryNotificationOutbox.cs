@@ -1,5 +1,7 @@
 namespace Fulfillment.Application.Services.Shipment;
 
+using System;
+using System.Text.Json;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Domain.Entities;
@@ -46,11 +48,52 @@ public sealed class DeliveryNotificationOutbox
         if (log.NotifyOrderId is not { } orderId || string.IsNullOrWhiteSpace(log.NotifyStatus))
             return true;
 
+        string? shipperName = null;
+        string? shipperPhone = null;
+        string? podUrl = null;
+        string? location = null;
+
+        if (!string.IsNullOrWhiteSpace(log.RawJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(log.RawJson);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("ShipperName", out var sn) || root.TryGetProperty("shipperName", out sn))
+                    shipperName = sn.GetString();
+                if (root.TryGetProperty("ShipperPhone", out var sp) || root.TryGetProperty("shipperPhone", out sp))
+                    shipperPhone = sp.GetString();
+                if (root.TryGetProperty("POD", out var pod) || root.TryGetProperty("podUrl", out pod) || root.TryGetProperty("PodUrl", out pod))
+                    podUrl = pod.GetString();
+                if (root.TryGetProperty("Warehouse", out var wh) || root.TryGetProperty("warehouse", out wh) || root.TryGetProperty("location", out wh))
+                    location = wh.GetString();
+            }
+            catch
+            {
+                // Fall back to null fields if raw JSON cannot be parsed
+            }
+        }
+
+        var request = new CommerceDeliveryStatusRequest
+        {
+            SubOrderId = orderId,
+            Status = log.NotifyStatus,
+            CarrierCode = "GHN",
+            TrackingCode = log.NotifyTrackingNumber,
+            Note = log.NotifyDescription,
+            DeliveredAt = string.Equals(log.NotifyStatus, "Delivered", StringComparison.OrdinalIgnoreCase)
+                ? (log.ReceivedAt != default ? log.ReceivedAt : DateTimeOffset.UtcNow)
+                : log.ReceivedAt,
+            Location = location,
+            PodUrl = podUrl,
+            ShipperName = shipperName,
+            ShipperPhone = shipperPhone
+        };
+
         bool delivered;
         try
         {
-            delivered = await _commerce.NotifyDeliveryStatusAsync(
-                orderId, log.NotifyStatus, log.NotifyTrackingNumber, log.NotifyDescription, log.ReceivedAt, cancellationToken);
+            delivered = await _commerce.NotifyDeliveryStatusAsync(request, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {

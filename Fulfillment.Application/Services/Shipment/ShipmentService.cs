@@ -12,6 +12,8 @@ using Fulfillment.Application.Interfaces;
 using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Application.Services.Shipping;
 using Fulfillment.Domain.Entities;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Fulfillment.Domain.Enums;
 using Fulfillment.Domain.Exceptions;
 
@@ -21,17 +23,26 @@ public sealed class ShipmentService : IShipmentService
     private readonly ICarrierResolver _carrierResolver;
     private readonly IConcurrencyLockService? _lockService;
     private readonly Fulfillment.Application.Services.Shipping.ShippingEstimateOptions _estimateOptions;
+    private readonly DeliveryNotificationOutbox? _outbox;
+    private readonly INotificationClient? _notificationClient;
+    private readonly ILogger<ShipmentService>? _logger;
 
     public ShipmentService(
         IFulfillmentDbContext dbContext,
         ICarrierResolver carrierResolver,
         IConcurrencyLockService? lockService = null,
-        Fulfillment.Application.Services.Shipping.ShippingEstimateOptions? estimateOptions = null)
+        Fulfillment.Application.Services.Shipping.ShippingEstimateOptions? estimateOptions = null,
+        DeliveryNotificationOutbox? outbox = null,
+        INotificationClient? notificationClient = null,
+        ILogger<ShipmentService>? logger = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _carrierResolver = carrierResolver ?? throw new ArgumentNullException(nameof(carrierResolver));
         _lockService = lockService;
         _estimateOptions = estimateOptions ?? new Fulfillment.Application.Services.Shipping.ShippingEstimateOptions();
+        _outbox = outbox;
+        _notificationClient = notificationClient;
+        _logger = logger;
     }
 
     public async Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default)
@@ -628,5 +639,191 @@ public sealed class ShipmentService : IShipmentService
             s.DeliveredAt,
             items,
             events);
+    }
+
+    private static readonly ShipmentStatus[] NotifyStatuses =
+    {
+        ShipmentStatus.HandedOver,
+        ShipmentStatus.InTransit,
+        ShipmentStatus.Delivered,
+        ShipmentStatus.DeliveryFailed,
+        ShipmentStatus.Returned,
+        ShipmentStatus.Cancelled
+    };
+
+    private static string MapCommerceStatus(ShipmentStatus status) => status switch
+    {
+        ShipmentStatus.DeliveryFailed => "DeliveryAttemptFailed",
+        _ => status.ToString()
+    };
+
+    private static ShipmentEventStatus MapToEventStatus(ShipmentStatus status) => status switch
+    {
+        ShipmentStatus.ReadyToPick or ShipmentStatus.Packed => ShipmentEventStatus.Created,
+        ShipmentStatus.Picking => ShipmentEventStatus.PickedUp,
+        ShipmentStatus.InTransit or ShipmentStatus.HandedOver => ShipmentEventStatus.InTransit,
+        ShipmentStatus.Delivered => ShipmentEventStatus.Delivered,
+        ShipmentStatus.DeliveryFailed => ShipmentEventStatus.DeliveryFailed,
+        ShipmentStatus.Returned => ShipmentEventStatus.Returned,
+        _ => ShipmentEventStatus.InTransit
+    };
+
+    private static ShipmentStatus ParseTargetStatus(string status)
+    {
+        if (Enum.TryParse<ShipmentStatus>(status, ignoreCase: true, out var parsed))
+            return parsed;
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "ready_to_pick" => ShipmentStatus.ReadyToPick,
+            "picking" => ShipmentStatus.Picking,
+            "storing" or "packed" => ShipmentStatus.Packed,
+            "picked" => ShipmentStatus.HandedOver,
+            "delivering" or "money_collect_delivering" => ShipmentStatus.InTransit,
+            "delivered" => ShipmentStatus.Delivered,
+            "delivery_fail" => ShipmentStatus.DeliveryFailed,
+            "return" or "returning" or "returned" or "return_to_origin" => ShipmentStatus.Returned,
+            "cancel" or "cancelled" => ShipmentStatus.Cancelled,
+            _ => throw new BusinessRuleValidationException("VAL_INVALID_STATUS", $"Status '{status}' is not recognized.", 400)
+        };
+    }
+
+    public async Task<SimulateShipperStatusResponse> SimulateShipperStatusAsync(
+        SimulateShipperStatusRequest request,
+        string? trackingNumber = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var effectiveTracking = !string.IsNullOrWhiteSpace(trackingNumber)
+            ? trackingNumber
+            : request.TrackingNumber;
+
+        if (string.IsNullOrWhiteSpace(effectiveTracking))
+        {
+            throw new BusinessRuleValidationException("VAL_INVALID_INPUT", "Tracking number or order identifier is required.", 400);
+        }
+
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Events)
+            .Include(s => s.Warehouse)
+            .FirstOrDefaultAsync(s => s.TrackingNumber == effectiveTracking ||
+                                      s.GhnOrderCode == effectiveTracking ||
+                                      s.OrderId.ToString() == effectiveTracking,
+                                 cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", effectiveTracking);
+
+        var targetStatus = ParseTargetStatus(request.Status);
+        var previousStatus = shipment.Status;
+
+        if (!request.Force && !ShipmentStatusTransitions.IsForward(previousStatus, targetStatus))
+        {
+            throw new BusinessRuleValidationException(
+                "INVALID_STATUS_TRANSITION",
+                $"Cannot transition shipment from '{previousStatus}' to '{targetStatus}'. Life-cycle transitions must move forward.",
+                400);
+        }
+
+        shipment.Status = targetStatus;
+        shipment.UpdatedAt = DateTimeOffset.UtcNow;
+        if (targetStatus == ShipmentStatus.Delivered)
+        {
+            shipment.DeliveredAt = DateTimeOffset.UtcNow;
+        }
+
+        var rawJson = JsonSerializer.Serialize(request);
+
+        // Record ShipmentEvent
+        var shipmentEvent = new ShipmentEvent
+        {
+            ShipmentId = shipment.Id,
+            CarrierStatus = request.Status.ToLowerInvariant(),
+            Status = MapToEventStatus(targetStatus),
+            Description = request.Description ?? $"Simulated shipper update to {targetStatus}.",
+            ExternalEventId = "simulated_shipper",
+            OccurredAt = DateTimeOffset.UtcNow,
+            RawPayload = rawJson,
+            ReasonCode = request.ReasonCode,
+            Reason = request.Reason,
+            ShipperName = request.ShipperName ?? "Simulated Shipper",
+            ShipperPhone = request.ShipperPhone ?? "0901234567",
+            PodUrl = request.PodUrl,
+            WarehouseName = shipment.Warehouse?.Name
+        };
+        _dbContext.ShipmentEvents.Add(shipmentEvent);
+
+        // Create WebhookAuditLog for auditing & outbox
+        var auditLog = new WebhookAuditLog
+        {
+            OrderCode = shipment.TrackingNumber ?? effectiveTracking,
+            ClientOrderCode = shipment.OrderId.ToString(),
+            EventType = "simulated_shipper_status",
+            Status = request.Status,
+            RawJson = rawJson,
+            ReceivedAt = DateTimeOffset.UtcNow,
+            IsProcessed = true,
+            ProcessMessage = $"Simulated shipper update from '{previousStatus}' to '{targetStatus}'."
+        };
+
+        string? commerceStatusNotified = null;
+        var notify = Array.IndexOf(NotifyStatuses, targetStatus) >= 0;
+        if (notify)
+        {
+            commerceStatusNotified = MapCommerceStatus(targetStatus);
+            auditLog.NotifyOrderId = shipment.OrderId;
+            auditLog.NotifyStatus = commerceStatusNotified;
+            auditLog.NotifyTrackingNumber = shipment.TrackingNumber ?? effectiveTracking;
+            auditLog.NotifyDescription = request.Description ?? $"Simulated status update: {targetStatus}";
+            auditLog.CommerceNotifyAttempts = 0;
+            auditLog.CommerceNotifyNextRetryAt = DateTimeOffset.UtcNow.Add(DeliveryNotificationOutbox.FirstRetryDelay);
+        }
+
+        _dbContext.WebhookAuditLogs.Add(auditLog);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (notify && _outbox != null)
+        {
+            try
+            {
+                await _outbox.TrySendAsync(auditLog, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to dispatch outbox notification to CommerceService for Order {OrderId}", shipment.OrderId);
+            }
+
+            if (_notificationClient != null)
+            {
+                try
+                {
+                    var alertRequest = new DeliveryAlertRequest
+                    {
+                        OrderId = shipment.OrderId,
+                        TrackingNumber = shipment.TrackingNumber ?? effectiveTracking,
+                        Status = commerceStatusNotified!,
+                        Note = request.Description ?? request.Reason,
+                        ShipperName = request.ShipperName,
+                        ShipperPhone = request.ShipperPhone,
+                        PodUrl = request.PodUrl,
+                        WarehouseName = shipment.Warehouse?.Name,
+                        OccurredAt = DateTimeOffset.UtcNow
+                    };
+                    await _notificationClient.SendDeliveryAlertAsync(alertRequest, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to dispatch delivery alert to NotificationService for Order {OrderId}", shipment.OrderId);
+                }
+            }
+        }
+
+        return new SimulateShipperStatusResponse(
+            TrackingNumber: shipment.TrackingNumber ?? effectiveTracking,
+            OrderId: shipment.OrderId,
+            PreviousStatus: previousStatus.ToString(),
+            CurrentStatus: targetStatus.ToString(),
+            CommerceStatusNotified: commerceStatusNotified,
+            IsSuccess: true,
+            Message: $"Shipment status successfully transitioned from '{previousStatus}' to '{targetStatus}'.");
     }
 }

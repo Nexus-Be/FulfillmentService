@@ -39,5 +39,16 @@ public sealed record UpdateShipmentStatusRequest(
     string Status,
     string? Note = null);
 
+public sealed record SimulateShipperStatusRequest(
+    string? TrackingNumber = null,
+    [Required] string Status = "",
+    string? Description = null,
+    string? ShipperName = "Nguyễn Văn Shipper",
+    string? ShipperPhone = "0901234567",
+    string? ReasonCode = null,
+    string? Reason = null,
+    string? PodUrl = null,
+    bool Force = false);
+
 public sealed record CancelShipmentRequest(
     string? Reason = null);

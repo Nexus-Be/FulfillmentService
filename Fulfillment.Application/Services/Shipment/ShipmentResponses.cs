@@ -28,3 +28,12 @@ public sealed record ConfirmReturnResponse(
     string Code,
     string Message,
     ConfirmReturnData Data);
+
+public sealed record SimulateShipperStatusResponse(
+    string TrackingNumber,
+    Guid OrderId,
+    string PreviousStatus,
+    string CurrentStatus,
+    string? CommerceStatusNotified,
+    bool IsSuccess,
+    string Message);

@@ -19,7 +19,7 @@ public sealed class GhnWebhookControllerTests : IClassFixture<FulfillmentWebAppl
 {
     private static readonly string[] Routes =
     {
-        "/webhooks/ghn", "/api/v1/webhooks/ghn", "/api/v1/fulfillment/webhook/ghn", "/api/v1/fulfillment/webhooks/ghn"
+        "/webhooks/ghn", "/api/v1/webhooks/ghn", "/api/v1/webhooks/carriers/ghn", "/api/v1/fulfillment/webhook/ghn", "/api/v1/fulfillment/webhooks/ghn"
     };
 
     private readonly FulfillmentWebApplicationFactory _factory;
@@ -36,6 +36,7 @@ public sealed class GhnWebhookControllerTests : IClassFixture<FulfillmentWebAppl
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
+    [InlineData(4)]
     public async Task EveryRoute_RefusesACallWithoutTheSecret(int route)
     {
         var response = await _factory.CreateClient().PostAsJsonAsync(Routes[route], Payload("GHN-X", "delivered"));

@@ -59,4 +59,13 @@ public interface IShipmentService
     /// Visual Flowchart: <see href="file:///d:/FSA/FulfillmentService/docs/diagrams/confirm_return_flow.svg">View Flowchart Diagram</see>
     /// </remarks>
     Task<ConfirmReturnResponse> ConfirmReturnAsync(Guid orderId, Guid currentUserId, bool isAdmin = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Simulates courier/shipper status milestone updates for sandbox testing.
+    /// Updates shipment lifecycle, logs shipment events and audit logs, and dispatches updates to Commerce and Notification services.
+    /// </summary>
+    Task<SimulateShipperStatusResponse> SimulateShipperStatusAsync(
+        SimulateShipperStatusRequest request,
+        string? trackingNumber = null,
+        CancellationToken cancellationToken = default);
 }

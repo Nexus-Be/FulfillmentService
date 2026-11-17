@@ -95,4 +95,20 @@ public class ShipmentsController : ControllerBase
         var result = await _shipmentService.ConfirmReturnAsync(orderId, userId, this.IsAdmin(), ct);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Simulates courier/shipper status milestone updates for sandbox testing.
+    /// Updates shipment lifecycle, logs events and audit logs, and dispatches updates to Commerce and Notification services.
+    /// </summary>
+    [HttpPost("{trackingNumber}/simulate-shipper-status")]
+    [HttpPost("simulate-shipper-status")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<IActionResult> SimulateShipperStatus(
+        [FromRoute] string? trackingNumber,
+        [FromBody] SimulateShipperStatusRequest request,
+        CancellationToken ct)
+    {
+        var result = await _shipmentService.SimulateShipperStatusAsync(request, trackingNumber, ct);
+        return Ok(result);
+    }
 }
