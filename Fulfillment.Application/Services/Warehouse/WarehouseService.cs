@@ -160,8 +160,8 @@ public class WarehouseService : IWarehouseService
 
         if (warehouse == null)
         {
-            var seedUserId = Guid.Parse("33333333-3333-3333-3333-333333333333");
-            var seedProfileId = Guid.Parse("33333333-3333-3333-3333-333333333334");
+            var seedUserId = Guid.Parse("cccccccc-3333-3333-3333-333333333333");
+            var seedProfileId = Guid.Parse("cccccccc-3333-3333-3333-333333333334");
 
             if (sellerId == seedUserId)
             {

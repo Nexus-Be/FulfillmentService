@@ -11,7 +11,8 @@ public sealed record ShippingQuoteItem(
 
 public sealed record ShopShippingQuoteRequest(
     [Required] Guid SellerId,
-    [Range(1, int.MaxValue)] int FromDistrictId,
+    // 0 means "not given": the service then uses the district of the seller's warehouse, so callers that do not know it (Commerce) can omit it.
+    [Range(0, int.MaxValue)] int FromDistrictId,
     [Range(1, int.MaxValue)] int ToDistrictId,
     [Required] string ToWardCode,
     [Range(1, int.MaxValue)] int WeightInGrams,

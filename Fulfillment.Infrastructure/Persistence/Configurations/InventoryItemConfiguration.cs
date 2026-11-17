@@ -21,7 +21,12 @@ public class InventoryItemConfiguration : IEntityTypeConfiguration<InventoryItem
         builder.Property(x => x.MinStockThreshold).HasColumnName("min_stock_threshold").HasDefaultValue(10).IsRequired();
         builder.Property(x => x.IsLowStockAlertEnabled).HasColumnName("is_low_stock_alert_enabled").HasDefaultValue(true).IsRequired();
         builder.Property(x => x.LastMovementAt).HasColumnName("last_movement_at").HasDefaultValueSql("now()").IsRequired();
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()").IsRequired();
+        builder.Property(x => x.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false).IsRequired();
+        builder.Property(x => x.DeletedAt).HasColumnName("deleted_at");
+
+        builder.HasQueryFilter(x => !x.IsDeleted);
 
         builder.Ignore(x => x.IsLowStock);
 

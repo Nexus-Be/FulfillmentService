@@ -15,6 +15,12 @@ public class InventoryReservationItemConfiguration : IEntityTypeConfiguration<In
         builder.Property(x => x.ReservationId).HasColumnName("reservation_id").IsRequired();
         builder.Property(x => x.InventoryItemId).HasColumnName("inventory_item_id").IsRequired();
         builder.Property(x => x.Quantity).HasColumnName("quantity").IsRequired();
+        builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
+        builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()").IsRequired();
+        builder.Property(x => x.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false).IsRequired();
+        builder.Property(x => x.DeletedAt).HasColumnName("deleted_at");
+
+        builder.HasQueryFilter(x => !x.IsDeleted);
 
         builder.HasIndex(x => new { x.ReservationId, x.InventoryItemId }).IsUnique();
 

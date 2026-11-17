@@ -139,14 +139,16 @@ public class ShipmentAdvancedTests
         using var db = CreateDbContext();
         var sellerId = Guid.NewGuid();
         var wh = new Warehouse { Id = Guid.NewGuid(), SellerId = sellerId, Code = "WH1", Name = "Warehouse 1", Address = "HCM" };
+        var carrierEntity = new Carrier { Id = Guid.NewGuid(), Code = "GHN", Name = "Giao Hang Nhanh", Priority = 1, IsActive = true };
         db.Warehouses.Add(wh);
+        db.Carriers.Add(carrierEntity);
 
         var shipment = new Shipment
         {
             Id = Guid.NewGuid(),
             OrderId = Guid.NewGuid(),
             WarehouseId = wh.Id,
-            CarrierId = Guid.NewGuid(),
+            CarrierId = carrierEntity.Id,
             TrackingNumber = "GHN_CANCEL_TEST",
             Status = ShipmentStatus.ReadyToPick,
             ReceiverName = "Buyer",
@@ -182,14 +184,16 @@ public class ShipmentAdvancedTests
         var sellerId = Guid.NewGuid();
         var strangerId = Guid.NewGuid();
         var wh = new Warehouse { Id = Guid.NewGuid(), SellerId = sellerId, Code = "WH1", Name = "Warehouse 1", Address = "HCM" };
+        var carrierEntity = new Carrier { Id = Guid.NewGuid(), Code = "GHN", Name = "Giao Hang Nhanh", Priority = 1, IsActive = true };
         db.Warehouses.Add(wh);
+        db.Carriers.Add(carrierEntity);
 
         var shipment = new Shipment
         {
             Id = Guid.NewGuid(),
             OrderId = Guid.NewGuid(),
             WarehouseId = wh.Id,
-            CarrierId = Guid.NewGuid(),
+            CarrierId = carrierEntity.Id,
             TrackingNumber = "GHN_STRANGER_TEST",
             Status = ShipmentStatus.ReadyToPick,
             ReceiverName = "Buyer",
@@ -216,14 +220,16 @@ public class ShipmentAdvancedTests
         using var db = CreateDbContext();
         var sellerId = Guid.NewGuid();
         var wh = new Warehouse { Id = Guid.NewGuid(), SellerId = sellerId, Code = "WH1", Name = "Warehouse 1", Address = "HCM" };
+        var carrierEntity = new Carrier { Id = Guid.NewGuid(), Code = "GHN", Name = "Giao Hang Nhanh", Priority = 1, IsActive = true };
         db.Warehouses.Add(wh);
+        db.Carriers.Add(carrierEntity);
 
         var shipment = new Shipment
         {
             Id = Guid.NewGuid(),
             OrderId = Guid.NewGuid(),
             WarehouseId = wh.Id,
-            CarrierId = Guid.NewGuid(),
+            CarrierId = carrierEntity.Id,
             TrackingNumber = "GHN_PRINT_TEST",
             Status = ShipmentStatus.ReadyToPick,
             ReceiverName = "Buyer",

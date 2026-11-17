@@ -20,15 +20,18 @@ public sealed class ShipmentService : IShipmentService
     private readonly IFulfillmentDbContext _dbContext;
     private readonly ICarrierResolver _carrierResolver;
     private readonly IConcurrencyLockService? _lockService;
+    private readonly Fulfillment.Application.Services.Shipping.ShippingEstimateOptions _estimateOptions;
 
     public ShipmentService(
         IFulfillmentDbContext dbContext,
         ICarrierResolver carrierResolver,
-        IConcurrencyLockService? lockService = null)
+        IConcurrencyLockService? lockService = null,
+        Fulfillment.Application.Services.Shipping.ShippingEstimateOptions? estimateOptions = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _carrierResolver = carrierResolver ?? throw new ArgumentNullException(nameof(carrierResolver));
         _lockService = lockService;
+        _estimateOptions = estimateOptions ?? new Fulfillment.Application.Services.Shipping.ShippingEstimateOptions();
     }
 
     public async Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default)
@@ -104,6 +107,14 @@ public sealed class ShipmentService : IShipmentService
                 Fee: result.TotalFee,
                 IsEstimatedFallback: false,
                 ServiceName: result.ServiceCode ?? "GHN_STANDARD");
+        }
+        catch (CarrierIntegrationException ex) when (_estimateOptions.Enabled && ex.ErrorCode == "MISSING_TOKEN")
+        {
+            // Opt-in only (see ShippingEstimateOptions): the carrier has no credentials here, so give a clearly marked estimate.
+            return new ShippingQuoteResponse(
+                Fee: _estimateOptions.Estimate(request.WeightInGrams > 0 ? request.WeightInGrams : 500),
+                IsEstimatedFallback: true,
+                ServiceName: "ESTIMATED");
         }
         catch (CarrierIntegrationException ex)
         {

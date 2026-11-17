@@ -25,9 +25,14 @@ builder.WebHost.ConfigureKestrel(options =>
     });
 });
 
+builder.Services.AddSingleton(new Fulfillment.Application.Services.Shipping.ShippingEstimateOptions(
+    Enabled: builder.Configuration.GetValue("Shipping:EstimatedFee:Enabled", false),
+    BaseFee: builder.Configuration.GetValue("Shipping:EstimatedFee:BaseFee", 30000m),
+    PerExtra500Grams: builder.Configuration.GetValue("Shipping:EstimatedFee:PerExtra500Grams", 5000m)));
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddHostedService<ReservationAutoExpireWorker>();
+builder.Services.AddHostedService<Fulfillment.Api.Workers.CommerceDeliveryNotificationWorker>();
 
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>

@@ -10,6 +10,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddScoped<IShipmentService, ShipmentService>();
+        services.AddScoped<DeliveryNotificationOutbox>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IInventoryAppService, InventoryAppService>();
         return services;

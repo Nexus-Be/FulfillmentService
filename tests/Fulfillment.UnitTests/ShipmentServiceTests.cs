@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Fulfillment.Application.Exceptions;
 using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Application.Services.Shipment;
 using Fulfillment.Application.Services.Shipping;
@@ -118,6 +119,51 @@ public class ShipmentServiceTests
         result.Fee.Should().Be(28000m);
         result.IsEstimatedFallback.Should().BeFalse();
         result.ServiceName.Should().Be("GHN_STANDARD");
+    }
+
+    private sealed class TokenlessCarrierGateway : ICarrierGateway
+    {
+        public string Code => "GHN";
+
+        public Task<CarrierFeeCalculationResult> CalculateFeeAsync(CarrierFeeCalculationRequest request, CancellationToken cancellationToken = default) =>
+            throw new CarrierIntegrationException("GHN API token is not configured.", "GHN", "MISSING_TOKEN");
+
+        public Task<CarrierCreateShipmentResult> CreateShipmentAsync(CarrierCreateShipmentRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CarrierStatusResult> GetStatusAsync(string trackingCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CarrierCancelResult> CancelAsync(string trackingCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ShipmentStatus MapStatus(string rawCarrierStatus) => ShipmentStatus.ReadyToPick;
+    }
+
+    private static ShopShippingQuoteRequest QuoteRequest(Guid sellerId, int weight) =>
+        new(sellerId, FromDistrictId: 1442, ToDistrictId: 1450, ToWardCode: "20804", WeightInGrams: weight);
+
+    [Fact]
+    public async Task CalculateShippingFeeAsync_WithoutCarrierToken_FailsByDefault()
+    {
+        using var db = CreateDbContext();
+        var service = new ShipmentService(db, new FakeCarrierResolver(new TokenlessCarrierGateway()));
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleValidationException>(() => service.CalculateShippingFeeAsync(QuoteRequest(Guid.NewGuid(), 500)));
+
+        ex.ErrorCode.Should().Be("SHIPPING_QUOTE_FAILED");
+    }
+
+    [Theory]
+    [InlineData(500, 30000)]
+    [InlineData(750, 35000)]
+    [InlineData(1500, 40000)]
+    public async Task CalculateShippingFeeAsync_WithoutCarrierToken_GivesMarkedEstimateOnlyWhenEnabled(int weight, int expectedFee)
+    {
+        using var db = CreateDbContext();
+        var service = new ShipmentService(
+            db, new FakeCarrierResolver(new TokenlessCarrierGateway()), estimateOptions: new ShippingEstimateOptions(Enabled: true));
+
+        var result = await service.CalculateShippingFeeAsync(QuoteRequest(Guid.NewGuid(), weight));
+
+        result.Fee.Should().Be(expectedFee);
+        result.IsEstimatedFallback.Should().BeTrue();
+        result.ServiceName.Should().Be("ESTIMATED");
     }
 
     [Fact]

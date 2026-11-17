@@ -17,6 +17,10 @@ public class InventoryReservationConfiguration : IEntityTypeConfiguration<Invent
         builder.Property(x => x.ExpiresAt).HasColumnName("expires_at").IsRequired();
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()").IsRequired();
+        builder.Property(x => x.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false).IsRequired();
+        builder.Property(x => x.DeletedAt).HasColumnName("deleted_at");
+
+        builder.HasQueryFilter(x => !x.IsDeleted);
 
         builder.HasIndex(x => x.ReferenceId).IsUnique();
         builder.HasIndex(x => x.ExpiresAt);

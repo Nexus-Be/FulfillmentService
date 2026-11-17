@@ -23,7 +23,7 @@ public sealed class InventoriesController : ControllerBase
 
     /// <summary>Initializes warehouse inventory for a product SKU.</summary>
     [HttpPost("initialize")]
-    [RequireRole("seller", "admin")]
+    [RequireRole("seller", "admin", "staff")]
     public async Task<IActionResult> InitializeInventory(
         [FromBody] DeclareInventoryRequest request,
         CancellationToken cancellationToken)
@@ -31,6 +31,13 @@ public sealed class InventoriesController : ControllerBase
         if (!this.TryGetUserId(out var userId, out var errorResult))
         {
             return errorResult;
+        }
+
+        var isStrictAdmin = this.HasRole("admin") || this.HasRole("administrator");
+        var isStaff = this.HasRole("staff") || this.HasRole("support_staff");
+        if (isStaff && !isStrictAdmin && request.Quantity != 0)
+        {
+            return this.BadRequestError("VAL_INVALID_INPUT", "Staff may initialize inventory with quantity 0 only.");
         }
 
         var result = await _inventoryAppService.DeclareInventoryAsync(request, userId, this.IsAdmin(), cancellationToken);

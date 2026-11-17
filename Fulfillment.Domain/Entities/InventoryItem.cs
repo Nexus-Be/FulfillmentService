@@ -2,11 +2,11 @@ namespace Fulfillment.Domain.Entities;
 
 using System;
 using System.Collections.Generic;
+using Fulfillment.Domain.Base;
 using Fulfillment.Domain.Exceptions;
 
-public class InventoryItem
+public class InventoryItem : BaseEntity<Guid>
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid SkuId { get; set; }
     public required Guid WarehouseId { get; set; }
     public int TotalQuantity { get; set; }
@@ -16,7 +16,6 @@ public class InventoryItem
     public int MinStockThreshold { get; set; } = 10;
     public bool IsLowStockAlertEnabled { get; set; } = true;
     public DateTimeOffset LastMovementAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public bool IsLowStock => IsLowStockAlertEnabled && (AvailableQuantity ?? (TotalQuantity - ReservedQuantity)) <= MinStockThreshold;
 

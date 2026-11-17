@@ -13,6 +13,7 @@ using Fulfillment.Infrastructure.Carriers;
 using Fulfillment.Infrastructure.Excel;
 using Fulfillment.Infrastructure.HttpClients;
 using Fulfillment.Infrastructure.Persistence;
+using Fulfillment.Infrastructure.Services.Notification;
 
 public static class DependencyInjection
 {
@@ -28,7 +29,36 @@ public static class DependencyInjection
 
         services.AddCarrierServices(configuration);
 
-        services.AddScoped<ICommerceWebhookClient, CommerceWebhookClient>();
+        // Delivery updates go to Commerce's webhook, which refuses a call without the internal service key.
+        // The address comes from configuration: inside Docker "localhost" is Fulfillment itself, never Commerce.
+        services.AddHttpClient<ICommerceWebhookClient, CommerceWebhookClient>(client =>
+        {
+            var baseUrl = configuration["Services:CommerceService:BaseUrl"]
+                ?? configuration["COMMERCE_SERVICE_URL"]
+                ?? Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL")
+                ?? "http://localhost:8003";
+            client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+
+            var serviceKey = Environment.GetEnvironmentVariable("INTERNAL_SERVICE_SECRET")
+                ?? configuration["INTERNAL_SERVICE_SECRET"]
+                ?? configuration["InternalSecurity:ServiceKey"]
+                ?? "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e";
+            if (!string.IsNullOrWhiteSpace(serviceKey))
+                client.DefaultRequestHeaders.Add("X-Internal-Service-Key", serviceKey);
+        });
+
+        var notificationBaseUrl = Environment.GetEnvironmentVariable("NOTIFICATION_SERVICE_URL")
+            ?? configuration["NOTIFICATION_SERVICE_URL"]
+            ?? configuration["Services:NotificationService:BaseUrl"]
+            ?? configuration["Services:Notification:BaseUrl"]
+            ?? "http://localhost:8007/";
+
+        services.AddHttpClient<INotificationClient, NotificationClient>(client =>
+        {
+            client.BaseAddress = new Uri(notificationBaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
 
         // AI Schema Inference & Excel Parser
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));

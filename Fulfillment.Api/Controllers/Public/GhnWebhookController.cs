@@ -4,8 +4,10 @@ using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Fulfillment.Api.Filters;
 using Fulfillment.Application.Interfaces;
 using Fulfillment.Application.Interfaces.Shipping;
+using Fulfillment.Application.Services.Shipment;
 using Fulfillment.Domain.Entities;
 using Fulfillment.Domain.Enums;
 using Fulfillment.Infrastructure.Carriers.Ghn;
@@ -18,21 +20,26 @@ using Microsoft.Extensions.Logging;
 [Route("api/v1/webhooks/ghn")]
 [Route("api/v1/fulfillment/webhook/ghn")]
 [Route("api/v1/fulfillment/webhooks/ghn")]
+[RequireGhnWebhookSecret]
 public sealed class GhnWebhookController : ControllerBase
 {
     private readonly IFulfillmentDbContext _dbContext;
-    private readonly ICommerceWebhookClient _commerceWebhookClient;
+    private readonly DeliveryNotificationOutbox _outbox;
     private readonly ILogger<GhnWebhookController> _logger;
 
     public GhnWebhookController(
         IFulfillmentDbContext dbContext,
-        ICommerceWebhookClient commerceWebhookClient,
-        ILogger<GhnWebhookController> logger)
+        DeliveryNotificationOutbox outbox,
+        ILogger<GhnWebhookController> logger,
+        INotificationClient? notificationClient = null)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-        _commerceWebhookClient = commerceWebhookClient ?? throw new ArgumentNullException(nameof(commerceWebhookClient));
+        _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _notificationClient = notificationClient;
     }
+
+    private readonly INotificationClient? _notificationClient;
 
     [HttpPost]
     public async Task<IActionResult> HandleGhnCallback(
@@ -95,6 +102,16 @@ public sealed class GhnWebhookController : ControllerBase
         }
 
         var newStatus = GhnStatusMapper.Map(payload.Status);
+
+        // A late, repeated or unknown status must not undo progress (for example "in transit" after "delivered").
+        if (!ShipmentStatusTransitions.IsForward(shipment.Status, newStatus))
+        {
+            auditLog.IsProcessed = true;
+            auditLog.ProcessMessage = $"Ignored out-of-order status '{newStatus}' (shipment is '{shipment.Status}').";
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return Ok(new { message = "Out-of-order webhook event ignored.", status = shipment.Status.ToString() });
+        }
+
         shipment.Status = newStatus;
         shipment.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -131,38 +148,69 @@ public sealed class GhnWebhookController : ControllerBase
         auditLog.IsProcessed = true;
         auditLog.ProcessMessage = $"Successfully mapped to status '{newStatus}'.";
 
+        // 5. Commerce must hear about the milestones that move an order. The update is queued on the audit row before it is sent, so a
+        //    Commerce outage cannot lose it: the notification worker keeps retrying until Commerce acknowledges it.
+        var notify = Array.IndexOf(NotifyStatuses, newStatus) >= 0;
+        if (notify)
+        {
+            auditLog.NotifyOrderId = shipment.OrderId;
+            auditLog.NotifyStatus = MapCommerceStatus(newStatus);
+            auditLog.NotifyTrackingNumber = shipment.TrackingNumber ?? payload.OrderCode;
+            auditLog.NotifyDescription = payload.Description is { Length: > 500 } text ? text[..500] : payload.Description;
+            auditLog.CommerceNotifyAttempts = 0;
+            auditLog.CommerceNotifyNextRetryAt = DateTimeOffset.UtcNow.Add(DeliveryNotificationOutbox.FirstRetryDelay);
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // 5. Notify CommerceService if one of the terminal/critical statuses
-        var notifyStatuses = new[]
+        if (notify)
         {
-            ShipmentStatus.HandedOver,
-            ShipmentStatus.InTransit,
-            ShipmentStatus.Delivered,
-            ShipmentStatus.DeliveryFailed,
-            ShipmentStatus.Returned,
-            ShipmentStatus.Cancelled
-        };
+            await _outbox.TrySendAsync(auditLog, cancellationToken);
 
-        if (Array.IndexOf(notifyStatuses, newStatus) >= 0)
-        {
-            try
+            if (_notificationClient != null)
             {
-                await _commerceWebhookClient.NotifyDeliveryStatusAsync(
-                    shipment.OrderId,
-                    newStatus.ToString(),
-                    shipment.TrackingNumber ?? payload.OrderCode,
-                    payload.Description,
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to dispatch delivery status notification to CommerceService for Order {OrderId}", shipment.OrderId);
+                try
+                {
+                    var alertRequest = new DeliveryAlertRequest
+                    {
+                        OrderId = shipment.OrderId,
+                        TrackingNumber = shipment.TrackingNumber ?? payload.OrderCode,
+                        Status = MapCommerceStatus(newStatus),
+                        Note = payload.Description ?? payload.Reason,
+                        ShipperName = payload.ShipperName,
+                        ShipperPhone = payload.ShipperPhone,
+                        PodUrl = payload.PodUrl,
+                        WarehouseName = payload.Warehouse,
+                        OccurredAt = DateTimeOffset.UtcNow
+                    };
+
+                    await _notificationClient.SendDeliveryAlertAsync(alertRequest, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to dispatch delivery alert to NotificationService for Order {OrderId}", shipment.OrderId);
+                }
             }
         }
 
         return Ok(new { message = "Webhook processed successfully.", status = newStatus.ToString() });
     }
+
+    private static readonly ShipmentStatus[] NotifyStatuses =
+    {
+        ShipmentStatus.HandedOver,
+        ShipmentStatus.InTransit,
+        ShipmentStatus.Delivered,
+        ShipmentStatus.DeliveryFailed,
+        ShipmentStatus.Returned,
+        ShipmentStatus.Cancelled
+    };
+
+    private static string MapCommerceStatus(ShipmentStatus status) => status switch
+    {
+        ShipmentStatus.DeliveryFailed => "DeliveryAttemptFailed",
+        _ => status.ToString()
+    };
 
     private static ShipmentEventStatus MapToEventStatus(ShipmentStatus status) => status switch
     {

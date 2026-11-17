@@ -164,41 +164,66 @@ Respond ONLY with valid JSON matching this schema:
         }
 
         int headerRow = 0;
-        int skuCol = 0;
-        int qtyCol = 1;
+        int skuCol = -1;
+        int qtyCol = -1;
         int opCol = -1;
         int noteCol = -1;
         string mode = "SINGLE_QTY_COL";
 
-        // Tìm dòng header tiềm năng nhất
+        int bestHeaderRow = 0;
+        int maxHeaderScore = -1;
+
+        // Pass 1: find best header row by keyword match density
         for (int r = 0; r < Math.Min(sampleRows.Count, 5); r++)
         {
             var row = sampleRows[r];
+            int score = 0;
             for (int c = 0; c < row.Count; c++)
             {
                 var text = (row[c] ?? string.Empty).Trim().ToLowerInvariant();
-
-                if (text.Contains("sku") || text.Contains("mã") || text.Contains("code") || text.Contains("san pham") || text.Contains("sản phẩm"))
-                {
-                    headerRow = r;
-                    skuCol = c;
-                }
-                else if (text.Contains("số lượng") || text.Contains("so luong") || text.Contains("qty") || text.Contains("sl") || text.Contains("tồn") || text.Contains("quantity"))
-                {
-                    headerRow = r;
-                    qtyCol = c;
-                }
-                else if (text.Contains("loại") || text.Contains("loai") || text.Contains("thao tác") || text.Contains("action") || text.Contains("operation") || text.Contains("type"))
-                {
-                    opCol = c;
-                    mode = "OPERATION_COL";
-                }
-                else if (text.Contains("ghi chú") || text.Contains("ghi chu") || text.Contains("note") || text.Contains("lý do") || text.Contains("ly do"))
-                {
-                    noteCol = c;
-                }
+                if (text.Contains("sku") || text.Contains("mã") || text.Contains("code") || text.Contains("sản phẩm") || text.Contains("san pham"))
+                    score += 2;
+                if (text.Contains("số lượng") || text.Contains("so luong") || text.Contains("qty") || text.Contains("sl") || text.Contains("quantity"))
+                    score += 2;
+                if (text.Contains("loại") || text.Contains("loai") || text.Contains("thao tác") || text.Contains("action") || text.Contains("type"))
+                    score += 1;
+                if (text.Contains("ghi chú") || text.Contains("ghi chu") || text.Contains("note") || text.Contains("lý do"))
+                    score += 1;
+            }
+            if (score > maxHeaderScore)
+            {
+                maxHeaderScore = score;
+                bestHeaderRow = r;
             }
         }
+
+        headerRow = bestHeaderRow;
+        var headerCandidate = sampleRows[headerRow];
+        for (int c = 0; c < headerCandidate.Count; c++)
+        {
+            var text = (headerCandidate[c] ?? string.Empty).Trim().ToLowerInvariant();
+
+            if (skuCol == -1 && (text.Contains("sku") || text.Contains("mã") || text.Contains("code") || text.Contains("san pham") || text.Contains("sản phẩm")))
+            {
+                skuCol = c;
+            }
+            else if (qtyCol == -1 && (text.Contains("số lượng") || text.Contains("so luong") || text.Contains("qty") || text.Contains("sl") || text.Contains("tồn") || text.Contains("quantity")))
+            {
+                qtyCol = c;
+            }
+            else if (opCol == -1 && (text.Contains("loại") || text.Contains("loai") || text.Contains("thao tác") || text.Contains("action") || text.Contains("operation") || text.Contains("type")))
+            {
+                opCol = c;
+                mode = "OPERATION_COL";
+            }
+            else if (noteCol == -1 && (text.Contains("ghi chú") || text.Contains("ghi chu") || text.Contains("note") || text.Contains("lý do") || text.Contains("ly do")))
+            {
+                noteCol = c;
+            }
+        }
+
+        if (skuCol == -1) skuCol = 0;
+        if (qtyCol == -1) qtyCol = (skuCol == 0) ? 1 : 0;
 
         // Đảm bảo không trùng cột
         if (skuCol == qtyCol && sampleRows[headerRow].Count > 1)

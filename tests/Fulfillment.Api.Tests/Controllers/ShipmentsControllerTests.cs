@@ -69,7 +69,7 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         await db.SaveChangesAsync();
     }
 
-    [Fact]
+    [GhnSandboxFact]
     public async Task ShipmentModule_FullLifecycle_EndToEnd_LogsResults()
     {
         _output.WriteLine("================================================================================");

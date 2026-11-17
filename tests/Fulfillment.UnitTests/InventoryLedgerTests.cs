@@ -27,7 +27,16 @@ public class InventoryLedgerTests : IDisposable
         _dbContext = new AppDbContext(options);
         _service = new InventoryAppService(_dbContext);
 
-        // Seed 1 inventory item
+        // Seed 1 warehouse and 1 inventory item
+        _dbContext.Warehouses.Add(new Warehouse
+        {
+            Id = _warehouseId,
+            SellerId = Guid.NewGuid(),
+            Code = "WH_TEST",
+            Name = "Test Warehouse",
+            Address = "HCM",
+            IsActive = true
+        });
         _dbContext.InventoryItems.Add(InventoryItem.Create(_skuId, _warehouseId, 50));
         _dbContext.SaveChanges();
     }

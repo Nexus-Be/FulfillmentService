@@ -25,6 +25,15 @@ public class WebhookAuditLogConfiguration : IEntityTypeConfiguration<WebhookAudi
         builder.Property(x => x.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false).IsRequired();
         builder.Property(x => x.DeletedAt).HasColumnName("deleted_at");
 
+        builder.Property(x => x.NotifyOrderId).HasColumnName("notify_order_id");
+        builder.Property(x => x.NotifyStatus).HasColumnName("notify_status").HasMaxLength(50);
+        builder.Property(x => x.NotifyTrackingNumber).HasColumnName("notify_tracking_number").HasMaxLength(100);
+        builder.Property(x => x.NotifyDescription).HasColumnName("notify_description").HasMaxLength(500);
+        builder.Property(x => x.CommerceNotifiedAt).HasColumnName("commerce_notified_at");
+        builder.Property(x => x.CommerceNotifyAttempts).HasColumnName("commerce_notify_attempts").HasDefaultValue(0).IsRequired();
+        builder.Property(x => x.CommerceNotifyNextRetryAt).HasColumnName("commerce_notify_next_retry_at");
+        builder.HasIndex(x => new { x.CommerceNotifiedAt, x.CommerceNotifyNextRetryAt }).HasDatabaseName("idx_webhook_audit_logs_notify_pending");
+
         builder.HasIndex(x => x.OrderCode);
         builder.HasIndex(x => x.ReceivedAt);
     }

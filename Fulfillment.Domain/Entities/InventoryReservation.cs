@@ -2,16 +2,14 @@ namespace Fulfillment.Domain.Entities;
 
 using System;
 using System.Collections.Generic;
+using Fulfillment.Domain.Base;
 using Fulfillment.Domain.Constants;
 using Fulfillment.Domain.Exceptions;
 
-public class InventoryReservation
+public class InventoryReservation : BaseEntity<Guid>
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
     public required string ReferenceId { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     // Navigation
     public ICollection<InventoryReservationItem> ReservationItems { get; set; } = new List<InventoryReservationItem>();

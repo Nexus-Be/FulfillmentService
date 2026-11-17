@@ -8,7 +8,9 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 using Fulfillment.Api.Tests.Infrastructure;
+using Fulfillment.Application.Services.Inventory;
 using Fulfillment.Application.Services.Warehouse;
+using Fulfillment.Domain.Enums;
 
 public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplicationFactory>
 {
@@ -19,6 +21,76 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
     {
         _factory = factory;
         _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task FirstIntake_CreatesBalanceOnlyInOwnedWarehouse()
+    {
+        var sellerId = Guid.NewGuid();
+        var otherSellerId = Guid.NewGuid();
+        var warehouseRequest = new CreateWarehouseRequest(
+            Code: "WH_INTAKE_" + Guid.NewGuid().ToString("N")[..6],
+            Name: "Seller intake",
+            Address: "Address",
+            Type: "SellerWarehouse");
+        using var create = new HttpRequestMessage(HttpMethod.Post, "/api/v1/warehouses");
+        create.Headers.Add("x-user-id", sellerId.ToString());
+        create.Headers.Add("x-user-roles", "seller");
+        create.Content = JsonContent.Create(warehouseRequest);
+        var created = await _client.SendAsync(create);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var warehouse = await created.Content.ReadFromJsonAsync<WarehouseDto>();
+        Assert.NotNull(warehouse);
+
+        var skuId = Guid.NewGuid();
+        var intake = new AdjustInventoryRequest(skuId, InventoryAdjustmentType.Intake, 7, "First intake", warehouse.Id);
+        using var forbiddenRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/inventories/adjust");
+        forbiddenRequest.Headers.Add("x-user-id", otherSellerId.ToString());
+        forbiddenRequest.Headers.Add("x-user-roles", "seller");
+        forbiddenRequest.Content = JsonContent.Create(intake);
+        Assert.Equal(HttpStatusCode.Forbidden, (await _client.SendAsync(forbiddenRequest)).StatusCode);
+
+        using var ownedRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/inventories/adjust");
+        ownedRequest.Headers.Add("x-user-id", sellerId.ToString());
+        ownedRequest.Headers.Add("x-user-roles", "seller");
+        ownedRequest.Content = JsonContent.Create(intake);
+        var response = await _client.SendAsync(ownedRequest);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var balance = await response.Content.ReadFromJsonAsync<AdjustInventoryResponse>();
+        Assert.Equal(7, balance?.TotalQuantity);
+    }
+
+    [Fact]
+    public async Task StaffCanInitializeZeroInventoryForSellerWarehouse()
+    {
+        var sellerId = Guid.NewGuid();
+        using var create = new HttpRequestMessage(HttpMethod.Post, "/api/v1/warehouses");
+        create.Headers.Add("x-user-id", sellerId.ToString());
+        create.Headers.Add("x-user-roles", "seller");
+        create.Content = JsonContent.Create(new CreateWarehouseRequest(
+            Code: "WH_STAFF_" + Guid.NewGuid().ToString("N")[..6],
+            Name: "Seller warehouse",
+            Address: "Address",
+            Type: "SellerWarehouse"));
+        var created = await _client.SendAsync(create);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var warehouse = await created.Content.ReadFromJsonAsync<WarehouseDto>();
+        Assert.NotNull(warehouse);
+
+        using var initialize = new HttpRequestMessage(HttpMethod.Post, "/api/v1/inventories/initialize");
+        initialize.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        initialize.Headers.Add("x-user-roles", "staff");
+        initialize.Content = JsonContent.Create(new DeclareInventoryRequest(Guid.NewGuid(), warehouse.Id, 0));
+        var response = await _client.SendAsync(initialize);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, (await response.Content.ReadFromJsonAsync<InventoryItemResponse>())?.TotalQuantity);
+
+        using var positive = new HttpRequestMessage(HttpMethod.Post, "/api/v1/inventories/initialize");
+        positive.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        positive.Headers.Add("x-user-roles", "staff");
+        positive.Content = JsonContent.Create(new DeclareInventoryRequest(Guid.NewGuid(), warehouse.Id, 5));
+        Assert.Equal(HttpStatusCode.BadRequest, (await _client.SendAsync(positive)).StatusCode);
     }
 
     [Fact]
@@ -80,7 +152,7 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
         Assert.Equal(HttpStatusCode.BadRequest, response2.StatusCode);
 
         var responseContent = await response2.Content.ReadAsStringAsync();
-        Assert.Contains("Each seller is allowed only one warehouse", responseContent);
+        Assert.Contains("SELLER_ALREADY_HAS_WAREHOUSE", responseContent);
     }
 
     [Fact]
