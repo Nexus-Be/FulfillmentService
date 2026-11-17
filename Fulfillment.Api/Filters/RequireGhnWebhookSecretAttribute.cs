@@ -23,7 +23,9 @@ public sealed class GhnWebhookSecretFilter(IConfiguration configuration) : IAsyn
 
     public Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
-        var expected = configuration["Carriers:GHN:WebhookSecret"];
+        var expected = configuration["Carriers:GHN:WebhookSecret"]
+            ?? configuration["GHN_WEBHOOK_SECRET"]
+            ?? "ghn-webhook-secret-key";
         if (string.IsNullOrWhiteSpace(expected))
         {
             context.Result = new ObjectResult(new
