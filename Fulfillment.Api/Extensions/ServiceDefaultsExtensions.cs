@@ -71,22 +71,6 @@ public static class ServiceDefaultsExtensions
                 Description = "Header x-user-permissions forwarded from API Gateway."
             });
 
-            options.AddSecurityDefinition("X-Webhook-Token", new OpenApiSecurityScheme
-            {
-                Name = "X-Webhook-Token",
-                Type = SecuritySchemeType.ApiKey,
-                In = ParameterLocation.Header,
-                Description = "Carrier webhook authentication token (Default: ghn-webhook-secret-key)."
-            });
-
-            options.AddSecurityDefinition("X-Internal-Service-Key", new OpenApiSecurityScheme
-            {
-                Name = "X-Internal-Service-Key",
-                Type = SecuritySchemeType.ApiKey,
-                In = ParameterLocation.Header,
-                Description = "Internal service secret key (Default: eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e)."
-            });
-
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
@@ -118,28 +102,6 @@ public static class ServiceDefaultsExtensions
                         {
                             Type = ReferenceType.SecurityScheme,
                             Id = "x-user-roles"
-                        }
-                    },
-                    Array.Empty<string>()
-                },
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "X-Webhook-Token"
-                        }
-                    },
-                    Array.Empty<string>()
-                },
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "X-Internal-Service-Key"
                         }
                     },
                     Array.Empty<string>()
