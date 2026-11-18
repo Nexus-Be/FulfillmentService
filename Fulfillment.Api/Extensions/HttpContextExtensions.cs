@@ -143,6 +143,7 @@ public static class HttpContextExtensions
     public static bool HasRole(this ControllerBase controller, string role) => controller.HttpContext.HasRole(role);
     public static bool HasPermission(this ControllerBase controller, string permission) => controller.HttpContext.HasPermission(permission);
     public static bool IsAdmin(this ControllerBase controller) => controller.HttpContext.IsAdmin();
+    public static bool IsStaff(this ControllerBase controller) => controller.HasRole("staff") || controller.HasRole("support_staff");
     public static string? GetTraceId(this ControllerBase controller) => controller.HttpContext.GetTraceId();
     public static string? GetClientIp(this ControllerBase controller) => controller.HttpContext.GetClientIp();
     public static string? GetIdempotencyKey(this ControllerBase controller) => controller.HttpContext.GetIdempotencyKey();

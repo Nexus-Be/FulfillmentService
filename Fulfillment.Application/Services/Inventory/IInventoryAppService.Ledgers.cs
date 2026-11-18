@@ -19,7 +19,11 @@ public partial interface IInventoryAppService
     /// Retrieves ledger movement history for a specific SKU.
     /// Lấy lịch sử biến động sổ cái kho cho một SKU cụ thể.
     /// </summary>
-    Task<IReadOnlyList<InventoryLedgerResponse>> GetLedgersBySkuIdAsync(Guid skuId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<InventoryLedgerResponse>> GetLedgersBySkuIdAsync(
+        Guid skuId,
+        Guid currentUserId = default,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// [FUL-05-ADV]

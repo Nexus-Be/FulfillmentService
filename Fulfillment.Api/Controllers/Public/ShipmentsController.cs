@@ -63,12 +63,25 @@ public class ShipmentsController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>Gets shipment details by shipment ID.</summary>
+    [HttpGet("{id:guid}")]
+    [RequireRole("buyer", "seller", "admin", "staff")]
+    public async Task<ActionResult<ShipmentDto>> GetById([FromRoute] Guid id, CancellationToken ct)
+    {
+        var userId = this.GetUserId() ?? Guid.Empty;
+        var isAdminOrStaff = this.IsAdmin() || this.IsStaff();
+        var shipment = await _shipmentService.GetByIdAsync(id, userId, isAdminOrStaff, ct);
+        return Ok(shipment);
+    }
+
     /// <summary>Gets shipment details by tracking number.</summary>
     [HttpGet("tracking/{trackingNumber}")]
     [RequireRole("buyer", "seller", "admin", "staff")]
     public async Task<ActionResult<ShipmentDto>> GetByTrackingNumber([FromRoute] string trackingNumber, CancellationToken ct)
     {
-        var shipment = await _shipmentService.GetByTrackingNumberAsync(trackingNumber, ct);
+        var userId = this.GetUserId() ?? Guid.Empty;
+        var isAdminOrStaff = this.IsAdmin() || this.IsStaff();
+        var shipment = await _shipmentService.GetByTrackingNumberAsync(trackingNumber, userId, isAdminOrStaff, ct);
         return Ok(shipment);
     }
 
@@ -77,7 +90,20 @@ public class ShipmentsController : ControllerBase
     [RequireRole("buyer", "seller", "admin", "staff")]
     public async Task<ActionResult<ShipmentDto>> GetByOrderId([FromRoute] Guid orderId, CancellationToken ct)
     {
-        var shipment = await _shipmentService.GetByOrderIdAsync(orderId, ct);
+        var userId = this.GetUserId() ?? Guid.Empty;
+        var isAdminOrStaff = this.IsAdmin() || this.IsStaff();
+        var shipment = await _shipmentService.GetByOrderIdAsync(orderId, userId, isAdminOrStaff, ct);
+        return Ok(shipment);
+    }
+
+    /// <summary>Synchronizes latest shipment status directly from GHN carrier gateway.</summary>
+    [HttpPost("{id:guid}/sync-status")]
+    [RequireRole("seller", "admin", "staff")]
+    public async Task<ActionResult<ShipmentDto>> SyncStatus([FromRoute] Guid id, CancellationToken ct)
+    {
+        var userId = this.GetUserId() ?? Guid.Empty;
+        var isAdminOrStaff = this.IsAdmin() || this.IsStaff();
+        var shipment = await _shipmentService.SyncStatusAsync(id, userId, isAdminOrStaff, ct);
         return Ok(shipment);
     }
 

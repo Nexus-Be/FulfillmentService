@@ -158,7 +158,9 @@ public sealed class InventoriesController : ControllerBase
         [FromRoute] Guid skuId,
         CancellationToken cancellationToken)
     {
-        var result = await _inventoryAppService.GetLedgersBySkuIdAsync(skuId, cancellationToken);
+        var userId = this.GetUserId() ?? Guid.Empty;
+        var isAdminOrStaff = this.IsAdmin() || this.IsStaff();
+        var result = await _inventoryAppService.GetLedgersBySkuIdAsync(skuId, userId, isAdminOrStaff, cancellationToken);
         return Ok(result);
     }
 

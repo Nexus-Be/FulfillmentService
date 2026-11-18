@@ -19,6 +19,16 @@ public interface ICarrierGateway
 
     Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default);
 
+    Task<bool> UpdateOrderAsync(
+        string trackingCode,
+        string toName,
+        string toPhone,
+        string toAddress,
+        string? toWardCode,
+        int? toDistrictId,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(true);
+
     ShipmentStatus MapStatus(string rawCarrierStatus);
 }
 

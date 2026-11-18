@@ -14,6 +14,7 @@ public sealed class MigrationIdempotencyTests
     [InlineData("20261116150000_EnsureWebhookAuditLogs")]
     [InlineData("20261116160000_AddWebhookAuditLogNotifyOutbox")]
     [InlineData("20261117090000_EnsureShipmentLookupIndexes")]
+    [InlineData("20261118100000_AddBuyerIdToShipment")]
     public void RepairMigrations_OnlyUseIfNotExistsStatements(string id)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql("Host=localhost;Database=unused").Options;

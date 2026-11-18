@@ -26,5 +26,41 @@ public sealed class InternalWarehousesController : ControllerBase
         var response = await _warehouseService.CreateInternalAsync(request, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, response);
     }
+
+    [HttpGet("seller/{sellerId:guid}")]
+    public async Task<ActionResult<WarehouseDto>> GetBySellerId(
+        [FromRoute] Guid sellerId,
+        CancellationToken cancellationToken)
+    {
+        var warehouse = await _warehouseService.GetBySellerIdAsync(sellerId, cancellationToken);
+        if (warehouse == null)
+        {
+            return NotFound(new { errorCode = "WAREHOUSE_NOT_FOUND", message = $"No active warehouse found for seller '{sellerId}'." });
+        }
+        return Ok(warehouse);
+    }
+
+    [HttpPut("seller/{sellerId:guid}")]
+    public async Task<ActionResult<WarehouseDto>> UpdateBySellerId(
+        [FromRoute] Guid sellerId,
+        [FromBody] InternalUpdateSellerWarehouseRequest request,
+        CancellationToken cancellationToken)
+    {
+        var warehouse = await _warehouseService.UpdateBySellerIdAsync(sellerId, request, cancellationToken);
+        if (warehouse == null)
+        {
+            return NotFound(new { errorCode = "WAREHOUSE_NOT_FOUND", message = $"No active warehouse found for seller '{sellerId}'." });
+        }
+        return Ok(warehouse);
+    }
+
+    [HttpDelete("seller/{sellerId:guid}")]
+    public async Task<IActionResult> DeleteBySellerId(
+        [FromRoute] Guid sellerId,
+        CancellationToken cancellationToken)
+    {
+        await _warehouseService.DeleteBySellerIdAsync(sellerId, cancellationToken);
+        return NoContent();
+    }
 }
 

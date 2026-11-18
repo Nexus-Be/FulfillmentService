@@ -46,13 +46,22 @@ public sealed partial class InventoryAppService
             item.Warehouse?.Name);
     }
 
-    public async Task<IReadOnlyList<InventoryLedgerResponse>> GetLedgersBySkuIdAsync(Guid skuId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<InventoryLedgerResponse>> GetLedgersBySkuIdAsync(
+        Guid skuId,
+        Guid currentUserId = default,
+        bool isAdmin = false,
+        CancellationToken cancellationToken = default)
     {
         var item = await _dbContext.InventoryItems
             .AsNoTracking()
             .Include(i => i.Warehouse)
             .FirstOrDefaultAsync(i => i.SkuId == skuId, cancellationToken)
             ?? throw new EntityNotFoundException("INVENTORY_NOT_FOUND", "InventoryItem for SKU", skuId);
+
+        if (!isAdmin && currentUserId != Guid.Empty && item.Warehouse?.SellerId != currentUserId)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to view ledgers for this SKU.", 403);
+        }
 
         var ledgers = await _dbContext.InventoryLedgers
             .AsNoTracking()

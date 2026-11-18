@@ -391,6 +391,55 @@ public class GhnGateway : ICarrierGateway
         }
     }
 
+    public async Task<bool> UpdateOrderAsync(
+        string trackingCode,
+        string toName,
+        string toPhone,
+        string toAddress,
+        string? toWardCode,
+        int? toDistrictId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(trackingCode);
+
+        if (string.IsNullOrWhiteSpace(_options.Token))
+        {
+            return true; // Sandbox/fallback mode
+        }
+
+        try
+        {
+            var payload = new
+            {
+                order_code = trackingCode,
+                to_name = toName,
+                to_phone = toPhone,
+                to_address = toAddress,
+                to_ward_code = toWardCode,
+                to_district_id = toDistrictId
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/shiip/public-api/v2/shipping-order/update",
+                payload,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogWarning("GHN UpdateOrder failed: {ErrorText}", errorText);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GHN UpdateOrder request error for {TrackingCode}", trackingCode);
+            return false;
+        }
+    }
+
     public ShipmentStatus MapStatus(string rawCarrierStatus)
     {
         return GhnStatusMapper.Map(rawCarrierStatus);

@@ -21,6 +21,7 @@ public sealed record CreateShipmentRequest(
     [Required] string RecipientName,
     [Required] string RecipientPhone,
     [Required] string ShippingAddress,
+    Guid? BuyerId = null,
     string? ToProvinceName = null,
     int? ToDistrictId = null,
     string? ToWardCode = null,
@@ -52,3 +53,11 @@ public sealed record SimulateShipperStatusRequest(
 
 public sealed record CancelShipmentRequest(
     string? Reason = null);
+
+public sealed record UpdateRecipientAddressRequest(
+    [Required] string RecipientName,
+    [Required] string RecipientPhone,
+    [Required] string ShippingAddress,
+    string? ToProvinceName = null,
+    int? ToDistrictId = null,
+    string? ToWardCode = null);

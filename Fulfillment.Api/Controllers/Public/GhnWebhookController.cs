@@ -68,12 +68,11 @@ public sealed class GhnWebhookController : ControllerBase
         };
         _dbContext.WebhookAuditLogs.Add(auditLog);
 
-        // 2. Strict Idempotency Check: if exact orderCode & status was already processed recently, return early
+        // 2. Strict Idempotency Check: if exact orderCode & status was already processed, return early
         var alreadyProcessed = await _dbContext.WebhookAuditLogs
             .AnyAsync(l => l.OrderCode == payload.OrderCode &&
                            l.Status == payload.Status &&
-                           l.IsProcessed &&
-                           l.ReceivedAt > DateTimeOffset.UtcNow.AddMinutes(-10),
+                           l.IsProcessed,
                       cancellationToken);
 
         if (alreadyProcessed)
@@ -221,6 +220,7 @@ public sealed class GhnWebhookController : ControllerBase
         ShipmentStatus.Delivered => ShipmentEventStatus.Delivered,
         ShipmentStatus.DeliveryFailed => ShipmentEventStatus.DeliveryFailed,
         ShipmentStatus.Returned => ShipmentEventStatus.Returned,
+        ShipmentStatus.Cancelled => ShipmentEventStatus.Cancelled,
         _ => ShipmentEventStatus.InTransit
     };
 }

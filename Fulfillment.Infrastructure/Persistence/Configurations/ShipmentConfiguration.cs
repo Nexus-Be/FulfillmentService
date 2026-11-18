@@ -13,6 +13,7 @@ public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
 
         builder.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
         builder.Property(x => x.OrderId).HasColumnName("order_id").IsRequired();
+        builder.Property(x => x.BuyerId).HasColumnName("buyer_id");
         builder.Property(x => x.WarehouseId).HasColumnName("warehouse_id").IsRequired();
         builder.Property(x => x.CarrierId).HasColumnName("carrier_id").IsRequired();
         builder.Property(x => x.ServiceType).HasColumnName("service_type").IsRequired();
@@ -50,6 +51,7 @@ public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
         builder.HasQueryFilter(x => !x.IsDeleted);
 
         builder.HasIndex(x => x.OrderId);
+        builder.HasIndex(x => x.BuyerId);
         builder.HasIndex(x => x.WarehouseId);
         builder.HasIndex(x => x.CarrierId);
         builder.HasIndex(x => x.TrackingNumber);

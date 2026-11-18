@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: nexus-fulfillment-service
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Development
+      - key: PORT
+        value: 8006
+      - key: ASPNETCORE_URLS
+        value: http://+:8006
+      - key: ConnectionStrings__DefaultConnection
+        value: Host=ep-snowy-field-b3pfk600-pooler.c-4.ap-southeast-1.aws.neon.tech;Port=5432;Database=fulfillment_service;Username=neondb_owner;Password=npg_iF4IMb6arWEH;SSL Mode=Require;Trust Server Certificate=true
+      - key: InternalSecurity__ServiceKey
+        value: eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e
+      - key: COMMERCE_SERVICE_URL
+        value: http://localhost:8003
+      - key: Carriers__DefaultCarrierCode
+        value: GHN
+

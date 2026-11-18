@@ -45,7 +45,11 @@ public sealed class ShipmentService : IShipmentService
         _logger = logger;
     }
 
-    public async Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default)
+    public async Task<ShipmentDto> GetByTrackingNumberAsync(
+        string trackingNumber,
+        Guid currentUserId = default,
+        bool isAdminOrStaff = false,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
 
@@ -53,22 +57,68 @@ public sealed class ShipmentService : IShipmentService
             .AsNoTracking()
             .Include(s => s.Items)
             .Include(s => s.Events)
+            .Include(s => s.Warehouse)
             .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber || s.GhnOrderCode == trackingNumber, cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", trackingNumber);
+
+        ValidateShipmentAccess(shipment, currentUserId, isAdminOrStaff);
 
         return MapToDto(shipment);
     }
 
-    public async Task<ShipmentDto> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<ShipmentDto> GetByOrderIdAsync(
+        Guid orderId,
+        Guid currentUserId = default,
+        bool isAdminOrStaff = false,
+        CancellationToken cancellationToken = default)
     {
         var shipment = await _dbContext.Shipments
             .AsNoTracking()
             .Include(s => s.Items)
             .Include(s => s.Events)
+            .Include(s => s.Warehouse)
             .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", orderId);
 
+        ValidateShipmentAccess(shipment, currentUserId, isAdminOrStaff);
+
         return MapToDto(shipment);
+    }
+
+    public async Task<ShipmentDto> GetByIdAsync(
+        Guid shipmentId,
+        Guid currentUserId = default,
+        bool isAdminOrStaff = false,
+        CancellationToken cancellationToken = default)
+    {
+        var shipment = await _dbContext.Shipments
+            .AsNoTracking()
+            .Include(s => s.Items)
+            .Include(s => s.Events)
+            .Include(s => s.Warehouse)
+            .FirstOrDefaultAsync(s => s.Id == shipmentId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", shipmentId);
+
+        ValidateShipmentAccess(shipment, currentUserId, isAdminOrStaff);
+
+        return MapToDto(shipment);
+    }
+
+    private static void ValidateShipmentAccess(Domain.Entities.Shipment shipment, Guid currentUserId, bool isAdminOrStaff)
+    {
+        if (isAdminOrStaff || currentUserId == Guid.Empty)
+        {
+            return;
+        }
+
+        var isOwner = (shipment.Warehouse != null && shipment.Warehouse.SellerId == currentUserId) ||
+                      shipment.CreatedBy == currentUserId ||
+                      (shipment.BuyerId.HasValue && shipment.BuyerId.Value == currentUserId);
+
+        if (!isOwner)
+        {
+            throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to view this shipment.", 403);
+        }
     }
 
     public async Task<ShippingQuoteResponse> CalculateShippingFeeAsync(ShopShippingQuoteRequest request, CancellationToken cancellationToken = default)
@@ -217,6 +267,7 @@ public sealed class ShipmentService : IShipmentService
         {
             Id = Guid.NewGuid(),
             OrderId = request.SubOrderId,
+            BuyerId = request.BuyerId,
             WarehouseId = warehouse.Id,
             CarrierId = carrierEntity.Id,
             ServiceType = ShippingServiceType.Standard,
@@ -309,8 +360,18 @@ public sealed class ShipmentService : IShipmentService
             throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to confirm return for this shipment.", 403);
         }
 
-        // Idempotency check: if return was already confirmed, return success without duplicate stock adjustment
-        if (shipment.Status == ShipmentStatus.Returned)
+        // Only shipments that failed delivery or are marked returned by carrier can be confirmed for inventory restoration
+        if (shipment.Status is not (ShipmentStatus.DeliveryFailed or ShipmentStatus.Returned))
+        {
+            throw new BusinessRuleValidationException("SHIPMENT_NOT_RETURNING", "Shipment is not in a returnable state.", 409);
+        }
+
+        // Idempotency check via InventoryLedgers: if return was already confirmed and stock restored, return success without duplicate adjustment
+        var referenceIds = new[] { shipment.OrderId.ToString(), orderId.ToString() };
+        var alreadyReturned = await _dbContext.InventoryLedgers
+            .AnyAsync(l => l.ReferenceType == "ORDER_RETURN" && l.ReferenceId != null && referenceIds.Contains(l.ReferenceId), cancellationToken);
+
+        if (alreadyReturned)
         {
             return new ConfirmReturnResponse(
                 Success: true,
@@ -336,22 +397,21 @@ public sealed class ShipmentService : IShipmentService
                     "RETURN",
                     item.Quantity,
                     referenceType: "ORDER_RETURN",
-                    referenceId: orderId.ToString(),
-                    note: $"Restored stock from returned order '{orderId}'.");
+                    referenceId: shipment.OrderId.ToString(),
+                    note: $"Restored stock from returned order '{shipment.OrderId}'.");
 
                 _dbContext.InventoryLedgers.Add(ledger);
             }
         }
 
-        // Cập nhật trạng thái shipment sang Returned
-        shipment.Status = ShipmentStatus.Returned;
+        // Giữ nguyên trạng thái shipment cho carrier cập nhật, chỉ thêm event và cập nhật UpdatedAt
         shipment.UpdatedAt = DateTimeOffset.UtcNow;
 
         shipment.Events.Add(new ShipmentEvent
         {
             ShipmentId = shipment.Id,
-            CarrierStatus = "returned",
-            Status = ShipmentEventStatus.Returned,
+            CarrierStatus = shipment.Status == ShipmentStatus.Returned ? "returned" : "delivery_fail",
+            Status = shipment.Status == ShipmentStatus.Returned ? ShipmentEventStatus.Returned : ShipmentEventStatus.DeliveryFailed,
             Description = "Seller confirmed return delivery. Stock restored.",
             OccurredAt = DateTimeOffset.UtcNow,
             WarehouseName = shipment.Warehouse?.Name
@@ -381,12 +441,13 @@ public sealed class ShipmentService : IShipmentService
             .Include(s => s.Warehouse)
             .AsQueryable();
 
-        // Enforce seller isolation: sellers only see shipments from their warehouse or created by them
+        // Enforce role isolation: sellers see shipments from their warehouse, buyers see their purchases
         if (!isAdmin)
         {
             query = query.Where(s =>
                 (s.Warehouse != null && s.Warehouse.SellerId == currentUserId) ||
-                s.CreatedBy == currentUserId);
+                s.CreatedBy == currentUserId ||
+                (s.BuyerId != null && s.BuyerId == currentUserId));
         }
 
         if (request.WarehouseId.HasValue)
@@ -471,11 +532,40 @@ public sealed class ShipmentService : IShipmentService
             throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to cancel this shipment.", 403);
         }
 
+        return await CancelShipmentCoreAsync(shipment, reason, cancellationToken);
+    }
+
+    public async Task<CancelShipmentResponse> CancelShipmentByOrderIdAsync(
+        Guid orderId,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"shipment:order:{orderId}", cancellationToken: cancellationToken)
+            : null;
+
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Warehouse)
+            .Include(s => s.Carrier)
+            .Include(s => s.Events)
+            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment for Order", orderId);
+
+        return await CancelShipmentCoreAsync(shipment, reason, cancellationToken);
+    }
+
+    private async Task<CancelShipmentResponse> CancelShipmentCoreAsync(
+        Domain.Entities.Shipment shipment,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var trackingCode = shipment.GhnOrderCode ?? shipment.TrackingNumber;
+
         if (shipment.Status == ShipmentStatus.Cancelled)
         {
             return new CancelShipmentResponse(
                 shipment.Id,
-                shipment.TrackingNumber ?? shipment.GhnOrderCode,
+                trackingCode,
                 true,
                 "Shipment has already been cancelled.");
         }
@@ -488,7 +578,6 @@ public sealed class ShipmentService : IShipmentService
                 400);
         }
 
-        var trackingCode = shipment.GhnOrderCode ?? shipment.TrackingNumber;
         if (!string.IsNullOrWhiteSpace(trackingCode))
         {
             var gateway = _carrierResolver.Get(shipment.Carrier?.Code);
@@ -523,6 +612,142 @@ public sealed class ShipmentService : IShipmentService
             trackingCode,
             true,
             "Shipment cancelled successfully.");
+    }
+
+    public async Task<ShipmentDto> UpdateRecipientAddressAsync(
+        Guid orderId,
+        UpdateRecipientAddressRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        using var _ = _lockService != null
+            ? await _lockService.AcquireLockAsync($"shipment:order:{orderId}", cancellationToken: cancellationToken)
+            : null;
+
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Items)
+            .Include(s => s.Events)
+            .Include(s => s.Warehouse)
+            .Include(s => s.Carrier)
+            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment for Order", orderId);
+
+        if (shipment.Status is not (ShipmentStatus.ReadyToPick or ShipmentStatus.Packed))
+        {
+            throw new BusinessRuleValidationException(
+                "SHIPMENT_ALREADY_PICKED_UP",
+                "Cannot change recipient address because the shipment is already being processed or picked up by carrier.",
+                409);
+        }
+
+        var trackingCode = shipment.GhnOrderCode ?? shipment.TrackingNumber;
+        if (!string.IsNullOrWhiteSpace(trackingCode))
+        {
+            var gateway = _carrierResolver.Get(shipment.Carrier?.Code);
+            await gateway.UpdateOrderAsync(
+                trackingCode,
+                request.RecipientName,
+                request.RecipientPhone,
+                request.ShippingAddress,
+                request.ToWardCode,
+                request.ToDistrictId,
+                cancellationToken);
+        }
+
+        shipment.ReceiverName = request.RecipientName;
+        shipment.ReceiverPhone = request.RecipientPhone;
+        shipment.ReceiverAddress = request.ShippingAddress;
+        if (!string.IsNullOrWhiteSpace(request.ToProvinceName)) shipment.ToProvinceName = request.ToProvinceName;
+        if (request.ToDistrictId.HasValue) shipment.ToDistrictId = request.ToDistrictId;
+        if (!string.IsNullOrWhiteSpace(request.ToWardCode)) shipment.ToWardCode = request.ToWardCode;
+        shipment.UpdatedAt = DateTimeOffset.UtcNow;
+
+        shipment.Events.Add(new ShipmentEvent
+        {
+            ShipmentId = shipment.Id,
+            CarrierStatus = "address_updated",
+            Status = (ShipmentEventStatus)shipment.Status,
+            Description = $"Recipient address updated to: {request.ShippingAddress}, {request.RecipientName} ({request.RecipientPhone}).",
+            OccurredAt = DateTimeOffset.UtcNow,
+            WarehouseName = shipment.Warehouse?.Name
+        });
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(shipment);
+    }
+
+    public async Task<ShipmentDto> SyncStatusAsync(
+        Guid shipmentId,
+        Guid currentUserId = default,
+        bool isAdminOrStaff = false,
+        CancellationToken cancellationToken = default)
+    {
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Items)
+            .Include(s => s.Events)
+            .Include(s => s.Warehouse)
+            .Include(s => s.Carrier)
+            .FirstOrDefaultAsync(s => s.Id == shipmentId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", shipmentId);
+
+        ValidateShipmentAccess(shipment, currentUserId, isAdminOrStaff);
+
+        return await SyncStatusCoreAsync(shipment, cancellationToken);
+    }
+
+    public async Task<ShipmentDto> SyncStatusByOrderIdAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var shipment = await _dbContext.Shipments
+            .Include(s => s.Items)
+            .Include(s => s.Events)
+            .Include(s => s.Warehouse)
+            .Include(s => s.Carrier)
+            .FirstOrDefaultAsync(s => s.OrderId == orderId, cancellationToken)
+            ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment for Order", orderId);
+
+        return await SyncStatusCoreAsync(shipment, cancellationToken);
+    }
+
+    private async Task<ShipmentDto> SyncStatusCoreAsync(
+        Domain.Entities.Shipment shipment,
+        CancellationToken cancellationToken)
+    {
+        var trackingCode = shipment.GhnOrderCode ?? shipment.TrackingNumber;
+        if (string.IsNullOrWhiteSpace(trackingCode))
+        {
+            return MapToDto(shipment);
+        }
+
+        var gateway = _carrierResolver.Get(shipment.Carrier?.Code);
+        var statusResult = await gateway.GetStatusAsync(trackingCode, cancellationToken);
+
+        if (ShipmentStatusTransitions.IsForward(shipment.Status, statusResult.Status))
+        {
+            shipment.Status = statusResult.Status;
+            shipment.UpdatedAt = DateTimeOffset.UtcNow;
+            if (statusResult.Status == ShipmentStatus.Delivered)
+            {
+                shipment.DeliveredAt = statusResult.UpdatedAt;
+            }
+
+            shipment.Events.Add(new ShipmentEvent
+            {
+                ShipmentId = shipment.Id,
+                CarrierStatus = statusResult.RawStatus,
+                Status = (ShipmentEventStatus)statusResult.Status,
+                Description = $"Status synchronized from carrier: {statusResult.Description}",
+                OccurredAt = statusResult.UpdatedAt ?? DateTimeOffset.UtcNow,
+                WarehouseName = shipment.Warehouse?.Name
+            });
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return MapToDto(shipment);
     }
 
     public async Task<PrintShippingLabelResponse> GetPrintLabelAsync(
@@ -623,6 +848,7 @@ public sealed class ShipmentService : IShipmentService
             s.ReceiverName,
             s.ReceiverPhone,
             s.ReceiverAddress,
+            s.BuyerId,
             s.ToProvinceName,
             s.ToDistrictId,
             s.ToWardCode,

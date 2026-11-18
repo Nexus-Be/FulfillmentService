@@ -36,6 +36,7 @@ public sealed record ShipmentDto(
     string ReceiverName,
     string ReceiverPhone,
     string ReceiverAddress,
+    Guid? BuyerId = null,
     string? ToProvinceName = null,
     int? ToDistrictId = null,
     string? ToWardCode = null,

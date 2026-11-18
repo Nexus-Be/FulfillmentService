@@ -253,5 +253,76 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task PublicInitialize_WithoutAdminRole_ReturnsUnauthorizedOrForbidden()
+    {
+        var request = new InternalCreateWarehouseRequest(
+            SellerId: Guid.NewGuid(),
+            UserId: Guid.NewGuid(),
+            ShopName: "Shop Public Exploit",
+            ContactName: null,
+            ContactPhone: null,
+            PickupAddress: "123 Street",
+            ProvinceId: null,
+            DistrictId: null,
+            WardCode: null);
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/warehouses/initialize");
+        httpRequest.Content = JsonContent.Create(request);
+
+        var response = await _client.SendAsync(httpRequest);
+
+        Assert.True(response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task InternalWarehouse_BySellerId_OperationsWorkWithServiceKey()
+    {
+        var sellerId = Guid.NewGuid();
+        var createRequest = new InternalCreateWarehouseRequest(
+            SellerId: sellerId,
+            UserId: sellerId,
+            ShopName: "Internal Seller WH",
+            ContactName: "Owner",
+            ContactPhone: "0900000000",
+            PickupAddress: "123 St",
+            ProvinceId: 201,
+            DistrictId: 1442,
+            WardCode: "20101");
+
+        // 1. Create
+        using var createMsg = new HttpRequestMessage(HttpMethod.Post, "/api/v1/internal/warehouses");
+        createMsg.Headers.Add("X-Internal-Service-Key", "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e");
+        createMsg.Content = JsonContent.Create(createRequest);
+        var createRes = await _client.SendAsync(createMsg);
+        Assert.Equal(HttpStatusCode.Created, createRes.StatusCode);
+
+        // 2. Get by sellerId
+        using var getMsg = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/internal/warehouses/seller/{sellerId}");
+        getMsg.Headers.Add("X-Internal-Service-Key", "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e");
+        var getRes = await _client.SendAsync(getMsg);
+        Assert.Equal(HttpStatusCode.OK, getRes.StatusCode);
+
+        // 3. Update by sellerId
+        var updateRequest = new InternalUpdateSellerWarehouseRequest(
+            ShopName: "Updated Shop",
+            PickupAddress: "456 Updated St",
+            ContactPhone: "0911111111",
+            ProvinceId: 201,
+            DistrictId: 1442,
+            WardCode: "20101");
+        using var updateMsg = new HttpRequestMessage(HttpMethod.Put, $"/api/v1/internal/warehouses/seller/{sellerId}");
+        updateMsg.Headers.Add("X-Internal-Service-Key", "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e");
+        updateMsg.Content = JsonContent.Create(updateRequest);
+        var updateRes = await _client.SendAsync(updateMsg);
+        Assert.Equal(HttpStatusCode.OK, updateRes.StatusCode);
+
+        // 4. Delete by sellerId
+        using var deleteMsg = new HttpRequestMessage(HttpMethod.Delete, $"/api/v1/internal/warehouses/seller/{sellerId}");
+        deleteMsg.Headers.Add("X-Internal-Service-Key", "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e");
+        var deleteRes = await _client.SendAsync(deleteMsg);
+        Assert.Equal(HttpStatusCode.NoContent, deleteRes.StatusCode);
+    }
 }
 

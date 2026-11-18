@@ -8,42 +8,78 @@ using System.Threading.Tasks;
 using Fulfillment.Application.Interfaces.Shipping;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 public class CommerceWebhookClient : ICommerceWebhookClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<CommerceWebhookClient> _logger;
-    private readonly string _internalServiceKey;
+    private readonly CommerceOptions _options;
 
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
     public CommerceWebhookClient(
-        IConfiguration configuration,
+        IOptions<CommerceOptions> options,
         ILogger<CommerceWebhookClient> logger,
         HttpClient? httpClient = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _options = options?.Value ?? new CommerceOptions();
         _httpClient = httpClient ?? new HttpClient();
+
+        ConfigureClient();
+    }
+
+    /// <summary>
+    /// Backwards-compatible constructor for testing and manual configuration.
+    /// </summary>
+    public CommerceWebhookClient(
+        IConfiguration configuration,
+        ILogger<CommerceWebhookClient> logger,
+        HttpClient? httpClient = null)
+        : this(Options.Create(BuildOptions(configuration)), logger, httpClient)
+    {
+    }
+
+    private static CommerceOptions BuildOptions(IConfiguration configuration)
+    {
+        var options = new CommerceOptions();
+        if (configuration == null)
+            return options;
 
         var baseUrl = configuration["Services:CommerceService:BaseUrl"]
             ?? configuration["COMMERCE_SERVICE_URL"]
-            ?? Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL")
-            ?? "http://localhost:8003";
+            ?? Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL");
+        if (!string.IsNullOrWhiteSpace(baseUrl))
+            options.BaseUrl = baseUrl;
 
-        if (_httpClient.BaseAddress == null)
-        {
-            _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
-        }
+        var path = configuration["Services:CommerceService:DeliveryStatusPath"]
+            ?? configuration["COMMERCE_DELIVERY_STATUS_PATH"]
+            ?? Environment.GetEnvironmentVariable("COMMERCE_DELIVERY_STATUS_PATH");
+        if (!string.IsNullOrWhiteSpace(path))
+            options.DeliveryStatusPath = path;
 
-        if (_httpClient.Timeout == TimeSpan.FromSeconds(100))
-        {
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
-        }
-
-        _internalServiceKey = configuration["InternalSecurity:ServiceKey"]
+        var serviceKey = Environment.GetEnvironmentVariable("INTERNAL_SERVICE_SECRET")
+            ?? Environment.GetEnvironmentVariable("INTERNAL_SERVICE_KEY")
             ?? configuration["INTERNAL_SERVICE_SECRET"]
             ?? configuration["INTERNAL_SERVICE_KEY"]
-            ?? Environment.GetEnvironmentVariable("INTERNAL_SERVICE_SECRET")
-            ?? Environment.GetEnvironmentVariable("INTERNAL_SERVICE_KEY")
-            ?? "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e";
+            ?? configuration["InternalSecurity:ServiceKey"];
+        if (!string.IsNullOrWhiteSpace(serviceKey))
+            options.ServiceKey = serviceKey;
+
+        return options;
+    }
+
+    private void ConfigureClient()
+    {
+        if (_httpClient.BaseAddress == null && !string.IsNullOrWhiteSpace(_options.BaseUrl))
+        {
+            _httpClient.BaseAddress = new Uri(_options.BaseUrl.TrimEnd('/') + "/");
+        }
+
+        if (_options.TimeoutSeconds > 0)
+        {
+            _httpClient.Timeout = TimeSpan.FromSeconds(_options.TimeoutSeconds);
+        }
     }
 
     public async Task<bool> NotifyDeliveryStatusAsync(
@@ -70,16 +106,20 @@ public class CommerceWebhookClient : ICommerceWebhookClient
 
         try
         {
+            var relativePath = _options.DeliveryStatusPath
+                .Replace("{subOrderId}", request.SubOrderId.ToString(), StringComparison.OrdinalIgnoreCase)
+                .TrimStart('/');
+
             using var requestMsg = new HttpRequestMessage(
                 HttpMethod.Post,
-                $"api/v1/sub-orders/{request.SubOrderId}/delivery-status")
+                relativePath)
             {
                 Content = JsonContent.Create(payload)
             };
 
-            if (!requestMsg.Headers.Contains("X-Internal-Service-Key") && !string.IsNullOrWhiteSpace(_internalServiceKey))
+            if (!requestMsg.Headers.Contains("X-Internal-Service-Key") && !string.IsNullOrWhiteSpace(_options.ServiceKey))
             {
-                requestMsg.Headers.Add("X-Internal-Service-Key", _internalServiceKey);
+                requestMsg.Headers.Add("X-Internal-Service-Key", _options.ServiceKey);
             }
 
             var response = await _httpClient.SendAsync(requestMsg, cancellationToken);

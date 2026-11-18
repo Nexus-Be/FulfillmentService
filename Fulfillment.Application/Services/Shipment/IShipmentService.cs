@@ -30,13 +30,39 @@ public interface IShipmentService
     /// Retrieves shipment details by unique tracking number.
     /// Lấy thông tin chi tiết vận đơn theo mã vận đơn vận chuyển.
     /// </summary>
-    Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, CancellationToken cancellationToken = default);
+    Task<ShipmentDto> GetByTrackingNumberAsync(string trackingNumber, Guid currentUserId = default, bool isAdminOrStaff = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Retrieves shipment details associated with an order identifier.
     /// Lấy thông tin vận đơn gắn với mã định danh đơn hàng.
     /// </summary>
-    Task<ShipmentDto> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<ShipmentDto> GetByOrderIdAsync(Guid orderId, Guid currentUserId = default, bool isAdminOrStaff = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Retrieves shipment details by shipment ID.
+    /// Lấy thông tin chi tiết vận đơn theo ID vận đơn.
+    /// </summary>
+    Task<ShipmentDto> GetByIdAsync(Guid shipmentId, Guid currentUserId = default, bool isAdminOrStaff = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancels a shipment by order ID (S2S internal endpoint).
+    /// </summary>
+    Task<CancelShipmentResponse> CancelShipmentByOrderIdAsync(Guid orderId, string? reason = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Updates recipient delivery address if shipment has not been picked up by carrier.
+    /// </summary>
+    Task<ShipmentDto> UpdateRecipientAddressAsync(Guid orderId, UpdateRecipientAddressRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Synchronizes latest shipment status directly from carrier gateway.
+    /// </summary>
+    Task<ShipmentDto> SyncStatusAsync(Guid shipmentId, Guid currentUserId = default, bool isAdminOrStaff = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Synchronizes latest shipment status directly from carrier gateway by order ID.
+    /// </summary>
+    Task<ShipmentDto> SyncStatusByOrderIdAsync(Guid orderId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Calculates estimated shipping fee for a shop cart using carrier gateways with automatic timeout fallback.
