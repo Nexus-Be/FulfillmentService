@@ -1,64 +1,64 @@
-# WH-05: Cập Nhật Thông Tin Kho (Update Warehouse)
+# WH-05: Cap Nhat Thong Tin Kho (Update Warehouse)
 
-## 1. Thông tin tổng quan
-- **Mã chức năng**: `WH-05`
-- **Tên API**: Update Warehouse
-- **Phương thức**: `PUT`
+## 1. Thong tin tong quan
+- **Ma chuc nang**: `WH-05`
+- **Ten API**: Update Warehouse
+- **Phuong thuc**: `PUT`
 - **URL**:
   - Docker: `http://fulfillment-service:8006/api/v1/warehouses/{id}`
-  - Chạy Local: `http://localhost:5228/api/v1/warehouses/{id}`
-- **Phân loại**: Public API có xác thực quyền
-- **Quyền hạn / Role**: `seller`, `admin` (Kiểm tra qua header `X-User-Roles`)
+  - Chay Local: `http://localhost:8006/api/v1/warehouses/{id}`
+- **Phan loai**: Public API
+- **Quyen han / Role**: `seller`, `admin` (`[RequireRole("seller", "admin")]`)
 
-## 2. Mô tả nghiệp vụ
-Cập nhật thông tin chi tiết (Tên và Địa chỉ) của kho bãi:
-1. **Không cho phép sửa Mã kho (`Code`)**:
-   - `Code` là mã định danh bất biến sau khi tạo để đảm bảo toàn vẹn dữ liệu cho các chứng từ vận đơn và tồn kho.
-2. **Kiểm tra tồn tại**:
-   - Nếu kho không tồn tại theo `id`, ném ngoại lệ `EntityNotFoundException` $\rightarrow$ Trả về mã HTTP 404 Not Found.
-3. **Chuẩn hóa dữ liệu**:
-   - Tên kho và địa chỉ được chuẩn hóa khoảng trắng tự động trước khi lưu vào cơ sở dữ liệu.
+## 2. Mo ta nghiep vu
+Cap nhat thong tin kho bai vat ly:
+1. **Bat bien ma kho (`Code`)**: `Code` khong the thay doi sau khi tao nham bao toan tinh toan ven du lieu van don va chung tu kho.
+2. **Kiem tra quyen so huu (Ownership Guard)**: Seller chi duoc phep cap nhat kho do chinh minh so huu (`warehouse.SellerId == userId`). Neu vi pham, he thong tra ve HTTP 403 `FORBIDDEN`.
+3. **Cap nhat thong tin dia danh & GHN Shop ID**: Ho tro cap nhat so dien thoai kho, quan huyen, phuong xa va GHN Shop ID de dam bao dong bo lay hang tu nha van chuyen.
 
 ## 3. Headers
-| Header | Giá trị | Bắt buộc | Mô tả |
-|---|---|---|---|
-| `Content-Type` | `application/json` | Có | Định dạng payload gửi lên |
-| `X-User-Roles` | `seller` hoặc `admin` | Có | Role phân quyền người dùng từ API Gateway |
+| Header | Gia tri | Bat buoc |
+|---|---|---|
+| `Authorization` | `Bearer <JWT_TOKEN>` | Co |
+| `Content-Type` | `application/json` | Co |
 
 ## 4. Path Parameters
-| Tham số | Kiểu | Bắt buộc | Mô tả |
+| Tham so | Kieu | Bat buoc | Mo ta |
 |---|---|---|---|
-| `id` | `Guid` (UUID) | Có | Mã định danh kho cần cập nhật |
+| `id` | `Guid` (UUID) | Co | Ma dinh danh kho can cap nhat |
 
 ## 5. Request Body
 ```json
 {
-  "name": "Kho Quận 7 Mở Rộng",
-  "address": "Số 458 Đường Nguyễn Thị Thập, Tân Phú, Quận 7, TP. Hồ Chí Minh"
+  "name": "Kho Quan 7 Mo Rong",
+  "address": "So 458 Duong Nguyen Thi Thap, Tan Phu, Quan 7, TP. Ho Chi Minh",
+  "contactPhone": "0909888777",
+  "provinceName": "TP. Ho Chi Minh",
+  "districtId": 1450,
+  "wardCode": "20804",
+  "ghnShopId": 5550559
 }
 ```
 
-### Chi tiết các trường:
-| Trường | Kiểu | Bắt buộc | Ràng buộc | Mô tả |
-|---|---|---|---|---|
-| `name` | `string` | Có | 1 - 200 ký tự | Tên mới của kho bãi |
-| `address` | `string?` | Không | Tối đa 500 ký tự | Địa chỉ mới của kho bãi |
-
-## 6. Phản hồi thành công (200 OK)
+## 6. Phan hoi thanh cong (200 OK)
 ```json
 {
   "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
-  "code": "WH-HCM-02",
-  "name": "Kho Quận 7 Mở Rộng",
-  "address": "Số 458 Đường Nguyễn Thị Thập, Tân Phú, Quận 7, TP. Hồ Chí Minh",
-  "isActive": true,
-  "sellerId": "b7e51c20-72e1-4bb2-901a-82672bfdbef6",
-  "createdAt": "2026-11-02T06:00:00Z"
+  "code": "WH-SELLER-02",
+  "name": "Kho Quan 7 Mo Rong",
+  "address": "So 458 Duong Nguyen Thi Thap, Tan Phu, Quan 7, TP. Ho Chi Minh",
+  "contactPhone": "0909888777",
+  "provinceName": "TP. Ho Chi Minh",
+  "districtId": 1450,
+  "wardCode": "20804",
+  "ghnShopId": 5550559,
+  "isDisabled": false,
+  "sellerId": "b7e51c20-72e1-4bb2-901a-82672bfdbef6"
 }
 ```
 
-## 7. Phản hồi lỗi
-- **400 Bad Request (`VAL_INVALID_INPUT` / `BUSINESS_RULE_VIOLATION`)**: Tên kho bị để trống hoặc vượt quá 200 ký tự.
-- **403 Forbidden (`FORBIDDEN`)**: Request không có role `seller` hoặc `admin`.
-- **404 Not Found (`NOT_FOUND`)**: Không tìm thấy kho với ID cung cấp.
-
+## 7. Phan hoi loi
+- **400 Bad Request (`VAL_INVALID_INPUT`)**: Ten kho bi de trong hoac du lieu khong hop le.
+- **401 Unauthorized (`UNAUTHORIZED`)**: Thieu Bearer token.
+- **403 Forbidden (`FORBIDDEN`)**: Nguoi ban khong so huu kho hang nay.
+- **404 Not Found (`WAREHOUSE_NOT_FOUND`)**: Khong tim thay kho voi ID cung cap.

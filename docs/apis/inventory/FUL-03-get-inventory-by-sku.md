@@ -1,39 +1,45 @@
-# FUL-03: Lấy Thông Tin Tồn Kho Theo 1 SKU (Get Inventory By SKU)
+# FUL-03: Lay Thong Tin Ton Kho Theo 1 SKU (Get Inventory By SKU)
 
-## 1. Thông tin tổng quan
-- **Mã chức năng**: `FUL-03`
-- **Tên API**: Get Inventory By SKU
-- **Phương thức**: `GET`
+## 1. Thong tin tong quan
+- **Ma chuc nang**: `FUL-03`
+- **Ten API**: Get Inventory By SKU
+- **Phuong thuc**: `GET`
 - **URL**:
-  - Docker: `http://fulfillment-service:8006/api/v1/internal/inventories/{skuId}`
-  - Chạy Local: `http://localhost:5228/api/v1/internal/inventories/{skuId}`
-- **Phân loại**: Internal API (OrderService, CatalogService gọi tra cứu)
-- **Quyền hạn / Role**: Buyer, Seller, Admin, Staff
+  - Cong khai: `GET /api/v1/inventories/{skuId}`
+  - Noi bo: `GET /api/v1/internal/inventories/{skuId}`
+  - Docker: `http://fulfillment-service:8006/api/v1/inventories/{skuId}`
+  - Chay Local: `http://localhost:8006/api/v1/inventories/{skuId}`
+- **Phan loai**: Public API / Inter-Service
+- **Quyen han / Role**: Tat ca nguoi dung (Public / Anonymous)
 
-## 2. Mô tả nghiệp vụ
-Tra cứu số lượng tồn kho vật lý hiện tại của một mã SKU.
-Luôn trả về 3 con số nhất quán:
-- `totalQuantity`: Tổng hàng vật lý thực tế trong kho.
-- `reservedQuantity`: Số lượng đang bị giữ chỗ tạm thời (khách đang chờ thanh toán).
-- `availableQuantity`: Số lượng khả dụng có thể bán tiếp (`totalQuantity - reservedQuantity`).
+## 2. Mo ta nghiep vu
+Tra cuu so du ton kho vat ly va cac chi so canh bao ton kho hien tai cua mot ma SKU bien the:
+1. **Tinh toan ton kho kha dung**: `availableQuantity = totalQuantity - reservedQuantity`.
+2. **Chi so canh bao ton kho thap**: `isLowStock = isLowStockAlertEnabled && availableQuantity <= minStockThreshold`.
 
 ## 3. Path Parameters
-| Tham số | Kiểu | Bắt buộc | Mô tả |
+| Tham so | Kieu | Bat buoc | Mo ta |
 |---|---|---|---|
-| `skuId` | `Guid` | Có | Mã SKU sản phẩm cần kiểm tra |
+| `skuId` | `Guid` (UUID) | Co | Ma SKU san pham can kiem tra |
 
-## 4. Phản hồi thành công (200 OK)
+## 4. Phan hoi thanh cong (200 OK)
 ```json
 {
   "id": "7ca92c12-3214-4112-a123-1c963f66bf11",
   "skuId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-  "warehouseId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
-  "totalQuantity": 100,
-  "reservedQuantity": 15,
-  "availableQuantity": 85
+  "warehouseId": "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e",
+  "totalQuantity": 150,
+  "reservedQuantity": 10,
+  "availableQuantity": 140,
+  "soldQuantity": 25,
+  "minStockThreshold": 10,
+  "isLowStockAlertEnabled": true,
+  "isLowStock": false,
+  "lastMovementAt": "2026-11-19T08:00:00Z",
+  "updatedAt": "2026-11-19T08:00:00Z"
 }
 ```
 
-## 5. Phản hồi lỗi
-- **404 Not Found (`INVENTORY_NOT_FOUND`)**: SKU không tồn tại trong bất kỳ kho nào.
-
+## 5. Phan hoi loi
+- **404 Not Found (`INVENTORY_NOT_FOUND`)**: SKU chua ton tai trong bat ky kho nao.
+- **500 Internal Server Error (`INTERNAL_SERVER_ERROR`)**: Loi he thong.

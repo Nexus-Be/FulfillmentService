@@ -1,50 +1,42 @@
-# WH-02: Lấy Chi Tiết Kho Hàng Theo ID (Get Warehouse By ID)
+# WH-02: Lay Chi Tiet Kho Hang Theo ID (Get Warehouse By ID)
 
-## 1. Thông tin tổng quan
-- **Mã chức năng**: `WH-02`
-- **Tên API**: Get Warehouse By ID
-- **Phương thức**: `GET`
+## 1. Thong tin tong quan
+- **Ma chuc nang**: `WH-02`
+- **Ten API**: Get Warehouse By ID
+- **Phuong thuc**: `GET`
 - **URL**:
   - Docker: `http://fulfillment-service:8006/api/v1/warehouses/{id}`
-  - Chạy Local: `http://localhost:5228/api/v1/warehouses/{id}`
-- **Phân loại**: Public API
-- **Quyền hạn / Role**: Tất cả người dùng (Public/Anonymous)
+  - Chay Local: `http://localhost:8006/api/v1/warehouses/{id}`
+- **Phan loai**: Public API
+- **Quyen han / Role**: Tat ca nguoi dung (Public / Anonymous)
 
-## 2. Mô tả nghiệp vụ
-Tra cứu thông tin chi tiết của một kho bãi dựa trên định danh khóa chính (`id` dạng UUID):
-1. **Kiểm tra tồn tại**: Truy vấn kho bãi từ bảng `warehouses` với `AsNoTracking` để tối ưu hiệu năng đọc.
-2. **Xử lý khi không tìm thấy**: Nếu không tìm thấy kho bãi với ID tương ứng, trả về mã lỗi HTTP 404 Not Found theo chuẩn RFC 7807 ProblemDetails.
+## 2. Mo ta nghiep vu
+Tra cuu thong tin chi tiet cua mot kho bai dua tren khoa chinh `id` (UUIDv4):
+1. **Truy van du lieu**: Doc kho hang tu bang `warehouses` kem day du cac truong dia danh hanh chinh va GHN Shop ID.
+2. **Xu ly khong tim thay**: Neu khong tim thay ban ghi, tra ve HTTP 404 Not Found voi ma loi `WAREHOUSE_NOT_FOUND`.
 
 ## 3. Path Parameters
-| Tham số | Kiểu | Bắt buộc | Mô tả |
+| Tham so | Kieu | Bat buoc | Mo ta |
 |---|---|---|---|
-| `id` | `Guid` (UUID) | Có | Mã định danh kho bãi (VD: `e6a11e8f-7c15-4fa2-bf42-9a5f4c58cf32`) |
+| `id` | `Guid` (UUID) | Co | Ma dinh danh kho bai |
 
-## 4. Phản hồi thành công (200 OK)
+## 4. Phan hoi thanh cong (200 OK)
 ```json
 {
   "id": "e6a11e8f-7c15-4fa2-bf42-9a5f4c58cf32",
   "code": "WH-HCM-01",
-  "name": "Kho Tổng Hồ Chí Minh",
-  "address": "Khu Công Nghệ Cao, TP. Thủ Đức, TP. Hồ Chí Minh",
-  "isActive": true,
-  "sellerId": "00000000-0000-0000-0000-000000000000",
-  "createdAt": "2026-10-31T08:00:00Z"
+  "name": "Kho Tong Ho Chi Minh",
+  "address": "Khu Cong Nghe Cao, TP. Thu Duc, TP. Ho Chi Minh",
+  "contactPhone": "0901234567",
+  "provinceName": "TP. Ho Chi Minh",
+  "districtId": 1442,
+  "wardCode": "20101",
+  "ghnShopId": 5550559,
+  "isDisabled": false,
+  "sellerId": "00000000-0000-0000-0000-000000000000"
 }
 ```
 
-## 5. Phản hồi lỗi
-- **404 Not Found (`WAREHOUSE_NOT_FOUND`)**: Không tìm thấy kho hàng với ID cung cấp.
-```json
-{
-  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
-  "title": "Warehouse not found",
-  "status": 404,
-  "errorCode": "WAREHOUSE_NOT_FOUND",
-  "detail": "Warehouse not found with ID 'e6a11e8f-7c15-4fa2-bf42-9a5f4c58cf32'.",
-  "instance": "/api/v1/warehouses/e6a11e8f-7c15-4fa2-bf42-9a5f4c58cf32",
-  "traceId": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"
-}
-```
-- **400 Bad Request**: Tham số `id` trên URL không đúng định dạng GUID.
-
+## 5. Phan hoi loi
+- **404 Not Found (`WAREHOUSE_NOT_FOUND`)**: Khong tim thay kho hang voi ID cung cap.
+- **500 Internal Server Error (`INTERNAL_SERVER_ERROR`)**: Loi he thong khong xac dinh.

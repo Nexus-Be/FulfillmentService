@@ -1,54 +1,73 @@
-# WH-01: Lấy Danh Sách Kho Đang Hoạt Động (List Active Warehouses)
+# WH-01: Lay Danh Sach Kho Dang Hoat Dong (List Active Warehouses)
 
-## 1. Thông tin tổng quan
-- **Mã chức năng**: `WH-01`
-- **Tên API**: List Active Warehouses
-- **Phương thức**: `GET`
+## 1. Thong tin tong quan
+- **Ma chuc nang**: `WH-01`
+- **Ten API**: List Active Warehouses
+- **Phuong thuc**: `GET`
 - **URL**:
   - Docker: `http://fulfillment-service:8006/api/v1/warehouses`
-  - Chạy Local: `http://localhost:5228/api/v1/warehouses`
-- **Phân loại**: Public API
-- **Quyền hạn / Role**: Tất cả người dùng (Public/Anonymous)
+  - Chay Local: `http://localhost:8006/api/v1/warehouses`
+- **Phan loai**: Public API
+- **Quyen han / Role**: Tat ca nguoi dung (Public / Anonymous)
 
-## 2. Mô tả nghiệp vụ
-Truy vấn danh sách tất cả các kho bãi đang trong trạng thái hoạt động (`is_active = true`):
-1. **Lọc dữ liệu**: Chỉ lấy các kho có `IsActive == true`. Các kho đã bị vô hiệu hóa (tạm khóa) sẽ không xuất hiện trong danh sách này.
-2. **Sắp xếp**: Kết quả được sắp xếp tăng dần theo tên kho (`Name ASC`).
-3. **Mục đích sử dụng**: 
-   - Phục vụ Gateway/Frontend hiển thị danh sách các kho hàng khả dụng để điều phối đơn hàng hoặc gán vị trí lưu kho.
+## 2. Mo ta nghiep vu
+Truy van danh sach tat ca cac kho bai dang trong trang thai hoat dong (`is_active = true`) co phan trang:
+1. **Loc du lieu**: Chi lay cac kho co `IsActive == true`. Cac kho bi vo hieu hoa (`isDisabled = true`) se bi loai khoi danh sach.
+2. **Sap xep**: Ket qua duoc sap xep tang dan theo ten kho (`Name ASC`).
+3. **Phan trang tai Database**: Tinh toan phan trang qua `Skip((page - 1) * pageSize).Take(pageSize)` va `CountAsync()`, tra ve cau truc `PagedData<WarehouseDto>`.
 
 ## 3. Headers
-| Header | Giá trị | Bắt buộc |
+| Header | Gia tri | Bat buoc |
 |---|---|---|
-| `Accept` | `application/json` | Không (Mặc định JSON) |
+| `Accept` | `application/json` | Khong (Mac dinh JSON) |
 
 ## 4. Query Parameters
-*Không có query parameter bắt buộc.*
+| Tham so | Kieu | Mac dinh | Rang buoc | Mo ta |
+|---|---|---|---|---|
+| `page` | `int` | `1` | $\ge 1$ | So trang hien tai |
+| `pageSize` | `int` | `20` | $1 \le pageSize \le 100$ | So luong phan tu tren mot trang |
 
-## 5. Phản hồi thành công (200 OK)
+## 5. Phan hoi thanh cong (200 OK)
 ```json
-[
-  {
-    "id": "e6a11e8f-7c15-4fa2-bf42-9a5f4c58cf32",
-    "code": "WH-HCM-01",
-    "name": "Kho Tổng Hồ Chí Minh",
-    "address": "Khu Công Nghệ Cao, TP. Thủ Đức, TP. Hồ Chí Minh",
-    "isActive": true,
-    "sellerId": "00000000-0000-0000-0000-000000000000",
-    "createdAt": "2026-10-31T08:00:00Z"
-  },
-  {
-    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    "code": "WH-HN-01",
-    "name": "Kho Tổng Hà Nội",
-    "address": "Khu Công Nghiệp Thăng Long, Đông Anh, Hà Nội",
-    "isActive": true,
-    "sellerId": null,
-    "createdAt": "2026-10-31T08:30:00Z"
+{
+  "items": [
+    {
+      "id": "e6a11e8f-7c15-4fa2-bf42-9a5f4c58cf32",
+      "code": "WH-HCM-01",
+      "name": "Kho Tong Ho Chi Minh",
+      "address": "Khu Cong Nghe Cao, TP. Thu Duc, TP. Ho Chi Minh",
+      "contactPhone": "0901234567",
+      "provinceName": "TP. Ho Chi Minh",
+      "districtId": 1442,
+      "wardCode": "20101",
+      "ghnShopId": 5550559,
+      "isDisabled": false,
+      "sellerId": "00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "code": "WH-HN-01",
+      "name": "Kho Tong Ha Noi",
+      "address": "Khu Cong Nghiep Thang Long, Dong Anh, Ha Noi",
+      "contactPhone": "0912345678",
+      "provinceName": "Ha Noi",
+      "districtId": 1450,
+      "wardCode": "20804",
+      "ghnShopId": null,
+      "isDisabled": false,
+      "sellerId": null
+    }
+  ],
+  "pagination": {
+    "pageIndex": 1,
+    "pageSize": 20,
+    "totalCount": 2,
+    "totalPages": 1,
+    "hasPreviousPage": false,
+    "hasNextPage": false
   }
-]
+}
 ```
 
-## 6. Phản hồi lỗi
-- **500 Internal Server Error (`INTERNAL_SERVER_ERROR`)**: Lỗi kết nối cơ sở dữ liệu PostgreSQL hoặc lỗi hệ thống không xác định.
-
+## 6. Phan hoi loi
+- **500 Internal Server Error (`INTERNAL_SERVER_ERROR`)**: Loi he thong khong xac dinh.
