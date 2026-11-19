@@ -13,15 +13,26 @@ services:
       - key: ASPNETCORE_URLS
         value: http://+:8006
       - key: ConnectionStrings__DefaultConnection
-        value: Host=ep-snowy-field-b3pfk600-pooler.c-4.ap-southeast-1.aws.neon.tech;Port=5432;Database=fulfillment_service;Username=neondb_owner;Password=npg_iF4IMb6arWEH;SSL Mode=Require;Trust Server Certificate=true
+        sync: false
       - key: InternalSecurity__ServiceKey
-        value: eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e
+        sync: false
       - key: COMMERCE_SERVICE_URL
-        value: http://localhost:8003
+        value: http://nexus-commerce-service:8003
+      - key: NOTIFICATION_SERVICE_URL
+        value: http://nexus-notification-service:8007
       - key: Carriers__DefaultCarrierCode
         value: GHN
+      - key: GHN_ENVIRONMENT
+        value: Staging
+      - key: GHN_BASE_URL
+        value: https://dev-online-gateway.ghn.vn
       - key: GHN_TOKEN
-        value: 2c7c51e3-c75f-47b9-be14-91c2d582191c
+        sync: false
       - key: GHN_SHOP_ID
-        value: 5627736
-
+        sync: false
+      - key: GHN_WEBHOOK_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemma-4-31b-it
