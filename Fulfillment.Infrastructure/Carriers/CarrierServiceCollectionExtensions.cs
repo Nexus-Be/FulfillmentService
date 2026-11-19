@@ -27,10 +27,22 @@ public static class CarrierServiceCollectionExtensions
             .Configure(o =>
             {
                 var section = configuration.GetSection(GhnOptions.SectionName);
-                o.Environment = section["Environment"] ?? "Staging";
-                o.BaseUrl = section["BaseUrl"] ?? "https://dev-online-gateway.ghn.vn";
-                o.Token = section["Token"] ?? string.Empty;
-                o.ShopId = section["ShopId"] ?? string.Empty;
+                o.Environment = Environment.GetEnvironmentVariable("GHN_ENVIRONMENT")
+                    ?? configuration["GHN_ENVIRONMENT"]
+                    ?? section["Environment"]
+                    ?? "Staging";
+                o.BaseUrl = Environment.GetEnvironmentVariable("GHN_BASE_URL")
+                    ?? configuration["GHN_BASE_URL"]
+                    ?? section["BaseUrl"]
+                    ?? "https://dev-online-gateway.ghn.vn";
+                o.Token = Environment.GetEnvironmentVariable("GHN_TOKEN")
+                    ?? configuration["GHN_TOKEN"]
+                    ?? section["Token"]
+                    ?? string.Empty;
+                o.ShopId = Environment.GetEnvironmentVariable("GHN_SHOP_ID")
+                    ?? configuration["GHN_SHOP_ID"]
+                    ?? section["ShopId"]
+                    ?? string.Empty;
                 if (int.TryParse(section["TimeoutSeconds"], out var timeout) && timeout > 0)
                 {
                     o.TimeoutSeconds = timeout;

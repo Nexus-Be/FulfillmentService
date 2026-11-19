@@ -20,4 +20,8 @@ services:
         value: http://localhost:8003
       - key: Carriers__DefaultCarrierCode
         value: GHN
+      - key: GHN_TOKEN
+        value: 2c7c51e3-c75f-47b9-be14-91c2d582191c
+      - key: GHN_SHOP_ID
+        value: 5627736
 
