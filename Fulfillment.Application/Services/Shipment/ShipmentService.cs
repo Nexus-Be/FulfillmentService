@@ -127,13 +127,15 @@ public sealed class ShipmentService : IShipmentService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        // Dynamically resolve warehouse details for the seller, or fallback to default active warehouse
+        // The origin is the seller's own active warehouse. Another seller's warehouse is never used: a shop without one is told so.
+        // A caller that names the origin district itself (an estimate) does not need a warehouse.
         var warehouse = await _dbContext.Warehouses
             .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
-            ?? await _dbContext.Warehouses
-                .AsNoTracking()
-                .FirstOrDefaultAsync(w => w.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken);
+        if (warehouse is null && request.FromDistrictId <= 0)
+        {
+            throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Active warehouse of seller", request.SellerId);
+        }
 
         int? fromDistrictId = request.FromDistrictId > 0 ? request.FromDistrictId : warehouse?.DistrictId;
         if (!fromDistrictId.HasValue || fromDistrictId.Value <= 0)
@@ -203,12 +205,11 @@ public sealed class ShipmentService : IShipmentService
                 existing.Status.ToString());
         }
 
-        // Dynamically resolve warehouse for the seller
+        // The sender is the seller's own active warehouse. Falling back to any other warehouse would send the parcel pickup and the
+        // shipping fee to another seller's address, so a seller without one gets WAREHOUSE_NOT_FOUND and no shipment is created.
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
-            ?? await _dbContext.Warehouses
-                .FirstOrDefaultAsync(w => w.IsActive, cancellationToken)
-            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse for seller", request.SellerId);
+            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Active warehouse of seller", request.SellerId);
 
         // Dynamically resolve active carrier entity matching the resolver carrier code
         var carrier = _carrierResolver.Get();
