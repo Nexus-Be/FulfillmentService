@@ -101,10 +101,26 @@ public sealed class GhnWebhookController : ControllerBase
             return Ok(new { message = "Shipment not found, acknowledged." });
         }
 
-        var newStatus = GhnStatusMapper.Map(payload.Status);
+        var isDeliveryFail = string.Equals(payload.Status?.Trim(), "delivery_fail", StringComparison.OrdinalIgnoreCase);
+        var failedAttempts = shipment.Events.Count(e =>
+            string.Equals(e.CarrierStatus, "delivery_fail", StringComparison.OrdinalIgnoreCase) ||
+            e.Status == ShipmentEventStatus.DeliveryFailed) + 1;
+
+        ShipmentStatus newStatus;
+        if (isDeliveryFail && failedAttempts >= 3)
+        {
+            newStatus = ShipmentStatus.Returned;
+            _logger.LogInformation("Shipment {TrackingNumber} reached 3 failed delivery attempts. Automatically transitioning to Returned/Returning.", shipment.TrackingNumber);
+        }
+        else
+        {
+            newStatus = GhnStatusMapper.Map(payload.Status);
+        }
+
+        var isRepeatedDeliveryAttempt = isDeliveryFail && failedAttempts < 3 && shipment.Status == ShipmentStatus.DeliveryFailed;
 
         // A late, repeated or unknown status must not undo progress (for example "in transit" after "delivered").
-        if (!ShipmentStatusTransitions.IsForward(shipment.Status, newStatus))
+        if (!isRepeatedDeliveryAttempt && !ShipmentStatusTransitions.IsForward(shipment.Status, newStatus))
         {
             auditLog.IsProcessed = true;
             auditLog.ProcessMessage = $"Ignored out-of-order status '{newStatus}' (shipment is '{shipment.Status}').";
@@ -127,12 +143,18 @@ public sealed class GhnWebhookController : ControllerBase
 
         // 4. Record ShipmentEvent with detailed extracted attributes
         var eventStatus = MapToEventStatus(newStatus);
+        var eventDescription = isDeliveryFail
+            ? (failedAttempts >= 3
+                ? $"Delivery attempt 3 failed. Package returning to sender. Reason: {payload.Reason ?? payload.Description ?? "Delivery failed"}."
+                : $"Delivery attempt {failedAttempts} of 3 failed. Courier will reschedule. Reason: {payload.Reason ?? payload.Description ?? "Customer unavailable"}.")
+            : (payload.Description ?? $"Status updated to {newStatus}");
+
         var shipmentEvent = new ShipmentEvent
         {
             ShipmentId = shipment.Id,
             CarrierStatus = payload.Status,
             Status = eventStatus,
-            Description = payload.Description ?? $"Status updated to {newStatus}",
+            Description = eventDescription,
             ExternalEventId = payload.Type,
             OccurredAt = DateTimeOffset.UtcNow,
             RawPayload = rawJson,
@@ -174,13 +196,17 @@ public sealed class GhnWebhookController : ControllerBase
                     var alertRequest = new DeliveryAlertRequest
                     {
                         OrderId = shipment.OrderId,
+                        ShipmentId = shipment.Id,
+                        ShopId = shipment.Warehouse?.SellerId ?? shipment.WarehouseId,
+                        BuyerUserId = shipment.BuyerId ?? Guid.Empty,
+                        SellerUserId = shipment.Warehouse?.SellerId ?? shipment.CreatedBy,
                         TrackingNumber = shipment.TrackingNumber ?? payload.OrderCode,
                         Status = MapCommerceStatus(newStatus),
                         Note = payload.Description ?? payload.Reason,
                         ShipperName = payload.ShipperName,
                         ShipperPhone = payload.ShipperPhone,
                         PodUrl = payload.PodUrl,
-                        WarehouseName = payload.Warehouse,
+                        WarehouseName = payload.Warehouse ?? shipment.Warehouse?.Name,
                         OccurredAt = DateTimeOffset.UtcNow
                     };
 

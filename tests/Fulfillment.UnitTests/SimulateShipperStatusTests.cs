@@ -97,6 +97,10 @@ public class SimulateShipperStatusTests
             LastAlert = request;
             return Task.FromResult(true);
         }
+
+        public Task<bool> SendShipmentEventAsync(
+            ShipmentEventNotificationRequest request,
+            CancellationToken cancellationToken = default) => Task.FromResult(true);
     }
 
     private async Task<Shipment> SeedShipmentAsync(AppDbContext db, string trackingNumber, ShipmentStatus status = ShipmentStatus.ReadyToPick)

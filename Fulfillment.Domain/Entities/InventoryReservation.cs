@@ -21,6 +21,7 @@ public class InventoryReservation : BaseEntity<Guid>
 
         return new InventoryReservation
         {
+            Id = Guid.NewGuid(),
             ReferenceId = referenceId,
             ExpiresAt = now.AddMinutes(effectiveHoldMinutes),
             CreatedAt = now,
