@@ -1,4 +1,4 @@
-namespace Fulfillment.Application.Services.Shipment;
+﻿namespace Fulfillment.Application.Services.Shipment;
 
 using System;
 using System.Collections.Generic;
@@ -34,8 +34,10 @@ public sealed class ShipmentService : IShipmentService
         Fulfillment.Application.Services.Shipping.ShippingEstimateOptions? estimateOptions = null,
         DeliveryNotificationOutbox? outbox = null,
         INotificationClient? notificationClient = null,
-        ILogger<ShipmentService>? logger = null)
+        ILogger<ShipmentService>? logger = null,
+        ShippingBehaviorOptions? behavior = null)
     {
+        _behavior = behavior ?? new ShippingBehaviorOptions();
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _carrierResolver = carrierResolver ?? throw new ArgumentNullException(nameof(carrierResolver));
         _lockService = lockService;
@@ -867,6 +869,11 @@ public sealed class ShipmentService : IShipmentService
             events);
     }
 
+    private readonly ShippingBehaviorOptions _behavior;
+
+    private bool ShouldNotifyCommerce(ShipmentStatus status) =>
+        Array.IndexOf(NotifyStatuses, status) >= 0 || (status == ShipmentStatus.Returning && _behavior.EmitReturningStatus);
+
     private static readonly ShipmentStatus[] NotifyStatuses =
     {
         ShipmentStatus.HandedOver,
@@ -891,6 +898,7 @@ public sealed class ShipmentService : IShipmentService
         ShipmentStatus.Delivered => ShipmentEventStatus.Delivered,
         ShipmentStatus.DeliveryFailed => ShipmentEventStatus.DeliveryFailed,
         ShipmentStatus.Returned => ShipmentEventStatus.Returned,
+        ShipmentStatus.Returning => ShipmentEventStatus.Returning,
         _ => ShipmentEventStatus.InTransit
     };
 
@@ -908,7 +916,8 @@ public sealed class ShipmentService : IShipmentService
             "delivering" or "money_collect_delivering" => ShipmentStatus.InTransit,
             "delivered" => ShipmentStatus.Delivered,
             "delivery_fail" => ShipmentStatus.DeliveryFailed,
-            "return" or "returning" or "returned" or "return_to_origin" => ShipmentStatus.Returned,
+            "return" or "returning" => ShipmentStatus.Returning,
+            "returned" or "return_to_origin" => ShipmentStatus.Returned,
             "cancel" or "cancelled" => ShipmentStatus.Cancelled,
             _ => throw new BusinessRuleValidationException("VAL_INVALID_STATUS", $"Status '{status}' is not recognized.", 400)
         };
@@ -992,7 +1001,7 @@ public sealed class ShipmentService : IShipmentService
         };
 
         string? commerceStatusNotified = null;
-        var notify = Array.IndexOf(NotifyStatuses, targetStatus) >= 0;
+        var notify = ShouldNotifyCommerce(targetStatus);
         if (notify)
         {
             commerceStatusNotified = MapCommerceStatus(targetStatus);

@@ -1,4 +1,4 @@
-namespace Fulfillment.Domain.Enums;
+﻿namespace Fulfillment.Domain.Enums;
 
 public enum ShipmentStatus
 {
@@ -10,5 +10,7 @@ public enum ShipmentStatus
     Delivered = 5,
     DeliveryFailed = 6,
     Returned = 7,
-    Cancelled = 8
+    Cancelled = 8,
+    /// <summary>The parcel is on its way back to the seller. Only Returned (not this) means the goods are back.</summary>
+    Returning = 9
 }
