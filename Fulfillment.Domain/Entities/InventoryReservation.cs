@@ -1,4 +1,4 @@
-namespace Fulfillment.Domain.Entities;
+﻿namespace Fulfillment.Domain.Entities;
 
 using System;
 using System.Collections.Generic;
@@ -21,6 +21,9 @@ public class InventoryReservation : BaseEntity<Guid>
 
         return new InventoryReservation
         {
+            // The key has a database default (gen_random_uuid), so EF does not assign it client-side and the in-memory Id stays Guid.Empty.
+            // The reservation items copy this Id before SaveChanges, so it must be set here or they point to a parent that does not exist (FK 23503, HTTP 500).
+            Id = Guid.NewGuid(),
             ReferenceId = referenceId,
             ExpiresAt = now.AddMinutes(effectiveHoldMinutes),
             CreatedAt = now,
