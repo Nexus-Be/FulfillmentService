@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Fulfillment.Api.Common;
 using Fulfillment.Api.Extensions;
 using Fulfillment.Api.Workers;
@@ -29,6 +29,9 @@ builder.Services.AddSingleton(new Fulfillment.Application.Services.Shipping.Ship
     Enabled: builder.Configuration.GetValue("Shipping:EstimatedFee:Enabled", false),
     BaseFee: builder.Configuration.GetValue("Shipping:EstimatedFee:BaseFee", 30000m),
     PerExtra500Grams: builder.Configuration.GetValue("Shipping:EstimatedFee:PerExtra500Grams", 5000m)));
+builder.Services.AddSingleton(new Fulfillment.Application.Services.Shipment.ShippingBehaviorOptions(
+    EmitReturningStatus: builder.Configuration.GetValue("Shipping:EmitReturningStatus", false),
+    AutoReturnAfterFailedAttempts: builder.Configuration.GetValue("Shipping:AutoReturnAfterFailedAttempts", false)));
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddHostedService<ReservationAutoExpireWorker>();

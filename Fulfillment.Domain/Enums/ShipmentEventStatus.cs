@@ -1,4 +1,4 @@
-namespace Fulfillment.Domain.Enums;
+﻿namespace Fulfillment.Domain.Enums;
 
 public enum ShipmentEventStatus
 {
@@ -9,5 +9,6 @@ public enum ShipmentEventStatus
     Delivered = 4,
     DeliveryFailed = 5,
     Returned = 6,
-    Cancelled = 7
+    Cancelled = 7,
+    Returning = 8
 }

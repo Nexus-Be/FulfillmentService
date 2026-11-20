@@ -1,4 +1,4 @@
-namespace Fulfillment.Infrastructure.Carriers.Ghn;
+﻿namespace Fulfillment.Infrastructure.Carriers.Ghn;
 
 using System;
 using Fulfillment.Domain.Enums;
@@ -21,7 +21,9 @@ public static class GhnStatusMapper
             "delivering" or "money_collect_delivering" => ShipmentStatus.InTransit,
             "delivered" => ShipmentStatus.Delivered,
             "delivery_fail" => ShipmentStatus.DeliveryFailed,
-            "return" or "returning" or "returned" or "return_to_origin" => ShipmentStatus.Returned,
+            // The parcel being on its way back is not the goods being back: only "returned" may cancel, refund and restock.
+            "return" or "returning" => ShipmentStatus.Returning,
+            "returned" or "return_to_origin" => ShipmentStatus.Returned,
             "cancel" => ShipmentStatus.Cancelled,
             _ => ShipmentStatus.ReadyToPick
         };

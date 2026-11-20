@@ -1,4 +1,4 @@
-namespace Fulfillment.Infrastructure.Persistence.Configurations;
+﻿namespace Fulfillment.Infrastructure.Persistence.Configurations;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -20,6 +20,7 @@ public class WebhookAuditLogConfiguration : IEntityTypeConfiguration<WebhookAudi
         builder.Property(x => x.IsProcessed).HasColumnName("is_processed").HasDefaultValue(false).IsRequired();
         builder.Property(x => x.ProcessMessage).HasColumnName("process_message").HasMaxLength(500);
         builder.Property(x => x.ReceivedAt).HasColumnName("received_at").HasDefaultValueSql("now()").IsRequired();
+        builder.Property(x => x.EventTimeKey).HasColumnName("event_time_key").HasMaxLength(40);
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()").IsRequired();
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()").IsRequired();
         builder.Property(x => x.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false).IsRequired();
@@ -35,6 +36,7 @@ public class WebhookAuditLogConfiguration : IEntityTypeConfiguration<WebhookAudi
         builder.HasIndex(x => new { x.CommerceNotifiedAt, x.CommerceNotifyNextRetryAt }).HasDatabaseName("idx_webhook_audit_logs_notify_pending");
 
         builder.HasIndex(x => x.OrderCode);
+        builder.HasIndex(x => new { x.OrderCode, x.Status, x.EventTimeKey }).HasDatabaseName("idx_webhook_audit_logs_event_key");
         builder.HasIndex(x => x.ReceivedAt);
     }
 }
