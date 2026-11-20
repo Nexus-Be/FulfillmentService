@@ -15,10 +15,14 @@ using Fulfillment.Application.Services.Warehouse;
 public class WarehousesController : ControllerBase
 {
     private readonly IWarehouseService _warehouseService;
+    private readonly bool _provisionOnRead;
 
-    public WarehousesController(IWarehouseService warehouseService)
+    public WarehousesController(IWarehouseService warehouseService, Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
         _warehouseService = warehouseService;
+        // B6: GET /warehouses/me creates a placeholder warehouse unless this is set to false. Set it to false once every approved seller has a
+        // warehouse (restored from the profile, reactivated or completed); until then false would answer 404 to sellers that have none yet.
+        _provisionOnRead = configuration.GetValue("Warehouses:ProvisionOnRead", true);
     }
 
     [HttpGet]
@@ -66,7 +70,9 @@ public class WarehousesController : ControllerBase
             return errorResult;
         }
 
-        var warehouse = await _warehouseService.GetOrProvisionForSellerAsync(userId, sellerId, shopName, address, ct);
+        var warehouse = _provisionOnRead
+            ? await _warehouseService.GetOrProvisionForSellerAsync(userId, sellerId, shopName, address, ct)
+            : await _warehouseService.GetForSellerAsync(userId, sellerId, shopName, address, ct);
         if (warehouse == null)
         {
             return this.NotFoundError("WAREHOUSE_NOT_FOUND", "No active warehouse registered for your seller account.");

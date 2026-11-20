@@ -70,6 +70,17 @@ public interface IWarehouseService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// B6: the seller's own active warehouse, read only. It never creates a warehouse (a seller without one gets null), so merely opening
+    /// the warehouse page cannot produce a second warehouse; creating or restoring one is done by the approval and retry flows.
+    /// </summary>
+    Task<WarehouseDto?> GetForSellerAsync(
+        Guid userId,
+        Guid? sellerProfileId = null,
+        string? shopName = null,
+        string? address = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// [FUL-12]
     /// Updates warehouse name and pickup address by seller ID.
     /// Cập nhật tên kho và địa chỉ lấy hàng theo mã người bán.

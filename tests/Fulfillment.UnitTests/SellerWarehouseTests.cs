@@ -83,6 +83,21 @@ public sealed class SellerWarehouseTests
         SellerId: sellerId, FromDistrictId: fromDistrict, ToDistrictId: 1442, ToWardCode: "20101", WeightInGrams: 500);
 
     [Fact]
+    public async Task ReadingTheOwnWarehouse_NeverCreatesOne()
+    {
+        var withWarehouse = Guid.NewGuid();
+        var without = Guid.NewGuid();
+        var (db, _, _) = await SetUpAsync(Warehouse(withWarehouse, "My shop"));
+        using var _ = db;
+        var warehouses = new Fulfillment.Application.Services.Warehouse.WarehouseService(db);
+
+        (await warehouses.GetForSellerAsync(withWarehouse))!.Name.Should().Be("My shop");
+        (await warehouses.GetForSellerAsync(without, shopName: "New shop")).Should().BeNull();
+
+        (await db.Warehouses.CountAsync()).Should().Be(1);   // asking did not create a placeholder
+    }
+
+    [Fact]
     public async Task CreateShipment_UsesTheSellersOwnWarehouse()
     {
         var seller = Guid.NewGuid();

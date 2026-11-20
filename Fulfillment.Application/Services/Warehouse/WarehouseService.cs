@@ -180,6 +180,36 @@ public class WarehouseService : IWarehouseService
         return warehouse == null ? null : MapToDto(warehouse);
     }
 
+    public async Task<WarehouseDto?> GetForSellerAsync(
+        Guid userId,
+        Guid? sellerProfileId = null,
+        string? shopName = null,
+        string? address = null,
+        CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(w => w.SellerId == userId && w.IsActive, cancellationToken);
+        if (warehouse is not null)
+        {
+            return MapToDto(warehouse);
+        }
+
+        // A warehouse registered under the seller profile ID (older data) is still the seller's own.
+        if (sellerProfileId.HasValue && sellerProfileId.Value != Guid.Empty)
+        {
+            var legacy = await _dbContext.Warehouses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.SellerId == sellerProfileId.Value && w.IsActive, cancellationToken);
+            if (legacy is not null)
+            {
+                return MapToDto(legacy);
+            }
+        }
+
+        return null;
+    }
+
     public async Task<WarehouseDto?> GetOrProvisionForSellerAsync(
         Guid userId,
         Guid? sellerProfileId = null,
