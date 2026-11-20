@@ -362,8 +362,8 @@ public sealed class ShipmentService : IShipmentService
             throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to confirm return for this shipment.", 403);
         }
 
-        // Only shipments that failed delivery or are marked returned by carrier can be confirmed for inventory restoration
-        if (shipment.Status is not (ShipmentStatus.DeliveryFailed or ShipmentStatus.Returned))
+        // Only shipments that failed delivery, are on their way back or are marked returned by the carrier can be confirmed for inventory restoration
+        if (shipment.Status is not (ShipmentStatus.DeliveryFailed or ShipmentStatus.Returning or ShipmentStatus.Returned))
         {
             throw new BusinessRuleValidationException("SHIPMENT_NOT_RETURNING", "Shipment is not in a returnable state.", 409);
         }
@@ -412,8 +412,8 @@ public sealed class ShipmentService : IShipmentService
         shipment.Events.Add(new ShipmentEvent
         {
             ShipmentId = shipment.Id,
-            CarrierStatus = shipment.Status == ShipmentStatus.Returned ? "returned" : "delivery_fail",
-            Status = shipment.Status == ShipmentStatus.Returned ? ShipmentEventStatus.Returned : ShipmentEventStatus.DeliveryFailed,
+            CarrierStatus = shipment.Status == ShipmentStatus.Returned ? "returned" : shipment.Status == ShipmentStatus.Returning ? "returning" : "delivery_fail",
+            Status = shipment.Status == ShipmentStatus.Returned ? ShipmentEventStatus.Returned : shipment.Status == ShipmentStatus.Returning ? ShipmentEventStatus.Returning : ShipmentEventStatus.DeliveryFailed,
             Description = "Seller confirmed return delivery. Stock restored.",
             OccurredAt = DateTimeOffset.UtcNow,
             WarehouseName = shipment.Warehouse?.Name
