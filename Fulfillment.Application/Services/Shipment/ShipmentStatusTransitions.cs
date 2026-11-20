@@ -18,6 +18,11 @@ public static class ShipmentStatusTransitions
         if (current is ShipmentStatus.Returned or ShipmentStatus.Cancelled)
             return false;
 
+        // Delivered is final for the delivery itself: a late "delivery failed" from the carrier must neither undo it nor count as an attempt.
+        // The only thing that can still follow is the parcel coming back as Returned.
+        if (current == ShipmentStatus.Delivered)
+            return next == ShipmentStatus.Returned;
+
         // Returning is only reachable once the parcel is with the carrier, and it can only end as Returned (or Cancelled).
         if (next == ShipmentStatus.Returning)
             return current is ShipmentStatus.HandedOver or ShipmentStatus.InTransit or ShipmentStatus.DeliveryFailed;
