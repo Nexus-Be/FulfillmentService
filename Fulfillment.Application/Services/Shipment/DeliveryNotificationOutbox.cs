@@ -52,6 +52,8 @@ public sealed class DeliveryNotificationOutbox
         string? shipperPhone = null;
         string? podUrl = null;
         string? location = null;
+        string? reasonCode = null;
+        string? reason = null;
 
         if (!string.IsNullOrWhiteSpace(log.RawJson))
         {
@@ -67,6 +69,11 @@ public sealed class DeliveryNotificationOutbox
                     podUrl = pod.GetString();
                 if (root.TryGetProperty("Warehouse", out var wh) || root.TryGetProperty("warehouse", out wh) || root.TryGetProperty("location", out wh))
                     location = wh.GetString();
+                // The reason is read from the stored carrier payload, so a retry sends exactly what the carrier reported the first time.
+                if (root.TryGetProperty("ReasonCode", out var rc) || root.TryGetProperty("reasonCode", out rc))
+                    reasonCode = rc.ValueKind == JsonValueKind.Null ? null : rc.ToString();
+                if (root.TryGetProperty("Reason", out var rs) || root.TryGetProperty("reason", out rs))
+                    reason = rs.ValueKind == JsonValueKind.Null ? null : rs.ToString();
             }
             catch
             {
@@ -87,7 +94,9 @@ public sealed class DeliveryNotificationOutbox
             Location = location,
             PodUrl = podUrl,
             ShipperName = shipperName,
-            ShipperPhone = shipperPhone
+            ShipperPhone = shipperPhone,
+            ReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim(),
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : (reason.Length > 500 ? reason[..500] : reason)
         };
 
         bool delivered;

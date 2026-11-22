@@ -22,6 +22,7 @@
 6. **Co che chiu loi Outbox sang Commerce Service (`DeliveryNotificationOutbox`)**:
    - Khi trang thai dat cac moc quan trong (`HandedOver`, `InTransit`, `Delivered`, `DeliveryFailed`, `Returned`, `Cancelled`), he thong dua vao hang doi outbox.
    - Goi sang Commerce Service: `POST /api/v1/sub-orders/{subOrderId}/delivery-status` kem header `X-Internal-Service-Key`.
+   - Payload gui Commerce co them `reasonCode` va `reason` (nguyen van GHN gui, doc tu `RawJson` da luu nen lan gui lai giu nguyen). Khong co thi la `null`; khong tu suy ra ly do.
    - Worker nen `CommerceDeliveryNotificationWorker` quet moi 30 giay va tu dong thu lai toi da 12 lan theo co che backoff neu Commerce Service gap su co mang.
 
 ## 3. Headers & Query Parameters

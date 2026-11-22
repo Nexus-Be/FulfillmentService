@@ -16,6 +16,12 @@ public sealed class CommerceDeliveryStatusRequest
     public string? PodUrl { get; set; }
     public string? ShipperName { get; set; }
     public string? ShipperPhone { get; set; }
+
+    /// <summary>The carrier's reason code for this event, exactly as received (for a failed delivery: why it failed). Null when the carrier sent none.</summary>
+    public string? ReasonCode { get; set; }
+
+    /// <summary>The carrier's free text for the reason, exactly as received.</summary>
+    public string? Reason { get; set; }
 }
 
 public interface ICommerceWebhookClient

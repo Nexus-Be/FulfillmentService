@@ -101,7 +101,9 @@ public class CommerceWebhookClient : ICommerceWebhookClient
             location = request.Location,
             podUrl = request.PodUrl,
             shipperName = request.ShipperName,
-            shipperPhone = request.ShipperPhone
+            shipperPhone = request.ShipperPhone,
+            reasonCode = request.ReasonCode,
+            reason = request.Reason
         };
 
         try
