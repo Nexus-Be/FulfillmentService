@@ -36,9 +36,9 @@ public static class DependencyInjection
         // Options pattern for CommerceService integration
         services.Configure<CommerceOptions>(options =>
         {
-            var baseUrl = configuration["Services:CommerceService:BaseUrl"]
+            var baseUrl = Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL")
                 ?? configuration["COMMERCE_SERVICE_URL"]
-                ?? Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL");
+                ?? configuration["Services:CommerceService:BaseUrl"];
             if (!string.IsNullOrWhiteSpace(baseUrl))
                 options.BaseUrl = baseUrl;
 

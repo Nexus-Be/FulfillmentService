@@ -46,9 +46,9 @@ public class CommerceWebhookClient : ICommerceWebhookClient
         if (configuration == null)
             return options;
 
-        var baseUrl = configuration["Services:CommerceService:BaseUrl"]
+        var baseUrl = Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL")
             ?? configuration["COMMERCE_SERVICE_URL"]
-            ?? Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL");
+            ?? configuration["Services:CommerceService:BaseUrl"];
         if (!string.IsNullOrWhiteSpace(baseUrl))
             options.BaseUrl = baseUrl;
 
