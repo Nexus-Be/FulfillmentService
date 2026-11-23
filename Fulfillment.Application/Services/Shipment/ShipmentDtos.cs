@@ -52,7 +52,9 @@ public sealed record ShipmentDto(
     DateTimeOffset? EstimatedDeliveryAt = null,
     DateTimeOffset? DeliveredAt = null,
     IReadOnlyList<ShipmentItemDto>? Items = null,
-    IReadOnlyList<ShipmentEventDto>? Events = null);
+    IReadOnlyList<ShipmentEventDto>? Events = null,
+    string? LastDeliveryFailureReason = null,
+    string? LastDeliveryFailureCode = null);
 
 public sealed record CreateShipmentDto(
     Guid OrderId,
