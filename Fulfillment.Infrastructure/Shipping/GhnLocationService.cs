@@ -25,6 +25,18 @@ public class GhnLocationService : IShippingLocationService
 
     private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
 
+    /// <summary>
+    /// Only the carrier's real answers are cached for <see cref="CacheDuration"/>. When the carrier cannot be used (no token) or just failed,
+    /// the built-in sample locations are served WITHOUT being cached, and a failure is remembered for this short time only so a carrier that is
+    /// down is not called on every request. Caching the sample for 24 hours made a single transient failure (or a missing token) hide the
+    /// real locations until the cache expired or the service restarted.
+    /// </summary>
+    public static readonly TimeSpan CarrierFailureBackoff = TimeSpan.FromSeconds(30);
+    public const string CarrierDownCacheKey = "ghn:master_data:carrier_down";
+
+    private void NoteCarrierDown() => _cache.Set(CarrierDownCacheKey, true, CarrierFailureBackoff);
+    private bool CarrierRecentlyDown => _cache.TryGetValue(CarrierDownCacheKey, out _);
+
     public GhnLocationService(
         IOptions<GhnOptions> options,
         IMemoryCache cache,
@@ -59,7 +71,7 @@ public class GhnLocationService : IShippingLocationService
             return cached;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.Token))
+        if (!string.IsNullOrWhiteSpace(_options.Token) && !CarrierRecentlyDown)
         {
             try
             {
@@ -77,16 +89,17 @@ public class GhnLocationService : IShippingLocationService
                 else
                 {
                     _logger.LogWarning("GHN GetProvinces returned status {StatusCode}", response.StatusCode);
+                    NoteCarrierDown();
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to fetch provinces from GHN, falling back to local master data.");
+                NoteCarrierDown();
             }
         }
 
         var fallback = GetFallbackProvinces();
-        _cache.Set(cacheKey, fallback, CacheDuration);
         return fallback;
     }
 
@@ -103,7 +116,7 @@ public class GhnLocationService : IShippingLocationService
             return cached;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.Token))
+        if (!string.IsNullOrWhiteSpace(_options.Token) && !CarrierRecentlyDown)
         {
             try
             {
@@ -125,16 +138,17 @@ public class GhnLocationService : IShippingLocationService
                 else
                 {
                     _logger.LogWarning("GHN GetDistricts returned status {StatusCode} for province {ProvinceId}", response.StatusCode, provinceId);
+                    NoteCarrierDown();
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to fetch districts from GHN for province {ProvinceId}, falling back to local master data.", provinceId);
+                NoteCarrierDown();
             }
         }
 
         var fallback = GetFallbackDistricts(provinceId);
-        _cache.Set(cacheKey, fallback, CacheDuration);
         return fallback;
     }
 
@@ -151,7 +165,7 @@ public class GhnLocationService : IShippingLocationService
             return cached;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.Token))
+        if (!string.IsNullOrWhiteSpace(_options.Token) && !CarrierRecentlyDown)
         {
             try
             {
@@ -173,16 +187,17 @@ public class GhnLocationService : IShippingLocationService
                 else
                 {
                     _logger.LogWarning("GHN GetWards returned status {StatusCode} for district {DistrictId}", response.StatusCode, districtId);
+                    NoteCarrierDown();
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to fetch wards from GHN for district {DistrictId}, falling back to local master data.", districtId);
+                NoteCarrierDown();
             }
         }
 
         var fallback = GetFallbackWards(districtId);
-        _cache.Set(cacheKey, fallback, CacheDuration);
         return fallback;
     }
 
@@ -197,7 +212,7 @@ public class GhnLocationService : IShippingLocationService
             return cached;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.Token) && int.TryParse(_options.ShopId, out var shopId) && shopId > 0)
+        if (!string.IsNullOrWhiteSpace(_options.Token) && !CarrierRecentlyDown && int.TryParse(_options.ShopId, out var shopId) && shopId > 0)
         {
             try
             {
@@ -227,6 +242,7 @@ public class GhnLocationService : IShippingLocationService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to fetch available services from GHN for {FromDistrict} -> {ToDistrict}.", fromDistrictId, toDistrictId);
+                NoteCarrierDown();
             }
         }
 
@@ -235,7 +251,6 @@ public class GhnLocationService : IShippingLocationService
             new(53320, "Standard", 2),
             new(53321, "Fast", 3)
         };
-        _cache.Set(cacheKey, (IReadOnlyList<AvailableShippingServiceDto>)fallback, CacheDuration);
         return fallback;
     }
 

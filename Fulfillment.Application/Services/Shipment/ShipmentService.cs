@@ -181,10 +181,52 @@ public sealed class ShipmentService : IShipmentService
                 IsEstimatedFallback: true,
                 ServiceName: "ESTIMATED");
         }
+        catch (CarrierTimeoutException)
+        {
+            throw new BusinessRuleValidationException("SHIPPING_CARRIER_TIMEOUT", "The shipping carrier did not answer in time.", 503);
+        }
+        catch (CarrierNotFoundException)
+        {
+            throw new BusinessRuleValidationException("SHIPPING_CARRIER_NOT_CONFIGURED", "The shipping carrier is not configured.", 503);
+        }
         catch (CarrierIntegrationException ex)
         {
-            throw new BusinessRuleValidationException("SHIPPING_QUOTE_FAILED", $"Failed to calculate shipping fee: {ex.Message}", 400);
+            throw MapQuoteFailure(ex);
         }
+    }
+
+    /// <summary>
+    /// A quote that failed because of the carrier (no credentials, refused credentials, carrier down, network) is not the buyer's address:
+    /// it is reported as 503 with a code of its own, so the caller does not tell the buyer to fix an address that is fine. Only a carrier
+    /// answer about the data itself (bad district or ward, bad weight) stays the 400 <c>SHIPPING_QUOTE_FAILED</c>.
+    /// </summary>
+    internal static BusinessRuleValidationException MapQuoteFailure(CarrierIntegrationException ex)
+    {
+        if (ex.ErrorCode is "MISSING_TOKEN")
+        {
+            return new BusinessRuleValidationException("SHIPPING_CARRIER_NOT_CONFIGURED", "The shipping carrier is not configured.", 503);
+        }
+
+        if (ex.ErrorCode is "HTTP_ERROR")
+        {
+            return new BusinessRuleValidationException("SHIPPING_CARRIER_UNAVAILABLE", "The shipping carrier is temporarily unavailable.", 503);
+        }
+
+        // For an HTTP answer of the carrier the error code is the name of the status ("Unauthorized", "BadGateway", ...).
+        if (Enum.TryParse<System.Net.HttpStatusCode>(ex.ErrorCode, out var status))
+        {
+            if (status is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                return new BusinessRuleValidationException("SHIPPING_CARRIER_NOT_CONFIGURED", "The shipping carrier refused the configured credentials.", 503);
+            }
+
+            if ((int)status >= 500 || status is System.Net.HttpStatusCode.RequestTimeout or System.Net.HttpStatusCode.TooManyRequests)
+            {
+                return new BusinessRuleValidationException("SHIPPING_CARRIER_UNAVAILABLE", "The shipping carrier is temporarily unavailable.", 503);
+            }
+        }
+
+        return new BusinessRuleValidationException("SHIPPING_QUOTE_FAILED", $"Failed to calculate shipping fee: {ex.Message}", 400);
     }
 
     public async Task<CreateShipmentResponse> CreateShipmentAsync(CreateShipmentRequest request, CancellationToken cancellationToken = default)
