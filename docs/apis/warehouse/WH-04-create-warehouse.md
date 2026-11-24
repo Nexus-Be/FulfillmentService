@@ -17,7 +17,7 @@ Thiet lap kho bai vat ly moi tren he thong:
    - `name`: Ten hien thi kho.
    - `contactPhone`: So dien thoai kho xuat hang dung cho buu ta lien he lay hang.
    - `districtId`, `wardCode`, `provinceName`: Thong tin dia danh chuan GHN phuc vu lay hang va tinh cuoc.
-   - `provinceId`, `districtId`, `wardCode` (24/11/2026): neu co bat ky gia tri nao thi phai co du ca ba va duoc doi chieu voi danh sach GHN truoc khi luu. Sai bo ma: `400 VAL_INVALID_LOCATION`; thieu mot phan: `400 WAREHOUSE_ADDRESS_INCOMPLETE`; khong co nguon GHN dang tin cay: `503 LOCATION_SOURCE_UNAVAILABLE` va khong luu. Kho khong co dia chi nao la kho giu cho (placeholder): luu duoc nhung khong bao gia duoc va khong tao van don duoc (`400 WAREHOUSE_ADDRESS_INCOMPLETE`) cho den khi hoan thien. Phan hoi tra ca `provinceId`.
+   - `provinceId`, `districtId`, `wardCode` (24/11/2026): neu co bat ky gia tri nao thi phai co du ca ba va duoc doi chieu voi danh sach GHN truoc khi luu. Sai bo ma: `400 VAL_INVALID_LOCATION`; thieu mot phan: `400 WAREHOUSE_ADDRESS_INCOMPLETE`; khong co nguon GHN dang tin cay: `503 LOCATION_SOURCE_UNAVAILABLE` va khong luu. Kho khong co dia chi nao la kho giu cho (placeholder): luu duoc nhung khong bao gia duoc tu dia chi cua kho (khi request bao gia khong tu cho `fromDistrictId`) va khong tao van don duoc (`400 WAREHOUSE_ADDRESS_INCOMPLETE`) cho den khi hoan thien. Phan hoi tra ca `provinceId`.
    - `ghnShopId`: Ma cua hang tuong ung tren cong GHN.
 2. **Quyen so huu**: Seller tao kho se tu dong gan `SellerId = currentUserId`.
 
@@ -63,6 +63,9 @@ Thiet lap kho bai vat ly moi tren he thong:
 
 ## 6. Phan hoi loi
 - **400 Bad Request (`VAL_INVALID_INPUT`)**: Thieu `code` hoac `name`.
-- **400 Bad Request (`WAREHOUSE_CODE_EXISTS`)**: Ma `code` da ton tai trong he thong.
+- **400 Bad Request (`WAREHOUSE_CODE_TAKEN`)**: Ma `code` da ton tai trong he thong.
+- **400 Bad Request (`VAL_INVALID_LOCATION`)**: Bo `provinceId`, `districtId`, `wardCode` khong khop trong danh sach GHN.
+- **400 Bad Request (`WAREHOUSE_ADDRESS_INCOMPLETE`)**: Co mot phan cua bo ma nhung khong du ca ba.
+- **503 Service Unavailable (`LOCATION_SOURCE_UNAVAILABLE`)**: Khong co nguon GHN dang tin cay; khong luu gi.
 - **401 Unauthorized (`UNAUTHORIZED`)**: Thieu Bearer token hop le.
 - **403 Forbidden (`FORBIDDEN`)**: Khong co quyen seller hoac admin.

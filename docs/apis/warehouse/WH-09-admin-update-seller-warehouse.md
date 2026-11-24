@@ -54,3 +54,7 @@ Admin he thong cap nhat thong tin dia chi lay hang, so dien thoai, va thong tin 
 - **401 Unauthorized (`UNAUTHORIZED`)**: Thieu Bearer token.
 - **403 Forbidden (`FORBIDDEN`)**: Khong phai role admin.
 - **404 Not Found (`WAREHOUSE_NOT_FOUND`)**: Khong tim thay kho cua seller nay.
+
+## Xac minh dia chi khi luu (24/11/2026)
+Doi bo `provinceId`, `districtId`, `wardCode` (ke ca chi doi mot phan, khi do dung gia tri da luu cho phan con lai) phai la ca chuoi va duoc doi chieu voi danh sach GHN truoc khi luu: bo ma sai `400 VAL_INVALID_LOCATION`, thieu mot phan `400 WAREHOUSE_ADDRESS_INCOMPLETE`, khong co nguon GHN dang tin cay `503 LOCATION_SOURCE_UNAVAILABLE` va khong luu gi. Chi doi ten hoac so dien thoai thi khong hoi danh sach GHN. Ten tinh gui len rong khong ghi de ten da xac nhan.
+Dong bo tu ho so seller (UserService) goi tuyen noi bo `PUT /api/v1/internal/warehouses/seller/{sellerId}`; chi bo ma khac voi bo da luu moi bi doi chieu, nen doi hotline hoac ten khong bi chan khi GHN gian doan, va kho cu chua co `province_id` duoc hoan thien boi bo ma day du dau tien.
