@@ -17,6 +17,7 @@ Thiet lap kho bai vat ly moi tren he thong:
    - `name`: Ten hien thi kho.
    - `contactPhone`: So dien thoai kho xuat hang dung cho buu ta lien he lay hang.
    - `districtId`, `wardCode`, `provinceName`: Thong tin dia danh chuan GHN phuc vu lay hang va tinh cuoc.
+   - `provinceId`, `districtId`, `wardCode` (24/11/2026): neu co bat ky gia tri nao thi phai co du ca ba va duoc doi chieu voi danh sach GHN truoc khi luu. Sai bo ma: `400 VAL_INVALID_LOCATION`; thieu mot phan: `400 WAREHOUSE_ADDRESS_INCOMPLETE`; khong co nguon GHN dang tin cay: `503 LOCATION_SOURCE_UNAVAILABLE` va khong luu. Kho khong co dia chi nao la kho giu cho (placeholder): luu duoc nhung khong bao gia duoc va khong tao van don duoc (`400 WAREHOUSE_ADDRESS_INCOMPLETE`) cho den khi hoan thien. Phan hoi tra ca `provinceId`.
    - `ghnShopId`: Ma cua hang tuong ung tren cong GHN.
 2. **Quyen so huu**: Seller tao kho se tu dong gan `SellerId = currentUserId`.
 
@@ -34,6 +35,7 @@ Thiet lap kho bai vat ly moi tren he thong:
   "address": "So 456 Duong Nguyen Thi Thap, Tan Phu, Quan 7, TP. Ho Chi Minh",
   "contactPhone": "0909888999",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1450,
   "wardCode": "20804",
   "ghnShopId": 5550559,
@@ -50,6 +52,7 @@ Thiet lap kho bai vat ly moi tren he thong:
   "address": "So 456 Duong Nguyen Thi Thap, Tan Phu, Quan 7, TP. Ho Chi Minh",
   "contactPhone": "0909888999",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1450,
   "wardCode": "20804",
   "ghnShopId": 5550559,

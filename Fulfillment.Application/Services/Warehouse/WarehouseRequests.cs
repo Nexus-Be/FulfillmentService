@@ -18,7 +18,8 @@ public sealed record CreateWarehouseRequest(
     string? WardCode = null,
     int? GhnShopId = null,
     Guid? SellerId = null,
-    string? Type = null);
+    string? Type = null,
+    int? ProvinceId = null);
 
 public sealed record UpdateWarehouseRequest(
     [Required(ErrorMessage = "Warehouse name is required.")]
@@ -29,7 +30,8 @@ public sealed record UpdateWarehouseRequest(
     string? ProvinceName = null,
     int? DistrictId = null,
     string? WardCode = null,
-    int? GhnShopId = null);
+    int? GhnShopId = null,
+    int? ProvinceId = null);
 
 public sealed record InternalCreateWarehouseRequest(
     [property: JsonPropertyName("seller_id")]

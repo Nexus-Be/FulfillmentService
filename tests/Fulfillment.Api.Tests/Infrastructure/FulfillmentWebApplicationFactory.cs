@@ -54,6 +54,11 @@ public class FulfillmentWebApplicationFactory : WebApplicationFactory<Program>
 
             services.AddScoped<IFulfillmentDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
+            // The GHN lists are not available in tests; tests about the lists install their own stand-in.
+            foreach (var descriptor in services.Where(d => d.ServiceType == typeof(Fulfillment.Application.Interfaces.Shipping.IShippingLocationService)).ToList())
+                services.Remove(descriptor);
+            services.AddSingleton<Fulfillment.Application.Interfaces.Shipping.IShippingLocationService, AcceptingLocations>();
+
             foreach (var descriptor in services.Where(d => d.ServiceType == typeof(Fulfillment.Application.Interfaces.Shipping.ICommerceWebhookClient)).ToList())
                 services.Remove(descriptor);
             services.AddSingleton<Fulfillment.Application.Interfaces.Shipping.ICommerceWebhookClient>(Commerce);

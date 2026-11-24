@@ -89,6 +89,7 @@ public class ShipmentServiceTests
             Id = Guid.NewGuid(),
             SellerId = sellerId,
             Code = "WH_SELLER_01",
+            ProvinceId = 202, DistrictId = 1442, WardCode = "20101",
             Name = "Seller Dedicated Warehouse",
             Address = "123 Nguyen Hue, Q1, HCM",
             IsActive = true
@@ -236,6 +237,7 @@ public class ShipmentServiceTests
             Id = Guid.NewGuid(),
             SellerId = sellerId,
             Code = "WH_SELLER_99",
+            ProvinceId = 202, DistrictId = 1442, WardCode = "20101",
             Name = "Shop 99 Warehouse",
             Address = "District 1, HCM",
             IsActive = true
@@ -295,6 +297,7 @@ public class ShipmentServiceTests
             Id = Guid.NewGuid(),
             SellerId = sellerId,
             Code = "WH_SELLER_02",
+            ProvinceId = 202, DistrictId = 1442, WardCode = "20101",
             Name = "Warehouse",
             IsActive = true
         };

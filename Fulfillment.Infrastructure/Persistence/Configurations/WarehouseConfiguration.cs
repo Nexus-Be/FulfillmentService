@@ -18,6 +18,7 @@ public class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
         builder.Property(x => x.Address).HasColumnName("address").HasMaxLength(500);
         builder.Property(x => x.ContactPhone).HasColumnName("contact_phone").HasMaxLength(20);
         builder.Property(x => x.ProvinceName).HasColumnName("province_name").HasMaxLength(100);
+        builder.Property(x => x.ProvinceId).HasColumnName("province_id");
         builder.Property(x => x.DistrictId).HasColumnName("district_id");
         builder.Property(x => x.WardCode).HasColumnName("ward_code").HasMaxLength(20);
         builder.Property(x => x.GhnShopId).HasColumnName("ghn_shop_id");

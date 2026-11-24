@@ -72,7 +72,7 @@ public sealed class SellerWarehouseTests
     private static Warehouse Warehouse(Guid? sellerId, string name, int district = 1442, bool active = true) => new()
     {
         Id = Guid.NewGuid(), SellerId = sellerId, Code = "W-" + Guid.NewGuid().ToString("N")[..6], Name = name, Address = $"{name} street",
-        ContactPhone = "0912345678", DistrictId = district, WardCode = "20101", IsActive = active
+        ContactPhone = "0912345678", ProvinceId = district > 0 ? 202 : null, DistrictId = district, WardCode = "20101", IsActive = active
     };
 
     private static CreateShipmentRequest Create(Guid sellerId) => new(
@@ -89,7 +89,7 @@ public sealed class SellerWarehouseTests
         var without = Guid.NewGuid();
         var (db, _, _) = await SetUpAsync(Warehouse(withWarehouse, "My shop"));
         using var _ = db;
-        var warehouses = new Fulfillment.Application.Services.Warehouse.WarehouseService(db);
+        var warehouses = new Fulfillment.Application.Services.Warehouse.WarehouseService(db, new AcceptingLocations());
 
         (await warehouses.GetForSellerAsync(withWarehouse))!.Name.Should().Be("My shop");
         (await warehouses.GetForSellerAsync(without, shopName: "New shop")).Should().BeNull();

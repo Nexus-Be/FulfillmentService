@@ -41,6 +41,7 @@ Admin he thong cap nhat thong tin dia chi lay hang, so dien thoai, va thong tin 
   "address": "456 Nguyen Dinh Chieu, Quan 3, TP. Ho Chi Minh",
   "contactPhone": "0988777666",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1444,
   "wardCode": "20302",
   "ghnShopId": 5550559,

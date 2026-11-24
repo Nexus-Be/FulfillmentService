@@ -123,6 +123,9 @@ public sealed class ShipmentService : IShipmentService
         }
     }
 
+    private static bool IsAddressIncomplete(Domain.Entities.Warehouse warehouse) =>
+        !warehouse.ProvinceId.HasValue || !warehouse.DistrictId.HasValue || string.IsNullOrWhiteSpace(warehouse.WardCode);
+
     public async Task<ShippingQuoteResponse> CalculateShippingFeeAsync(ShopShippingQuoteRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -141,6 +144,13 @@ public sealed class ShipmentService : IShipmentService
         if (!fromDistrictId.HasValue || fromDistrictId.Value <= 0)
         {
             throw new BusinessRuleValidationException("INVALID_FROM_DISTRICT", "FromDistrictId is required for calculating shipping fee.", 400);
+        }
+
+        // The seller's own warehouse is the origin only if its whole address was confirmed against the GHN lists when it was saved (the province id is
+        // set only by such a save). A caller that names the origin district itself is making an estimate and does not need the warehouse.
+        if (warehouse is not null && request.FromDistrictId <= 0 && IsAddressIncomplete(warehouse))
+        {
+            throw new BusinessRuleValidationException("WAREHOUSE_ADDRESS_INCOMPLETE", "The warehouse address is not complete or has not been confirmed yet.", 400);
         }
 
         var fromAddress = new ShippingAddress(
@@ -252,6 +262,11 @@ public sealed class ShipmentService : IShipmentService
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
             ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Active warehouse of seller", request.SellerId);
+
+        if (IsAddressIncomplete(warehouse))
+        {
+            throw new BusinessRuleValidationException("WAREHOUSE_ADDRESS_INCOMPLETE", "The warehouse address is not complete or has not been confirmed yet, so no shipment can be created.", 400);
+        }
 
         // Dynamically resolve active carrier entity matching the resolver carrier code
         var carrier = _carrierResolver.Get();

@@ -39,6 +39,7 @@ Bat hoac tat trang thai hoat dong cua kho bai (dong mo kho):
   "address": "So 458 Duong Nguyen Thi Thap, Tan Phu, Quan 7, TP. Ho Chi Minh",
   "contactPhone": "0909888777",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1450,
   "wardCode": "20804",
   "ghnShopId": 5550559,

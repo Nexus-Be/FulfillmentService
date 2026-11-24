@@ -29,6 +29,7 @@ Tra cuu kho xuat hang dang hoat dong (`IsActive == true`) cua mot Nguoi ban cu t
   "address": "So 123 Duong Nguyen Hue, Phuong Ben Nghe, Quan 1, TP. Ho Chi Minh",
   "contactPhone": "0901234567",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1442,
   "wardCode": "20101",
   "ghnShopId": 5550559,
