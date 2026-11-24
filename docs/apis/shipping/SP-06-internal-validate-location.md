@@ -53,3 +53,9 @@ Kiem tra tinh nhat quan va hop le cua dia chi 3 cap (Tinh/Thanh pho, Quan/Huyen,
   }
 }
 ```
+
+## 6. Nguon du lieu va loi 503 (24/11/2026)
+- Viec doi chieu dung cung ba danh sach Tinh/Huyen/Xa nhu SP-01..03, nen chi dung du lieu GHN that hoac cache GHN con han.
+- `400 VAL_INVALID_LOCATION` chi tra khi da doi chieu bang du lieu GHN dang tin cay va xac nhan bo ma sai.
+- Khi khong co nguon dang tin cay: `503` voi `errorCode = LOCATION_SOURCE_UNAVAILABLE`. Khong ket luan dia chi sai trong truong hop nay.
+- Ghi chu: hien chua co service nghiep vu nao goi endpoint nay khi luu dia chi; xem ke hoach `reports/ke_hoach_chuyen_form_dia_chi_sang_ghn_24112026.md` (BE6).

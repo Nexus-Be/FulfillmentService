@@ -18,5 +18,5 @@ Module **Shipping (Cuoc phi & Dia ban)** chiu trach nhiem dong bo danh muc dia d
 ---
 
 ## Quy chuan kien truc & Bo dem
-- **MemoryCache 24h**: Toan bo danh muc Tinh/Huyen/Xa va Goi cuoc duoc cache trong 24 gio de tranh qua tai API GHN va toi uu hoa toc do cho nguoi dung.
+- **MemoryCache 24h**: Danh muc Tinh/Huyen/Xa lay tu GHN duoc cache 24 gio kem thoi diem GHN tra loi. Khong con danh sach mau: khi khong co du lieu GHN dang tin cay, API tra `503 LOCATION_SOURCE_UNAVAILABLE` (xem SP-01..03, SP-06). Nguon du lieu di qua header `X-Location-Source` va `X-Location-Observed-At`.
 - **Graceful Fallback**: Khi GHN tinh phi that bai, he thong tu dong chuyen sang tinh phi co so noi bo.

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Fulfillment.Api.Extensions;
 using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Application.Services.Shipment;
 using Fulfillment.Application.Services.Shipping;
@@ -61,7 +62,7 @@ public sealed class InternalShippingController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ProvinceDto>>> GetProvinces(CancellationToken cancellationToken)
     {
         var provinces = await _locationService.GetProvincesAsync(cancellationToken);
-        return Ok(provinces);
+        return this.OkLocations(provinces);
     }
 
     [HttpGet("locations/districts")]
@@ -75,7 +76,7 @@ public sealed class InternalShippingController : ControllerBase
         }
 
         var districts = await _locationService.GetDistrictsAsync(provinceId, cancellationToken);
-        return Ok(districts);
+        return this.OkLocations(districts);
     }
 
     [HttpGet("locations/wards")]
@@ -89,7 +90,7 @@ public sealed class InternalShippingController : ControllerBase
         }
 
         var wards = await _locationService.GetWardsAsync(districtId, cancellationToken);
-        return Ok(wards);
+        return this.OkLocations(wards);
     }
 
     [HttpGet("services")]

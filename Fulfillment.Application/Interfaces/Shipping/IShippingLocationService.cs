@@ -7,11 +7,11 @@ using Fulfillment.Application.Services.Shipping;
 
 public interface IShippingLocationService
 {
-    Task<IReadOnlyList<ProvinceDto>> GetProvincesAsync(CancellationToken cancellationToken = default);
+    Task<LocationList<ProvinceDto>> GetProvincesAsync(CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<DistrictDto>> GetDistrictsAsync(int provinceId, CancellationToken cancellationToken = default);
+    Task<LocationList<DistrictDto>> GetDistrictsAsync(int provinceId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<WardDto>> GetWardsAsync(int districtId, CancellationToken cancellationToken = default);
+    Task<LocationList<WardDto>> GetWardsAsync(int districtId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<AvailableShippingServiceDto>> GetAvailableServicesAsync(int fromDistrictId, int toDistrictId, CancellationToken cancellationToken = default);
 
