@@ -46,6 +46,12 @@ public class GhnLocationSourceTests
         }
     }
 
+    private sealed class FixedBody(string body, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
+    }
+
     private static GhnLocationService Create(string token, IMemoryCache cache, HttpMessageHandler handler) =>
         new(Options.Create(new GhnOptions { Token = token, BaseUrl = "https://dev-online-gateway.ghn.vn" }), cache,
             NullLogger<GhnLocationService>.Instance, new HttpClient(handler) { BaseAddress = new Uri("https://dev-online-gateway.ghn.vn/") });
@@ -157,5 +163,48 @@ public class GhnLocationSourceTests
 
         ex.ErrorCode.Should().Be("LOCATION_SOURCE_UNAVAILABLE");
         ex.StatusCode.Should().Be(503);
+    }
+
+    [Theory]
+    [InlineData("{\"code\":400,\"message\":\"Bad request\",\"data\":null}")]
+    [InlineData("{\"code\":200,\"message\":\"Success\",\"data\":null}")]
+    [InlineData("{\"message\":\"no code\"}")]
+    [InlineData("not json at all")]
+    [InlineData("{\"code\":200,\"message\":\"Success\",\"data\":[]}")]
+    public async Task An_http_200_without_a_usable_list_is_a_failed_read_for_provinces(string body)
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = Create(token: "token", cache, new FixedBody(body));
+
+        var ex = await Unavailable(() => service.GetProvincesAsync());
+
+        ex.ErrorCode.Should().Be("LOCATION_SOURCE_UNAVAILABLE");
+        cache.TryGetValue(ProvincesKey, out _).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("{\"code\":400,\"message\":\"Bad request\",\"data\":null}")]
+    [InlineData("{\"code\":200,\"message\":\"Success\",\"data\":null}")]
+    public async Task A_district_or_ward_read_with_an_error_body_or_no_list_is_503_not_an_empty_answer(string body)
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = Create(token: "token", cache, new FixedBody(body));
+
+        (await Unavailable(() => service.GetDistrictsAsync(202))).StatusCode.Should().Be(503);
+        cache.Remove(GhnLocationService.CarrierDownCacheKey);
+        (await Unavailable(() => service.GetWardsAsync(1442))).StatusCode.Should().Be(503);
+    }
+
+    [Fact]
+    public async Task A_ward_list_that_GHN_confirms_is_empty_is_an_answer_and_is_not_cached()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = Create(token: "token", cache, new FixedBody("{\"code\":200,\"message\":\"Success\",\"data\":[]}"));
+
+        var wards = await service.GetWardsAsync(1442);
+
+        wards.Items.Should().BeEmpty();
+        wards.Source.Should().Be(LocationSources.Ghn);
+        cache.TryGetValue("ghn:master_data:wards:1442", out _).Should().BeFalse("an empty list is not kept for 24 hours");
     }
 }

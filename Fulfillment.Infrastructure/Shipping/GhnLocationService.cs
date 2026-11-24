@@ -78,6 +78,7 @@ public class GhnLocationService : IShippingLocationService
         string what,
         Func<CancellationToken, Task<HttpResponseMessage>> call,
         Func<List<TRaw>, List<T>> map,
+        bool emptyIsAnswer,
         CancellationToken cancellationToken)
     {
         if (_cache.TryGetValue(cacheKey, out CachedLocations<T>? hit) && hit != null)
@@ -106,8 +107,17 @@ public class GhnLocationService : IShippingLocationService
                 throw SourceUnavailable();
             }
 
+            // HTTP 200 is not enough: the body must say success and carry a list. An error body, a missing list, or an empty list where one cannot
+            // be empty (provinces) is a failed read, never an answer, so a saved code is not judged wrong from it.
             var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<TRaw>>>(cancellationToken: cancellationToken);
-            var items = result?.Data is { Count: > 0 } raw ? map(raw) : new List<T>();
+            if (result is null || result.Code != 200 || result.Data is null || (result.Data.Count == 0 && !emptyIsAnswer))
+            {
+                _logger.LogWarning("GHN {What} answered HTTP 200 without a usable list (code {Code}).", what, result?.Code);
+                NoteCarrierDown();
+                throw SourceUnavailable();
+            }
+
+            var items = map(result.Data);
             var observedAt = DateTimeOffset.UtcNow;
             if (items.Count > 0)
             {
@@ -138,6 +148,7 @@ public class GhnLocationService : IShippingLocationService
             "provinces",
             ct => _httpClient.GetAsync("/shiip/public-api/master-data/province", ct),
             raw => raw.Select(p => new ProvinceDto(p.ProvinceId, p.ProvinceName, p.Code)).ToList(),
+            emptyIsAnswer: false,
             cancellationToken);
 
     public Task<LocationList<DistrictDto>> GetDistrictsAsync(int provinceId, CancellationToken cancellationToken = default)
@@ -152,6 +163,7 @@ public class GhnLocationService : IShippingLocationService
             $"districts of province {provinceId}",
             ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/district", new { province_id = provinceId }, ct),
             raw => raw.Select(d => new DistrictDto(d.DistrictId, d.ProvinceId, d.DistrictName, d.SupportType)).ToList(),
+            emptyIsAnswer: false,
             cancellationToken);
     }
 
@@ -167,6 +179,7 @@ public class GhnLocationService : IShippingLocationService
             $"wards of district {districtId}",
             ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/ward", new { district_id = districtId }, ct),
             raw => raw.Select(w => new WardDto(w.WardCode, w.DistrictId, w.WardName)).ToList(),
+            emptyIsAnswer: true,
             cancellationToken);
     }
 
