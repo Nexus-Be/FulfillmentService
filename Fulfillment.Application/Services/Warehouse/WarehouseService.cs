@@ -110,6 +110,22 @@ public class WarehouseService : IWarehouseService
 
         if (existingWarehouse != null)
         {
+            // A placeholder made earlier (for example when the seller opened the warehouse page) is completed by the first confirmed address
+            // that arrives, instead of being returned as it is and left unable to quote or ship.
+            var hasAddress = existingWarehouse.ProvinceId.HasValue && existingWarehouse.DistrictId.HasValue && !string.IsNullOrWhiteSpace(existingWarehouse.WardCode);
+            var givesAddress = request.ProvinceId.HasValue || request.DistrictId.HasValue || !string.IsNullOrWhiteSpace(request.WardCode);
+            if (!hasAddress && givesAddress)
+            {
+                var completed = await EnsureVerifiedAddressAsync(request.ProvinceId, request.DistrictId, request.WardCode, cancellationToken);
+                existingWarehouse.ProvinceId = request.ProvinceId;
+                existingWarehouse.DistrictId = request.DistrictId;
+                existingWarehouse.WardCode = request.WardCode?.Trim();
+                existingWarehouse.ProvinceName = request.ProvinceName?.Trim() ?? completed?.ProvinceName ?? existingWarehouse.ProvinceName;
+                if (!string.IsNullOrWhiteSpace(request.PickupAddress)) existingWarehouse.Address = request.PickupAddress.Trim();
+                if (!string.IsNullOrWhiteSpace(request.ContactPhone)) existingWarehouse.ContactPhone = request.ContactPhone.Trim();
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
             return new InternalWarehouseResponse(
                 existingWarehouse.Id,
                 request.SellerId,
@@ -181,7 +197,7 @@ public class WarehouseService : IWarehouseService
         warehouse.Name = request.Name.Trim();
         if (request.Address != null) warehouse.Address = request.Address.Trim();
         if (request.ContactPhone != null) warehouse.ContactPhone = request.ContactPhone.Trim();
-        if (request.ProvinceName != null) warehouse.ProvinceName = request.ProvinceName.Trim();
+        if (!string.IsNullOrWhiteSpace(request.ProvinceName)) warehouse.ProvinceName = request.ProvinceName.Trim();
         else if (verifiedChange?.ProvinceName != null) warehouse.ProvinceName = verifiedChange.ProvinceName;
         if (request.ProvinceId.HasValue) warehouse.ProvinceId = request.ProvinceId.Value;
         if (request.DistrictId.HasValue) warehouse.DistrictId = request.DistrictId.Value;
@@ -340,15 +356,16 @@ public class WarehouseService : IWarehouseService
             return null;
         }
 
-        var addressChangedBySeller = request.ProvinceId.HasValue || request.DistrictId.HasValue || !string.IsNullOrWhiteSpace(request.WardCode);
+        // The profile sync always sends the whole chain; only a chain that differs from the saved one is checked, so a change of hotline or name
+        // is not held up by the GHN lists, and a legacy warehouse without a province id is completed by the first confirmed chain.
+        var newProvince = request.ProvinceId ?? warehouse.ProvinceId;
+        var newDistrict = request.DistrictId ?? warehouse.DistrictId;
+        var newWard = !string.IsNullOrWhiteSpace(request.WardCode) ? request.WardCode.Trim() : warehouse.WardCode;
+        var addressChangedBySeller = newProvince != warehouse.ProvinceId || newDistrict != warehouse.DistrictId || newWard != warehouse.WardCode;
         ShippingLocationValidationResponse? verifiedBySeller = null;
         if (addressChangedBySeller)
         {
-            verifiedBySeller = await EnsureVerifiedAddressAsync(
-                request.ProvinceId ?? warehouse.ProvinceId,
-                request.DistrictId ?? warehouse.DistrictId,
-                !string.IsNullOrWhiteSpace(request.WardCode) ? request.WardCode : warehouse.WardCode,
-                cancellationToken);
+            verifiedBySeller = await EnsureVerifiedAddressAsync(newProvince, newDistrict, newWard, cancellationToken);
         }
 
         if (!string.IsNullOrWhiteSpace(request.ShopName))

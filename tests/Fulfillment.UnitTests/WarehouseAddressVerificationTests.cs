@@ -214,4 +214,79 @@ public sealed class WarehouseAddressVerificationTests
         (await act.Should().ThrowAsync<BusinessRuleValidationException>()).Which.ErrorCode.Should().Be("WAREHOUSE_ADDRESS_INCOMPLETE");
         gateway.Calls.Should().Be(0);
     }
+
+    // ---- fixes after the review
+    [Fact]
+    public async Task A_placeholder_made_earlier_is_completed_by_the_first_confirmed_address_that_arrives()
+    {
+        using var db = NewDb();
+        var seller = Guid.NewGuid();
+        db.Warehouses.Add(new Warehouse { Id = Guid.NewGuid(), SellerId = seller, Code = "WH_PH", Name = "Placeholder", IsActive = true });
+        await db.SaveChangesAsync();
+        var locations = new AcceptingLocations();
+        var service = new WarehouseService(db, locations);
+
+        await service.CreateInternalAsync(Internal(seller));
+
+        var saved = await db.Warehouses.SingleAsync();
+        saved.ProvinceId.Should().Be(202);
+        saved.DistrictId.Should().Be(1442);
+        saved.WardCode.Should().Be("20101");
+        locations.Asked.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task A_complete_warehouse_is_returned_as_it_is_and_the_lists_are_not_asked()
+    {
+        using var db = NewDb();
+        var seller = Guid.NewGuid();
+        db.Warehouses.Add(new Warehouse { Id = Guid.NewGuid(), SellerId = seller, Code = "WH_OK", Name = "Done", ProvinceId = 202, DistrictId = 1442, WardCode = "20101", IsActive = true });
+        await db.SaveChangesAsync();
+        var locations = new AcceptingLocations { SourceDown = true };
+
+        await new WarehouseService(db, locations).CreateInternalAsync(Internal(seller, ward: "20102"));
+
+        (await db.Warehouses.SingleAsync()).WardCode.Should().Be("20101");
+        locations.Checks.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task The_profile_sync_with_an_unchanged_chain_is_not_held_up_and_a_legacy_warehouse_is_completed_by_it()
+    {
+        using var db = NewDb();
+        var seller = Guid.NewGuid();
+        db.Warehouses.Add(new Warehouse { Id = Guid.NewGuid(), SellerId = seller, Code = "WH_S", Name = "Shop", ProvinceId = 202, DistrictId = 1442, WardCode = "20101", IsActive = true });
+        await db.SaveChangesAsync();
+        var locations = new AcceptingLocations { SourceDown = true };
+        var service = new WarehouseService(db, locations);
+
+        // same chain, new hotline, GHN unreachable: saved without asking
+        var same = new InternalUpdateSellerWarehouseRequest("Shop", "0911111111", "1 Le Loi", 202, 1442, "20101");
+        await service.UpdateBySellerIdAsync(seller, same);
+        (await db.Warehouses.SingleAsync()).ContactPhone.Should().Be("0911111111");
+        locations.Checks.Should().Be(0);
+
+        // a legacy warehouse (no province id) receives the whole chain: it differs from what is saved, so it is checked and completed
+        var warehouse = await db.Warehouses.SingleAsync();
+        warehouse.ProvinceId = null;
+        await db.SaveChangesAsync();
+        locations.SourceDown = false;
+        await service.UpdateBySellerIdAsync(seller, same);
+        (await db.Warehouses.SingleAsync()).ProvinceId.Should().Be(202);
+        locations.Checks.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task An_empty_province_name_from_a_form_does_not_overwrite_the_confirmed_name()
+    {
+        using var db = NewDb();
+        var seller = Guid.NewGuid();
+        var service = new WarehouseService(db, new AcceptingLocations());
+        await service.CreateInternalAsync(Internal(seller));
+        var id = (await db.Warehouses.SingleAsync()).Id;
+
+        await service.UpdateAsync(id, new UpdateWarehouseRequest("Shop", ProvinceName: "", ProvinceId: 202, DistrictId: 1442, WardCode: "20102"), seller);
+
+        (await db.Warehouses.SingleAsync()).ProvinceName.Should().Be("Ho Chi Minh");
+    }
 }
