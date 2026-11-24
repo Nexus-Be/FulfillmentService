@@ -207,4 +207,51 @@ public class GhnLocationSourceTests
         wards.Source.Should().Be(LocationSources.Ghn);
         cache.TryGetValue("ghn:master_data:wards:1442", out _).Should().BeFalse("an empty list is not kept for 24 hours");
     }
+
+    // ---- the carrier's service list: no made-up services
+    private static GhnLocationService CreateWithShop(string token, string shop, IMemoryCache cache, HttpMessageHandler handler) =>
+        new(Options.Create(new GhnOptions { Token = token, ShopId = shop, BaseUrl = "https://dev-online-gateway.ghn.vn" }), cache,
+            NullLogger<GhnLocationService>.Instance, new HttpClient(handler) { BaseAddress = new Uri("https://dev-online-gateway.ghn.vn/") });
+
+    [Fact]
+    public async Task The_service_list_is_the_carriers_own_and_is_cached()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = CreateWithShop("token", "241115", cache, new FixedBody("{\"code\":200,\"message\":\"Success\",\"data\":[{\"service_id\":53322,\"short_name\":\"Hang nhe\",\"service_type_id\":2}]}"));
+
+        var first = await service.GetAvailableServicesAsync(1442, 1820);
+        var second = await service.GetAvailableServicesAsync(1442, 1820);
+
+        first.Should().ContainSingle().Which.ServiceId.Should().Be(53322);
+        second.Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData("", "241115", "{}")]
+    [InlineData("token", "", "{}")]
+    [InlineData("token", "abc", "{}")]
+    [InlineData("token", "241115", "{\"code\":400,\"message\":\"x\",\"data\":null}")]
+    [InlineData("token", "241115", "{\"code\":200,\"message\":\"Success\",\"data\":[]}")]
+    [InlineData("token", "241115", "{\"code\":200,\"message\":\"Success\",\"data\":null}")]
+    [InlineData("token", "241115", "not json")]
+    public async Task Without_a_token_or_shop_or_a_successful_list_the_service_list_is_503_never_a_made_up_one(string token, string shop, string body)
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = CreateWithShop(token, shop, cache, new FixedBody(body));
+
+        var ex = await Unavailable(() => service.GetAvailableServicesAsync(1442, 1820));
+
+        ex.ErrorCode.Should().Be("LOCATION_SOURCE_UNAVAILABLE");
+        ex.StatusCode.Should().Be(503);
+    }
+
+    [Fact]
+    public async Task A_failed_service_list_read_is_503_and_nothing_is_cached()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = CreateWithShop("token", "241115", cache, new FixedBody("{}", HttpStatusCode.InternalServerError));
+
+        (await Unavailable(() => service.GetAvailableServicesAsync(1442, 1820))).StatusCode.Should().Be(503);
+        cache.TryGetValue("ghn:available_services:1442:1820", out _).Should().BeFalse();
+    }
 }

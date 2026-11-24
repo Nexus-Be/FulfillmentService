@@ -194,46 +194,60 @@ public class GhnLocationService : IShippingLocationService
             return cached;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.Token) && !CarrierRecentlyDown && int.TryParse(_options.ShopId, out var shopId) && shopId > 0)
+        // The carrier's own service list or nothing: with no token, no shop, a recent failure, or an answer that is not a successful list, the
+        // call is 503 LOCATION_SOURCE_UNAVAILABLE. Two made-up service ids used to be returned in these cases.
+        if (string.IsNullOrWhiteSpace(_options.Token) || !int.TryParse(_options.ShopId, out var shopId) || shopId <= 0 || CarrierRecentlyDown)
         {
-            try
-            {
-                var payload = new
-                {
-                    shop_id = shopId,
-                    from_district = fromDistrictId,
-                    to_district = toDistrictId
-                };
-
-                var response = await _httpClient.PostAsJsonAsync(
-                    "/shiip/public-api/v2/shipping-order/available-services",
-                    payload,
-                    cancellationToken);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnRawAvailableService>>>(cancellationToken: cancellationToken);
-                    if (result?.Data != null && result.Data.Count > 0)
-                    {
-                        var services = result.Data.Select(s => new AvailableShippingServiceDto(s.ServiceId, s.ShortName, s.ServiceTypeId)).ToList();
-                        _cache.Set(cacheKey, (IReadOnlyList<AvailableShippingServiceDto>)services, CacheDuration);
-                        return services;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to fetch available services from GHN for {FromDistrict} -> {ToDistrict}.", fromDistrictId, toDistrictId);
-                NoteCarrierDown();
-            }
+            throw SourceUnavailable();
         }
 
-        var fallback = new List<AvailableShippingServiceDto>
+        try
         {
-            new(53320, "Standard", 2),
-            new(53321, "Fast", 3)
-        };
-        return fallback;
+            var payload = new
+            {
+                shop_id = shopId,
+                from_district = fromDistrictId,
+                to_district = toDistrictId
+            };
+
+            using var response = await _httpClient.PostAsJsonAsync(
+                "/shiip/public-api/v2/shipping-order/available-services",
+                payload,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("GHN available-services returned status {StatusCode}", response.StatusCode);
+                NoteCarrierDown();
+                throw SourceUnavailable();
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnRawAvailableService>>>(cancellationToken: cancellationToken);
+            if (result is null || result.Code != 200 || result.Data is not { Count: > 0 })
+            {
+                _logger.LogWarning("GHN available-services answered HTTP 200 without a usable list (code {Code}).", result?.Code);
+                NoteCarrierDown();
+                throw SourceUnavailable();
+            }
+
+            var services = result.Data.Select(s => new AvailableShippingServiceDto(s.ServiceId, s.ShortName, s.ServiceTypeId)).ToList();
+            _cache.Set(cacheKey, (IReadOnlyList<AvailableShippingServiceDto>)services, CacheDuration);
+            return services;
+        }
+        catch (BusinessRuleValidationException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch available services from GHN for {FromDistrict} -> {ToDistrict}.", fromDistrictId, toDistrictId);
+            NoteCarrierDown();
+            throw SourceUnavailable();
+        }
     }
 
     public async Task<ShippingLocationValidationResponse> ValidateLocationAsync(
