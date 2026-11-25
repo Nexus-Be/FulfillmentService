@@ -43,6 +43,11 @@ public class ShippingControllerTests : IClassFixture<FulfillmentWebApplicationFa
         public Task<IReadOnlyList<AvailableShippingServiceDto>> GetAvailableServicesAsync(int fromDistrictId, int toDistrictId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<AvailableShippingServiceDto>>(new[] { new AvailableShippingServiceDto(53320, "Standard", 2) });
 
+        public Task<IReadOnlyList<PickShiftDto>> GetPickShiftsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PickShiftDto>>(down
+                ? throw new BusinessRuleValidationException("LOCATION_SOURCE_UNAVAILABLE", "Shipping locations are temporarily unavailable.", 503)
+                : new[] { new PickShiftDto(2, "Ca sáng (08h00 - 12h00)", 28800, 43200), new PickShiftDto(3, "Ca chiều (12h00 - 18h00)", 43200, 64800) });
+
         public async Task<ShippingLocationValidationResponse> ValidateLocationAsync(ValidateShippingLocationRequest request, CancellationToken cancellationToken = default)
         {
             var provinces = (await GetProvincesAsync(cancellationToken)).Items;
@@ -163,5 +168,17 @@ public class ShippingControllerTests : IClassFixture<FulfillmentWebApplicationFa
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("LOCATION_SOURCE_UNAVAILABLE", body);
         Assert.DoesNotContain("VAL_INVALID_LOCATION", body);
+    }
+
+    [Fact]
+    public async Task GetPickShifts_ReturnsAvailableShifts()
+    {
+        var response = await Client().GetAsync("/api/v1/shipping/pick-shifts");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var shifts = await response.Content.ReadFromJsonAsync<List<PickShiftDto>>();
+        Assert.NotNull(shifts);
+        Assert.NotEmpty(shifts);
+        Assert.Contains(shifts, s => s.Id == 2);
     }
 }

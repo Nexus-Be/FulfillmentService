@@ -172,6 +172,43 @@ public sealed class GhnWebhookControllerTests : IClassFixture<FulfillmentWebAppl
         Assert.Contains(_factory.Commerce.Sent, s => s.OrderId == orderId && s.Status == "Delivered");
     }
 
+    [Fact]
+    public async Task OfficialGhnWebhookPayloadWithObjectFee_DeserializesUpdatesShipmentAndNotifiesCommerce()
+    {
+        var orderId = await SeedShipmentAsync(_factory, "GHN-REAL-FEE", ShipmentStatus.ReadyToPick);
+
+        var officialPayload = new
+        {
+            ShopID = 225812,
+            Time = "2026-11-26T04:49:47.811Z",
+            OrderCode = "GHN-REAL-FEE",
+            ClientOrderCode = orderId.ToString(),
+            Type = "switch_status",
+            Description = "Cập nhật trạng thái đơn hàng",
+            Status = "cancel",
+            Reason = "Người gửi hủy đơn",
+            ReasonCode = "GHN-CO001",
+            CODAmount = 0,
+            Weight = 500,
+            ConvertedWeight = 600,
+            PaymentType = 1,
+            IsPartialReturn = false,
+            PartialReturnCode = "",
+            Fee = new { MainService = 22000, Insurance = 0 },
+            TotalFee = 22000,
+            Warehouse = "Bưu cục Quận 1",
+            ShipperName = "",
+            ShipperPhone = "",
+            PodURL = ""
+        };
+
+        var response = await Authorised(_factory, officialPayload);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ShipmentStatus.Cancelled, await StatusOf(_factory, "GHN-REAL-FEE"));
+        Assert.Contains(_factory.Commerce.Sent, s => s.OrderId == orderId && s.Status == "Cancelled");
+    }
+
     private static object Payload(string orderCode, string status, string? description = null) =>
         new { OrderCode = orderCode, Status = status, Description = description };
 

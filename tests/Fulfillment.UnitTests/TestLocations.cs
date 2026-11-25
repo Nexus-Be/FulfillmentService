@@ -30,6 +30,9 @@ public sealed class AcceptingLocations : IShippingLocationService
     public Task<IReadOnlyList<AvailableShippingServiceDto>> GetAvailableServicesAsync(int fromDistrictId, int toDistrictId, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<AvailableShippingServiceDto>>(Array.Empty<AvailableShippingServiceDto>());
 
+    public Task<IReadOnlyList<PickShiftDto>> GetPickShiftsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<PickShiftDto>>(new[] { new PickShiftDto(2, "Ca sáng (08h00 - 12h00)", 28800, 43200) });
+
     public Task<ShippingLocationValidationResponse> ValidateLocationAsync(ValidateShippingLocationRequest request, CancellationToken cancellationToken = default)
     {
         Checks++;

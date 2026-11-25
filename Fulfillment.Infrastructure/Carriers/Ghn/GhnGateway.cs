@@ -213,6 +213,11 @@ public class GhnGateway : ICarrierGateway
             Items = items
         };
 
+        if (request.PickShiftId.HasValue && request.PickShiftId.Value > 0)
+        {
+            ghnRequest.PickShift = new List<int> { request.PickShiftId.Value };
+        }
+
         if (request.FromAddress != null &&
             !string.IsNullOrWhiteSpace(request.FromAddress.FullName) &&
             request.FromAddress.DistrictId.HasValue &&
@@ -281,12 +286,23 @@ public class GhnGateway : ICarrierGateway
                 expectedDelivery = dt;
             }
 
+            string? printToken = null;
+            try
+            {
+                printToken = await GetPrintTokenAsync(ghnResponse.Data.OrderCode, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to pre-fetch GHN print token for {OrderCode}", ghnResponse.Data.OrderCode);
+            }
+            var printUrl = BuildPrintLabelUrl(ghnResponse.Data.OrderCode, printToken, "A5");
+
             return new CarrierCreateShipmentResult(
                 TrackingCode: ghnResponse.Data.OrderCode,
                 ShippingFee: ghnResponse.Data.TotalFee,
                 ExpectedDeliveryTime: expectedDelivery ?? DateTimeOffset.UtcNow.AddDays(2),
                 InitialStatus: ShipmentStatus.ReadyToPick,
-                LabelUrl: $"https://fulfillment.nexus.internal/labels/{ghnResponse.Data.OrderCode}.pdf");
+                LabelUrl: printUrl);
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -380,13 +396,18 @@ public class GhnGateway : ICarrierGateway
                 return new CarrierCancelResult(trackingCode, false, errorText);
             }
 
-            var ghnResponse = await response.Content.ReadFromJsonAsync<GhnApiResponse<object>>(cancellationToken: cancellationToken);
+            var ghnResponse = await response.Content.ReadFromJsonAsync<GhnApiResponse<List<GhnSwitchStatusItem>>>(cancellationToken: cancellationToken);
 
-            var isSuccess = ghnResponse != null && ghnResponse.Code == 200;
+            var item = ghnResponse?.Data?.FirstOrDefault(x =>
+                string.Equals(x.OrderCode, trackingCode, StringComparison.OrdinalIgnoreCase))
+                ?? ghnResponse?.Data?.FirstOrDefault();
+
+            var isSuccess = ghnResponse != null && ghnResponse.Code == 200 && (item == null || item.Result);
+            var message = item?.Message ?? ghnResponse?.Message ?? (isSuccess ? "Cancelled successfully." : "Failed to cancel order on GHN.");
             return new CarrierCancelResult(
                 trackingCode,
                 isSuccess,
-                ghnResponse?.Message ?? (isSuccess ? "Cancelled successfully." : "Failed to cancel order on GHN."));
+                message);
         }
         catch (Exception ex)
         {
@@ -428,6 +449,25 @@ public class GhnGateway : ICarrierGateway
             _logger.LogError(ex, "GHN Gen-Token request error for {TrackingCode}", trackingCode);
             return null;
         }
+    }
+
+    public string BuildPrintLabelUrl(string trackingCode, string? printToken, string pageSize = "A5")
+    {
+        var tokenOrCode = !string.IsNullOrWhiteSpace(printToken) ? printToken : trackingCode;
+        var normalizedPageSize = pageSize?.Trim().ToUpperInvariant() switch
+        {
+            "80X80" or "80*80" => "80x80",
+            "52X70" or "52*70" => "52x70",
+            _ => "A5"
+        };
+
+        var baseHost = "dev-online-gateway.ghn.vn";
+        if (!string.IsNullOrWhiteSpace(_options.BaseUrl) && Uri.TryCreate(_options.BaseUrl, UriKind.Absolute, out var parsed))
+        {
+            baseHost = parsed.Authority;
+        }
+
+        return $"https://{baseHost}/a5/public-api/print{normalizedPageSize}?token={tokenOrCode}";
     }
 
     public async Task<bool> UpdateOrderAsync(

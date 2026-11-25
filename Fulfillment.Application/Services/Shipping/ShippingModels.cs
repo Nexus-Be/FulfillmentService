@@ -49,7 +49,8 @@ public sealed record CarrierCreateShipmentRequest(
     decimal CodAmount = 0,
     string? Note = null,
     IReadOnlyList<ShippingParcelItem>? Items = null,
-    int? ShopId = null);
+    int? ShopId = null,
+    int? PickShiftId = null);
 
 public sealed record CarrierCreateShipmentResult(
     string TrackingCode,

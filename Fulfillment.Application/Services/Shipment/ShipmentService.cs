@@ -314,7 +314,8 @@ public sealed class ShipmentService : IShipmentService
                 CodAmount: request.CodAmount,
                 Note: request.Note,
                 Items: carrierItems,
-                ShopId: warehouse.GhnShopId),
+                ShopId: warehouse.GhnShopId,
+                PickShiftId: request.PickShiftId),
             cancellationToken);
 
         var requiredNoteEnum = GHNRequiredNote.CHOXEMHANGKHONGTHU;
@@ -849,27 +850,23 @@ public sealed class ShipmentService : IShipmentService
             _ => "A5"
         };
 
-        string? printToken = shipment.PrintToken;
-        if (string.IsNullOrWhiteSpace(printToken))
+        var gateway = _carrierResolver.Get(shipment.Carrier?.Code);
+        // GHN print tokens expire after ~30 minutes, so fetch a fresh token
+        var printToken = await gateway.GetPrintTokenAsync(trackingCode, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(printToken))
         {
-            var gateway = _carrierResolver.Get(shipment.Carrier?.Code);
-            printToken = await gateway.GetPrintTokenAsync(trackingCode, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(printToken))
-            {
-                shipment.PrintToken = printToken;
-                shipment.UpdatedAt = DateTimeOffset.UtcNow;
-                await _dbContext.SaveChangesAsync(cancellationToken);
-            }
+            shipment.PrintToken = printToken;
+            shipment.UpdatedAt = DateTimeOffset.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var printUrl = !string.IsNullOrWhiteSpace(printToken)
-            ? $"https://dev-online-gateway.ghn.vn/a5/public-api/print{normalizedPageSize}?token={printToken}"
-            : $"https://dev-online-gateway.ghn.vn/a5/public-api/print{normalizedPageSize}?token={trackingCode}";
+        var effectiveToken = printToken ?? shipment.PrintToken;
+        var printUrl = gateway.BuildPrintLabelUrl(trackingCode, effectiveToken, normalizedPageSize);
 
         return new PrintShippingLabelResponse(
             shipment.Id,
             trackingCode,
-            printToken,
+            effectiveToken,
             printUrl,
             normalizedPageSize);
     }

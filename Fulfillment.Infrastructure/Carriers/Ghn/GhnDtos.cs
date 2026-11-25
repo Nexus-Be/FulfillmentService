@@ -2,6 +2,7 @@ namespace Fulfillment.Infrastructure.Carriers.Ghn;
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 public sealed class GhnApiResponse<T>
@@ -159,8 +160,27 @@ public sealed class GhnCreateOrderRequest
     [JsonPropertyName("client_order_code")]
     public string ClientOrderCode { get; set; } = string.Empty;
 
+    [JsonPropertyName("pick_shift")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<int>? PickShift { get; set; }
+
     [JsonPropertyName("items")]
     public List<GhnItemDto> Items { get; set; } = new();
+}
+
+public sealed class GhnPickShiftData
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("title")]
+    public string Title { get; set; } = string.Empty;
+
+    [JsonPropertyName("from_time")]
+    public int FromTime { get; set; }
+
+    [JsonPropertyName("to_time")]
+    public int ToTime { get; set; }
 }
 
 public sealed class GhnCreateOrderData
@@ -193,6 +213,18 @@ public sealed class GhnCancelOrderRequest
     public List<string> OrderCodes { get; set; } = new();
 }
 
+public sealed class GhnSwitchStatusItem
+{
+    [JsonPropertyName("order_code")]
+    public string? OrderCode { get; set; }
+
+    [JsonPropertyName("result")]
+    public bool Result { get; set; }
+
+    [JsonPropertyName("message")]
+    public string? Message { get; set; }
+}
+
 public sealed class GhnPrintTokenRequest
 {
     [JsonPropertyName("order_codes")]
@@ -220,7 +252,7 @@ public sealed class GhnWebhookPayload
     public string? Description { get; set; }
 
     [JsonPropertyName("Fee")]
-    public decimal? Fee { get; set; }
+    public JsonElement? Fee { get; set; }
 
     [JsonPropertyName("TotalFee")]
     public decimal? TotalFee { get; set; }

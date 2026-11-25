@@ -15,5 +15,7 @@ public interface IShippingLocationService
 
     Task<IReadOnlyList<AvailableShippingServiceDto>> GetAvailableServicesAsync(int fromDistrictId, int toDistrictId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<PickShiftDto>> GetPickShiftsAsync(CancellationToken cancellationToken = default);
+
     Task<ShippingLocationValidationResponse> ValidateLocationAsync(ValidateShippingLocationRequest request, CancellationToken cancellationToken = default);
 }

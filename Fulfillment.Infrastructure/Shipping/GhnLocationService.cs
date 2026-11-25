@@ -250,6 +250,50 @@ public class GhnLocationService : IShippingLocationService
         }
     }
 
+    public async Task<IReadOnlyList<PickShiftDto>> GetPickShiftsAsync(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "ghn:master_data:pick_shifts";
+        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<PickShiftDto>? cached) && cached != null)
+        {
+            return cached;
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.Token) || CarrierRecentlyDown)
+        {
+            var fallback = new List<PickShiftDto>
+            {
+                new(2, "Ca lấy sáng (08h00 - 12h00)", 28800, 43200),
+                new(3, "Ca lấy chiều (12h00 - 18h00)", 43200, 64800)
+            };
+            return fallback;
+        }
+
+        try
+        {
+            using var response = await _httpClient.GetAsync("/shiip/public-api/v2/shift/date", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnPickShiftData>>>(cancellationToken: cancellationToken);
+                if (result?.Code == 200 && result.Data != null && result.Data.Count > 0)
+                {
+                    var shifts = result.Data.Select(s => new PickShiftDto(s.Id, s.Title, s.FromTime, s.ToTime)).ToList();
+                    _cache.Set(cacheKey, (IReadOnlyList<PickShiftDto>)shifts, TimeSpan.FromHours(1));
+                    return shifts;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load pick shifts from GHN, using default shifts.");
+        }
+
+        return new List<PickShiftDto>
+        {
+            new(2, "Ca lấy sáng (08h00 - 12h00)", 28800, 43200),
+            new(3, "Ca lấy chiều (12h00 - 18h00)", 43200, 64800)
+        };
+    }
+
     public async Task<ShippingLocationValidationResponse> ValidateLocationAsync(
         ValidateShippingLocationRequest request,
         CancellationToken cancellationToken = default)

@@ -35,6 +35,12 @@ public sealed record AvailableShippingServiceDto(
     string ShortName,
     int ServiceTypeId);
 
+public sealed record PickShiftDto(
+    int Id,
+    string Title,
+    int FromTime,
+    int ToTime);
+
 public sealed record ValidateShippingLocationRequest(
     [Range(1, int.MaxValue)] int ProvinceId,
     [Range(1, int.MaxValue)] int DistrictId,

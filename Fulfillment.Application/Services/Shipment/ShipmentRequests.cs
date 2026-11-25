@@ -33,7 +33,8 @@ public sealed record CreateShipmentRequest(
     int InsuranceValue = 0,
     string? RequiredNote = "CHOXEMHANGKHONGTHU",
     string? Note = null,
-    IReadOnlyList<CreateShipmentItemRequest>? Items = null);
+    IReadOnlyList<CreateShipmentItemRequest>? Items = null,
+    int? PickShiftId = null);
 
 public sealed record UpdateShipmentStatusRequest(
     string TrackingNumber,

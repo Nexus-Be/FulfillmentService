@@ -29,6 +29,9 @@ public interface ICarrierGateway
         CancellationToken cancellationToken = default)
         => Task.FromResult(true);
 
+    string BuildPrintLabelUrl(string trackingCode, string? printToken, string pageSize = "A5")
+        => $"https://dev-online-gateway.ghn.vn/a5/public-api/print{pageSize}?token={printToken ?? trackingCode}";
+
     ShipmentStatus MapStatus(string rawCarrierStatus);
 }
 

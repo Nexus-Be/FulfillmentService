@@ -88,6 +88,17 @@ public sealed class ShippingController : ControllerBase
     }
 
     /// <summary>
+    /// Retrieves carrier pickup shifts for seller scheduling.
+    /// </summary>
+    [HttpGet("pick-shifts")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IReadOnlyList<PickShiftDto>>> GetPickShifts(CancellationToken cancellationToken)
+    {
+        var shifts = await _locationService.GetPickShiftsAsync(cancellationToken);
+        return Ok(shifts);
+    }
+
+    /// <summary>
     /// Calculates estimated shipping fee for cart/PDP preview without creating draft orders.
     /// </summary>
     [HttpPost("quote")]
