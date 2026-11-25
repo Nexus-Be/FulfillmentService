@@ -20,6 +20,15 @@ public class ReturningFlowTests
     [InlineData("returned", ShipmentStatus.Returned)]
     [InlineData("return_to_origin", ShipmentStatus.Returned)]
     [InlineData("delivery_fail", ShipmentStatus.DeliveryFailed)]
+    [InlineData("sorting", ShipmentStatus.InTransit)]
+    [InlineData("transporting", ShipmentStatus.InTransit)]
+    [InlineData("waiting_to_return", ShipmentStatus.Returning)]
+    [InlineData("return_transporting", ShipmentStatus.Returning)]
+    [InlineData("return_sorting", ShipmentStatus.Returning)]
+    [InlineData("exception", ShipmentStatus.DeliveryFailed)]
+    [InlineData("lost", ShipmentStatus.DeliveryFailed)]
+    [InlineData("damage", ShipmentStatus.DeliveryFailed)]
+    [InlineData("scrap", ShipmentStatus.DeliveryFailed)]
     public void GhnStatusMapper_SeparatesReturningFromReturned(string ghnStatus, ShipmentStatus expected)
     {
         GhnStatusMapper.Map(ghnStatus).Should().Be(expected);

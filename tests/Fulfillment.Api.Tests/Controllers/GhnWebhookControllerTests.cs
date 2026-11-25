@@ -65,6 +65,36 @@ public sealed class GhnWebhookControllerTests : IClassFixture<FulfillmentWebAppl
     }
 
     [Fact]
+    public async Task SecretInTheXWebhookSecretHeader_IsAccepted()
+    {
+        var response = await Post(_factory, "/api/v1/webhooks/ghn", Payload("GHN-UNKNOWN-1B", "picked"), header: FulfillmentWebApplicationFactory.WebhookSecret, headerName: "X-Webhook-Secret");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task IntermediateStatus_Sorting_TransitionsToInTransit()
+    {
+        await SeedShipmentAsync(_factory, "GHN-SORT", ShipmentStatus.HandedOver);
+
+        var response = await Authorised(_factory, Payload("GHN-SORT", "sorting"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ShipmentStatus.InTransit, await StatusOf(_factory, "GHN-SORT"));
+    }
+
+    [Fact]
+    public async Task IntermediateStatus_ReturnTransporting_TransitionsToReturning()
+    {
+        await SeedShipmentAsync(_factory, "GHN-RET-TRANS", ShipmentStatus.InTransit);
+
+        var response = await Authorised(_factory, Payload("GHN-RET-TRANS", "return_transporting"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ShipmentStatus.Returning, await StatusOf(_factory, "GHN-RET-TRANS"));
+    }
+
+    [Fact]
     public async Task SecretInTheQueryString_IsAccepted_BecauseGhnOnlyLetsUsConfigureAUrl()
     {
         var response = await Post(_factory, $"/api/v1/webhooks/ghn?token={FulfillmentWebApplicationFactory.WebhookSecret}", Payload("GHN-UNKNOWN-2", "picked"));
@@ -148,11 +178,11 @@ public sealed class GhnWebhookControllerTests : IClassFixture<FulfillmentWebAppl
     private static Task<HttpResponseMessage> Authorised(FulfillmentWebApplicationFactory factory, object payload) =>
         Post(factory, "/api/v1/webhooks/ghn", payload, header: FulfillmentWebApplicationFactory.WebhookSecret);
 
-    private static Task<HttpResponseMessage> Post(FulfillmentWebApplicationFactory factory, string url, object payload, string? header = null)
+    private static Task<HttpResponseMessage> Post(FulfillmentWebApplicationFactory factory, string url, object payload, string? header = null, string headerName = "X-Webhook-Token")
     {
         var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(payload) };
         if (header is not null)
-            request.Headers.Add("X-Webhook-Token", header);
+            request.Headers.Add(headerName, header);
         return factory.CreateClient().SendAsync(request);
     }
 

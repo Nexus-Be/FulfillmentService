@@ -99,12 +99,15 @@ public sealed class GhnWebhookController : ControllerBase
             return Ok(new { message = "Duplicate webhook event acknowledged.", status = payload.Status });
         }
 
+        var clientOrderGuid = Guid.TryParse(payload.ClientOrderCode, out var parsedGuid) ? parsedGuid : Guid.Empty;
+
         // 3. Find shipment by tracking number or order code
         var shipment = await _dbContext.Shipments
             .Include(s => s.Events)
             .FirstOrDefaultAsync(s => s.TrackingNumber == payload.OrderCode ||
                 s.GhnOrderCode == payload.OrderCode ||
-                (payload.ClientOrderCode != null && s.OrderId.ToString() == payload.ClientOrderCode),
+                (payload.ClientOrderCode != null && s.ClientOrderCode == payload.ClientOrderCode) ||
+                (clientOrderGuid != Guid.Empty && s.OrderId == clientOrderGuid),
                 cancellationToken);
 
         if (shipment == null)

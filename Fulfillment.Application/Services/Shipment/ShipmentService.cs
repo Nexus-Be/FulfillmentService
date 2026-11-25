@@ -313,7 +313,8 @@ public sealed class ShipmentService : IShipmentService
                 HeightCm: request.HeightCm > 0 ? request.HeightCm : 10,
                 CodAmount: request.CodAmount,
                 Note: request.Note,
-                Items: carrierItems),
+                Items: carrierItems,
+                ShopId: warehouse.GhnShopId),
             cancellationToken);
 
         var requiredNoteEnum = GHNRequiredNote.CHOXEMHANGKHONGTHU;

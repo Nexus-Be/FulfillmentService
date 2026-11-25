@@ -38,9 +38,15 @@ public sealed class GhnWebhookSecretFilter(IConfiguration configuration) : IAsyn
         }
 
         var request = context.HttpContext.Request;
-        var provided = request.Headers[HeaderName].ToString();
+        var provided = request.Headers["X-Webhook-Token"].ToString();
         if (string.IsNullOrEmpty(provided))
-            provided = request.Query[QueryName].ToString();
+            provided = request.Headers["X-Webhook-Secret"].ToString();
+        if (string.IsNullOrEmpty(provided))
+            provided = request.Headers["X-GHN-Secret"].ToString();
+        if (string.IsNullOrEmpty(provided))
+            provided = request.Query["token"].ToString();
+        if (string.IsNullOrEmpty(provided))
+            provided = request.Query["secret"].ToString();
 
         if (string.IsNullOrEmpty(provided) ||
             !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(expected)))

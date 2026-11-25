@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fulfillment.Application.Exceptions;
@@ -212,44 +213,57 @@ public class GhnGateway : ICarrierGateway
             Items = items
         };
 
-        if (request.FromAddress != null && !string.IsNullOrWhiteSpace(request.FromAddress.FullName))
+        if (request.FromAddress != null &&
+            !string.IsNullOrWhiteSpace(request.FromAddress.FullName) &&
+            request.FromAddress.DistrictId.HasValue &&
+            (!string.IsNullOrWhiteSpace(request.FromAddress.WardCode) || !string.IsNullOrWhiteSpace(request.FromAddress.WardName)))
         {
             ghnRequest.FromName = request.FromAddress.FullName;
             ghnRequest.FromPhone = request.FromAddress.Phone;
             ghnRequest.FromAddress = request.FromAddress.AddressLine;
             ghnRequest.FromWardName = request.FromAddress.WardName;
+            ghnRequest.FromWardCode = request.FromAddress.WardCode;
             ghnRequest.FromDistrictId = request.FromAddress.DistrictId;
         }
 
         try
         {
-            var response = await _httpClient.PostAsJsonAsync(
-                "/shiip/public-api/v2/shipping-order/create",
-                ghnRequest,
-                cancellationToken);
+            using var requestMsg = new HttpRequestMessage(HttpMethod.Post, "/shiip/public-api/v2/shipping-order/create")
+            {
+                Content = JsonContent.Create(ghnRequest)
+            };
+
+            var effectiveShopId = request.ShopId?.ToString() ?? _options.ShopId;
+            if (!string.IsNullOrWhiteSpace(effectiveShopId))
+            {
+                requestMsg.Headers.Remove("ShopId");
+                requestMsg.Headers.Add("ShopId", effectiveShopId);
+            }
+
+            var response = await _httpClient.SendAsync(requestMsg, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogWarning("GHN CreateOrder failed with status {StatusCode}: {ErrorText}", response.StatusCode, errorText);
 
-                if (_options.Environment.Equals("Staging", StringComparison.OrdinalIgnoreCase) ||
-                    _options.Environment.Equals("Development", StringComparison.OrdinalIgnoreCase))
+                string errorMessage = $"GHN CreateOrder returned HTTP {response.StatusCode}.";
+                string errorCode = response.StatusCode.ToString();
+                try
                 {
-                    _logger.LogWarning("GHN CreateOrder failed in {Environment} mode. Using simulated sandbox registration for testing.", _options.Environment);
-                    var simTracking = $"GHN{Random.Shared.Next(1000000, 9999999)}";
-                    return new CarrierCreateShipmentResult(
-                        TrackingCode: simTracking,
-                        ShippingFee: 32000.00m,
-                        ExpectedDeliveryTime: DateTimeOffset.UtcNow.AddDays(2),
-                        InitialStatus: ShipmentStatus.ReadyToPick,
-                        LabelUrl: $"https://fulfillment.nexus.internal/labels/{simTracking}.pdf");
+                    var errorObj = JsonSerializer.Deserialize<GhnApiResponse<object>>(errorText);
+                    if (errorObj != null && !string.IsNullOrWhiteSpace(errorObj.Message))
+                    {
+                        errorMessage = errorObj.Message;
+                        errorCode = errorObj.CodeMessage ?? errorObj.Code.ToString();
+                    }
+                }
+                catch
+                {
+                    // Fall back to default error text
                 }
 
-                throw new CarrierIntegrationException(
-                    $"GHN CreateOrder returned HTTP {response.StatusCode}.",
-                    CarrierCode,
-                    response.StatusCode.ToString());
+                throw new CarrierIntegrationException(errorMessage, CarrierCode, errorCode);
             }
 
             var ghnResponse = await response.Content.ReadFromJsonAsync<GhnApiResponse<GhnCreateOrderData>>(cancellationToken: cancellationToken);
