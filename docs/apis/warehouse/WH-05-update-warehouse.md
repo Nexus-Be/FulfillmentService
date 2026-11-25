@@ -34,6 +34,7 @@ Cap nhat thong tin kho bai vat ly:
   "address": "So 458 Duong Nguyen Thi Thap, Tan Phu, Quan 7, TP. Ho Chi Minh",
   "contactPhone": "0909888777",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1450,
   "wardCode": "20804",
   "ghnShopId": 5550559
@@ -49,6 +50,7 @@ Cap nhat thong tin kho bai vat ly:
   "address": "So 458 Duong Nguyen Thi Thap, Tan Phu, Quan 7, TP. Ho Chi Minh",
   "contactPhone": "0909888777",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1450,
   "wardCode": "20804",
   "ghnShopId": 5550559,
@@ -62,3 +64,6 @@ Cap nhat thong tin kho bai vat ly:
 - **401 Unauthorized (`UNAUTHORIZED`)**: Thieu Bearer token.
 - **403 Forbidden (`FORBIDDEN`)**: Nguoi ban khong so huu kho hang nay.
 - **404 Not Found (`WAREHOUSE_NOT_FOUND`)**: Khong tim thay kho voi ID cung cap.
+
+## Xac minh dia chi khi luu (24/11/2026)
+Doi bo `provinceId`, `districtId`, `wardCode` (ke ca chi doi mot phan, khi do dung gia tri da luu cho phan con lai) phai la ca chuoi va duoc doi chieu voi danh sach GHN truoc khi luu: bo ma sai `400 VAL_INVALID_LOCATION`, thieu mot phan `400 WAREHOUSE_ADDRESS_INCOMPLETE`, khong co nguon GHN dang tin cay `503 LOCATION_SOURCE_UNAVAILABLE` va khong luu gi. Chi doi ten hoac so dien thoai thi khong hoi danh sach GHN. Ten tinh gui len rong khong ghi de ten da xac nhan.

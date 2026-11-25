@@ -29,6 +29,7 @@ Tra cuu thong tin chi tiet cua mot kho bai dua tren khoa chinh `id` (UUIDv4):
   "address": "Khu Cong Nghe Cao, TP. Thu Duc, TP. Ho Chi Minh",
   "contactPhone": "0901234567",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1442,
   "wardCode": "20101",
   "ghnShopId": 5550559,

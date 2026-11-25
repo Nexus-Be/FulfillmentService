@@ -399,42 +399,4 @@ public class ShipmentSecurityAndLocationTests
         ex.Which.ErrorCode.Should().Be("SHIPMENT_ALREADY_PICKED_UP");
         ex.Which.StatusCode.Should().Be(409);
     }
-
-    [Fact]
-    public async Task ValidateShippingLocation_ValidHierarchy_ReturnsValid()
-    {
-        var cache = new MemoryCache(new MemoryCacheOptions());
-        var options = Options.Create(new Fulfillment.Infrastructure.Carriers.Ghn.GhnOptions());
-        var service = new GhnLocationService(options, cache, NullLogger<GhnLocationService>.Instance);
-
-        var req = new ValidateShippingLocationRequest(
-            ProvinceId: 201, // Hà Nội
-            DistrictId: 1442, // Ba Đình
-            WardCode: "20101"); // Phúc Xá
-
-        var res = await service.ValidateLocationAsync(req);
-
-        res.IsValid.Should().BeTrue();
-        res.ProvinceName.Should().Be("Hà Nội");
-        res.DistrictName.Should().Be("Quận Ba Đình");
-        res.WardName.Should().Be("Phường Phúc Xá");
-    }
-
-    [Fact]
-    public async Task ValidateShippingLocation_InvalidDistrictForProvince_ReturnsInvalid()
-    {
-        var cache = new MemoryCache(new MemoryCacheOptions());
-        var options = Options.Create(new Fulfillment.Infrastructure.Carriers.Ghn.GhnOptions());
-        var service = new GhnLocationService(options, cache, NullLogger<GhnLocationService>.Instance);
-
-        var req = new ValidateShippingLocationRequest(
-            ProvinceId: 201, // Hà Nội
-            DistrictId: 1446, // Quận 1 (belongs to TP.HCM, not Hà Nội)
-            WardCode: "20101");
-
-        var res = await service.ValidateLocationAsync(req);
-
-        res.IsValid.Should().BeFalse();
-        res.Message.Should().Contain("does not belong to province");
-    }
 }

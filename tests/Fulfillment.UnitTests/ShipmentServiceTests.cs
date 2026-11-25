@@ -89,6 +89,7 @@ public class ShipmentServiceTests
             Id = Guid.NewGuid(),
             SellerId = sellerId,
             Code = "WH_SELLER_01",
+            ProvinceId = 202, DistrictId = 1442, WardCode = "20101",
             Name = "Seller Dedicated Warehouse",
             Address = "123 Nguyen Hue, Q1, HCM",
             IsActive = true
@@ -146,7 +147,66 @@ public class ShipmentServiceTests
 
         var ex = await Assert.ThrowsAsync<BusinessRuleValidationException>(() => service.CalculateShippingFeeAsync(QuoteRequest(Guid.NewGuid(), 500)));
 
-        ex.ErrorCode.Should().Be("SHIPPING_QUOTE_FAILED");
+        // Not the buyer's address: the carrier has no credentials here, so it is a 503 of its own.
+        ex.ErrorCode.Should().Be("SHIPPING_CARRIER_NOT_CONFIGURED");
+        ex.StatusCode.Should().Be(503);
+    }
+
+    private sealed class FailingCarrierGateway(Exception failure) : ICarrierGateway
+    {
+        public string Code => "GHN";
+
+        public Task<CarrierFeeCalculationResult> CalculateFeeAsync(CarrierFeeCalculationRequest request, CancellationToken cancellationToken = default) =>
+            throw failure;
+
+        public Task<CarrierCreateShipmentResult> CreateShipmentAsync(CarrierCreateShipmentRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CarrierStatusResult> GetStatusAsync(string trackingCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<CarrierCancelResult> CancelAsync(string trackingCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<string?> GetPrintTokenAsync(string trackingCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ShipmentStatus MapStatus(string rawCarrierStatus) => ShipmentStatus.ReadyToPick;
+    }
+
+    [Theory]
+    [InlineData("integration", "MISSING_TOKEN", "SHIPPING_CARRIER_NOT_CONFIGURED", 503)]
+    [InlineData("integration", "Unauthorized", "SHIPPING_CARRIER_NOT_CONFIGURED", 503)]   // the carrier refused the configured token
+    [InlineData("integration", "Forbidden", "SHIPPING_CARRIER_NOT_CONFIGURED", 503)]
+    [InlineData("integration", "HTTP_ERROR", "SHIPPING_CARRIER_UNAVAILABLE", 503)]        // network failure
+    [InlineData("integration", "InternalServerError", "SHIPPING_CARRIER_UNAVAILABLE", 503)]
+    [InlineData("integration", "BadGateway", "SHIPPING_CARRIER_UNAVAILABLE", 503)]
+    [InlineData("integration", "ServiceUnavailable", "SHIPPING_CARRIER_UNAVAILABLE", 503)]
+    [InlineData("integration", "TooManyRequests", "SHIPPING_CARRIER_UNAVAILABLE", 503)]
+    [InlineData("integration", "500", "SHIPPING_CARRIER_UNAVAILABLE", 503)]               // numeric code answered by the carrier
+    [InlineData("timeout", "", "SHIPPING_CARRIER_TIMEOUT", 503)]
+    [InlineData("notfound", "", "SHIPPING_CARRIER_NOT_CONFIGURED", 503)]
+    [InlineData("integration", "BadRequest", "SHIPPING_QUOTE_FAILED", 400)]               // the carrier objects to the data itself
+    [InlineData("integration", "WARD_NOT_FOUND", "SHIPPING_QUOTE_FAILED", 400)]
+    public async Task CalculateShippingFeeAsync_MapsEachCarrierFailureToItsOwnCode(string kind, string carrierCode, string expectedCode, int expectedStatus)
+    {
+        using var db = CreateDbContext();
+        Exception failure = kind switch
+        {
+            "timeout" => new CarrierTimeoutException("GHN fee calculation timed out.", "GHN"),
+            "notfound" => new CarrierNotFoundException("GHN"),
+            _ => new CarrierIntegrationException("carrier said no", "GHN", carrierCode)
+        };
+        var service = new ShipmentService(db, new FakeCarrierResolver(new FailingCarrierGateway(failure)));
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleValidationException>(() => service.CalculateShippingFeeAsync(QuoteRequest(Guid.NewGuid(), 500)));
+
+        ex.ErrorCode.Should().Be(expectedCode);
+        ex.StatusCode.Should().Be(expectedStatus);
+    }
+
+    [Fact]
+    public async Task CalculateShippingFeeAsync_WhenTheCarrierTimesOut_IsNotLeftToTheGenericHandler()
+    {
+        using var db = CreateDbContext();
+        var service = new ShipmentService(db, new FakeCarrierResolver(new FailingCarrierGateway(new CarrierTimeoutException("slow", "GHN"))));
+
+        var act = () => service.CalculateShippingFeeAsync(QuoteRequest(Guid.NewGuid(), 500));
+
+        // It used to escape as a CarrierTimeoutException (504 from the middleware) because only CarrierIntegrationException was caught.
+        await act.Should().ThrowAsync<BusinessRuleValidationException>();
     }
 
     [Theory]
@@ -177,6 +237,7 @@ public class ShipmentServiceTests
             Id = Guid.NewGuid(),
             SellerId = sellerId,
             Code = "WH_SELLER_99",
+            ProvinceId = 202, DistrictId = 1442, WardCode = "20101",
             Name = "Shop 99 Warehouse",
             Address = "District 1, HCM",
             IsActive = true
@@ -236,6 +297,7 @@ public class ShipmentServiceTests
             Id = Guid.NewGuid(),
             SellerId = sellerId,
             Code = "WH_SELLER_02",
+            ProvinceId = 202, DistrictId = 1442, WardCode = "20101",
             Name = "Warehouse",
             IsActive = true
         };

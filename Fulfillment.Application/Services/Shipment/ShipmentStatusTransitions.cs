@@ -1,4 +1,4 @@
-namespace Fulfillment.Application.Services.Shipment;
+﻿namespace Fulfillment.Application.Services.Shipment;
 
 using Fulfillment.Domain.Enums;
 
@@ -18,6 +18,18 @@ public static class ShipmentStatusTransitions
         if (current is ShipmentStatus.Returned or ShipmentStatus.Cancelled)
             return false;
 
+        // Delivered is final for the delivery itself: a late "delivery failed" from the carrier must neither undo it nor count as an attempt.
+        // The only thing that can still follow is the parcel coming back as Returned.
+        if (current == ShipmentStatus.Delivered)
+            return next == ShipmentStatus.Returned;
+
+        // Returning is only reachable once the parcel is with the carrier, and it can only end as Returned (or Cancelled).
+        if (next == ShipmentStatus.Returning)
+            return current is ShipmentStatus.HandedOver or ShipmentStatus.InTransit or ShipmentStatus.DeliveryFailed;
+
+        if (current == ShipmentStatus.Returning)
+            return next is ShipmentStatus.Returned or ShipmentStatus.Cancelled;
+
         // A failed delivery attempt can be retried by the carrier, so it may be followed by transit or delivery.
         if (current == ShipmentStatus.DeliveryFailed)
             return next is ShipmentStatus.InTransit or ShipmentStatus.Delivered or ShipmentStatus.Returned or ShipmentStatus.Cancelled;
@@ -25,4 +37,11 @@ public static class ShipmentStatusTransitions
         // Otherwise the enum order is the lifecycle order (ReadyToPick < Picking < Packed < HandedOver < InTransit < Delivered < ...).
         return (int)next > (int)current;
     }
+
+    /// <summary>
+    /// A second failed delivery attempt reports the same status as the first, so it is not a step "forward". The caller must have established
+    /// that the event is new (different carrier event time) before treating it as another attempt.
+    /// </summary>
+    public static bool IsRepeatedFailedAttempt(ShipmentStatus current, ShipmentStatus next) =>
+        current == ShipmentStatus.DeliveryFailed && next == ShipmentStatus.DeliveryFailed;
 }

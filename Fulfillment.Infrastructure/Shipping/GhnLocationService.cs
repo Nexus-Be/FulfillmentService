@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Application.Services.Shipping;
+using Fulfillment.Domain.Exceptions;
 using Fulfillment.Infrastructure.Carriers.Ghn;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,17 @@ public class GhnLocationService : IShippingLocationService
     private readonly ILogger<GhnLocationService> _logger;
 
     private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// Only the carrier's real answers are cached for <see cref="CacheDuration"/>, together with the time they were read. A failure is
+    /// remembered for this short time only, so a carrier that is down is not called on every request and the lists come back as soon as it
+    /// answers again. Nothing else is ever served in place of the carrier's lists.
+    /// </summary>
+    public static readonly TimeSpan CarrierFailureBackoff = TimeSpan.FromSeconds(30);
+    public const string CarrierDownCacheKey = "ghn:master_data:carrier_down";
+
+    private void NoteCarrierDown() => _cache.Set(CarrierDownCacheKey, true, CarrierFailureBackoff);
+    private bool CarrierRecentlyDown => _cache.TryGetValue(CarrierDownCacheKey, out _);
 
     public GhnLocationService(
         IOptions<GhnOptions> options,
@@ -51,139 +63,124 @@ public class GhnLocationService : IShippingLocationService
         }
     }
 
-    public async Task<IReadOnlyList<ProvinceDto>> GetProvincesAsync(CancellationToken cancellationToken = default)
+    private sealed record CachedLocations<T>(IReadOnlyList<T> Items, DateTimeOffset ObservedAt);
+
+    private static BusinessRuleValidationException SourceUnavailable() =>
+        new("LOCATION_SOURCE_UNAVAILABLE", "Shipping locations are temporarily unavailable.", 503);
+
+    /// <summary>
+    /// The one way location lists are read: a still valid answer the carrier gave earlier, or a fresh answer from the carrier. When neither
+    /// exists (no token, the carrier failed, or it failed moments ago) the call fails with 503 LOCATION_SOURCE_UNAVAILABLE. There is no built-in
+    /// substitute list: a made-up province, district or ward code would be accepted by the address checks and sent to the carrier.
+    /// </summary>
+    private async Task<LocationList<T>> LoadAsync<T, TRaw>(
+        string cacheKey,
+        string what,
+        Func<CancellationToken, Task<HttpResponseMessage>> call,
+        Func<List<TRaw>, List<T>> map,
+        bool emptyIsAnswer,
+        CancellationToken cancellationToken)
     {
-        const string cacheKey = "ghn:master_data:provinces";
-        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<ProvinceDto>? cached) && cached != null)
+        if (_cache.TryGetValue(cacheKey, out CachedLocations<T>? hit) && hit != null)
         {
-            return cached;
+            return new LocationList<T>(hit.Items, LocationSources.GhnCache, hit.ObservedAt);
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.Token))
+        if (string.IsNullOrWhiteSpace(_options.Token))
         {
-            try
-            {
-                var response = await _httpClient.GetAsync("/shiip/public-api/master-data/province", cancellationToken);
-                if (response.IsSuccessStatusCode)
-                {
-                    var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnRawProvince>>>(cancellationToken: cancellationToken);
-                    if (result?.Data != null && result.Data.Count > 0)
-                    {
-                        var provinces = result.Data.Select(p => new ProvinceDto(p.ProvinceId, p.ProvinceName, p.Code)).ToList();
-                        _cache.Set(cacheKey, (IReadOnlyList<ProvinceDto>)provinces, CacheDuration);
-                        return provinces;
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("GHN GetProvinces returned status {StatusCode}", response.StatusCode);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to fetch provinces from GHN, falling back to local master data.");
-            }
+            _logger.LogWarning("GHN token is not configured, so the {What} cannot be read.", what);
+            throw SourceUnavailable();
         }
 
-        var fallback = GetFallbackProvinces();
-        _cache.Set(cacheKey, fallback, CacheDuration);
-        return fallback;
+        if (CarrierRecentlyDown)
+        {
+            throw SourceUnavailable();
+        }
+
+        try
+        {
+            using var response = await call(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("GHN {What} returned status {StatusCode}", what, response.StatusCode);
+                NoteCarrierDown();
+                throw SourceUnavailable();
+            }
+
+            // HTTP 200 is not enough: the body must say success and carry a list. An error body, a missing list, or an empty list where one cannot
+            // be empty (provinces) is a failed read, never an answer, so a saved code is not judged wrong from it.
+            var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<TRaw>>>(cancellationToken: cancellationToken);
+            if (result is null || result.Code != 200 || result.Data is null || (result.Data.Count == 0 && !emptyIsAnswer))
+            {
+                _logger.LogWarning("GHN {What} answered HTTP 200 without a usable list (code {Code}).", what, result?.Code);
+                NoteCarrierDown();
+                throw SourceUnavailable();
+            }
+
+            var items = map(result.Data);
+            var observedAt = DateTimeOffset.UtcNow;
+            if (items.Count > 0)
+            {
+                _cache.Set(cacheKey, new CachedLocations<T>(items, observedAt), CacheDuration);
+            }
+
+            return new LocationList<T>(items, LocationSources.Ghn, observedAt);
+        }
+        catch (BusinessRuleValidationException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read the {What} from GHN.", what);
+            NoteCarrierDown();
+            throw SourceUnavailable();
+        }
     }
 
-    public async Task<IReadOnlyList<DistrictDto>> GetDistrictsAsync(int provinceId, CancellationToken cancellationToken = default)
+    public Task<LocationList<ProvinceDto>> GetProvincesAsync(CancellationToken cancellationToken = default) =>
+        LoadAsync<ProvinceDto, GhnRawProvince>(
+            "ghn:master_data:provinces",
+            "provinces",
+            ct => _httpClient.GetAsync("/shiip/public-api/master-data/province", ct),
+            raw => raw.Select(p => new ProvinceDto(p.ProvinceId, p.ProvinceName, p.Code)).ToList(),
+            emptyIsAnswer: false,
+            cancellationToken);
+
+    public Task<LocationList<DistrictDto>> GetDistrictsAsync(int provinceId, CancellationToken cancellationToken = default)
     {
         if (provinceId <= 0)
         {
-            return Array.Empty<DistrictDto>();
+            return Task.FromResult(new LocationList<DistrictDto>(Array.Empty<DistrictDto>(), LocationSources.Ghn, DateTimeOffset.UtcNow));
         }
 
-        var cacheKey = $"ghn:master_data:districts:{provinceId}";
-        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<DistrictDto>? cached) && cached != null)
-        {
-            return cached;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_options.Token))
-        {
-            try
-            {
-                var response = await _httpClient.PostAsJsonAsync(
-                    "/shiip/public-api/master-data/district",
-                    new { province_id = provinceId },
-                    cancellationToken);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnRawDistrict>>>(cancellationToken: cancellationToken);
-                    if (result?.Data != null && result.Data.Count > 0)
-                    {
-                        var districts = result.Data.Select(d => new DistrictDto(d.DistrictId, d.ProvinceId, d.DistrictName, d.SupportType)).ToList();
-                        _cache.Set(cacheKey, (IReadOnlyList<DistrictDto>)districts, CacheDuration);
-                        return districts;
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("GHN GetDistricts returned status {StatusCode} for province {ProvinceId}", response.StatusCode, provinceId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to fetch districts from GHN for province {ProvinceId}, falling back to local master data.", provinceId);
-            }
-        }
-
-        var fallback = GetFallbackDistricts(provinceId);
-        _cache.Set(cacheKey, fallback, CacheDuration);
-        return fallback;
+        return LoadAsync<DistrictDto, GhnRawDistrict>(
+            $"ghn:master_data:districts:{provinceId}",
+            $"districts of province {provinceId}",
+            ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/district", new { province_id = provinceId }, ct),
+            raw => raw.Select(d => new DistrictDto(d.DistrictId, d.ProvinceId, d.DistrictName, d.SupportType)).ToList(),
+            emptyIsAnswer: false,
+            cancellationToken);
     }
 
-    public async Task<IReadOnlyList<WardDto>> GetWardsAsync(int districtId, CancellationToken cancellationToken = default)
+    public Task<LocationList<WardDto>> GetWardsAsync(int districtId, CancellationToken cancellationToken = default)
     {
         if (districtId <= 0)
         {
-            return Array.Empty<WardDto>();
+            return Task.FromResult(new LocationList<WardDto>(Array.Empty<WardDto>(), LocationSources.Ghn, DateTimeOffset.UtcNow));
         }
 
-        var cacheKey = $"ghn:master_data:wards:{districtId}";
-        if (_cache.TryGetValue(cacheKey, out IReadOnlyList<WardDto>? cached) && cached != null)
-        {
-            return cached;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_options.Token))
-        {
-            try
-            {
-                var response = await _httpClient.PostAsJsonAsync(
-                    "/shiip/public-api/master-data/ward",
-                    new { district_id = districtId },
-                    cancellationToken);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnRawWard>>>(cancellationToken: cancellationToken);
-                    if (result?.Data != null && result.Data.Count > 0)
-                    {
-                        var wards = result.Data.Select(w => new WardDto(w.WardCode, w.DistrictId, w.WardName)).ToList();
-                        _cache.Set(cacheKey, (IReadOnlyList<WardDto>)wards, CacheDuration);
-                        return wards;
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("GHN GetWards returned status {StatusCode} for district {DistrictId}", response.StatusCode, districtId);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to fetch wards from GHN for district {DistrictId}, falling back to local master data.", districtId);
-            }
-        }
-
-        var fallback = GetFallbackWards(districtId);
-        _cache.Set(cacheKey, fallback, CacheDuration);
-        return fallback;
+        return LoadAsync<WardDto, GhnRawWard>(
+            $"ghn:master_data:wards:{districtId}",
+            $"wards of district {districtId}",
+            ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/ward", new { district_id = districtId }, ct),
+            raw => raw.Select(w => new WardDto(w.WardCode, w.DistrictId, w.WardName)).ToList(),
+            emptyIsAnswer: true,
+            cancellationToken);
     }
 
     public async Task<IReadOnlyList<AvailableShippingServiceDto>> GetAvailableServicesAsync(
@@ -197,46 +194,60 @@ public class GhnLocationService : IShippingLocationService
             return cached;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.Token) && int.TryParse(_options.ShopId, out var shopId) && shopId > 0)
+        // The carrier's own service list or nothing: with no token, no shop, a recent failure, or an answer that is not a successful list, the
+        // call is 503 LOCATION_SOURCE_UNAVAILABLE. Two made-up service ids used to be returned in these cases.
+        if (string.IsNullOrWhiteSpace(_options.Token) || !int.TryParse(_options.ShopId, out var shopId) || shopId <= 0 || CarrierRecentlyDown)
         {
-            try
-            {
-                var payload = new
-                {
-                    shop_id = shopId,
-                    from_district = fromDistrictId,
-                    to_district = toDistrictId
-                };
-
-                var response = await _httpClient.PostAsJsonAsync(
-                    "/shiip/public-api/v2/shipping-order/available-services",
-                    payload,
-                    cancellationToken);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnRawAvailableService>>>(cancellationToken: cancellationToken);
-                    if (result?.Data != null && result.Data.Count > 0)
-                    {
-                        var services = result.Data.Select(s => new AvailableShippingServiceDto(s.ServiceId, s.ShortName, s.ServiceTypeId)).ToList();
-                        _cache.Set(cacheKey, (IReadOnlyList<AvailableShippingServiceDto>)services, CacheDuration);
-                        return services;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to fetch available services from GHN for {FromDistrict} -> {ToDistrict}.", fromDistrictId, toDistrictId);
-            }
+            throw SourceUnavailable();
         }
 
-        var fallback = new List<AvailableShippingServiceDto>
+        try
         {
-            new(53320, "Standard", 2),
-            new(53321, "Fast", 3)
-        };
-        _cache.Set(cacheKey, (IReadOnlyList<AvailableShippingServiceDto>)fallback, CacheDuration);
-        return fallback;
+            var payload = new
+            {
+                shop_id = shopId,
+                from_district = fromDistrictId,
+                to_district = toDistrictId
+            };
+
+            using var response = await _httpClient.PostAsJsonAsync(
+                "/shiip/public-api/v2/shipping-order/available-services",
+                payload,
+                cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("GHN available-services returned status {StatusCode}", response.StatusCode);
+                NoteCarrierDown();
+                throw SourceUnavailable();
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<GhnRawAvailableService>>>(cancellationToken: cancellationToken);
+            if (result is null || result.Code != 200 || result.Data is not { Count: > 0 })
+            {
+                _logger.LogWarning("GHN available-services answered HTTP 200 without a usable list (code {Code}).", result?.Code);
+                NoteCarrierDown();
+                throw SourceUnavailable();
+            }
+
+            var services = result.Data.Select(s => new AvailableShippingServiceDto(s.ServiceId, s.ShortName, s.ServiceTypeId)).ToList();
+            _cache.Set(cacheKey, (IReadOnlyList<AvailableShippingServiceDto>)services, CacheDuration);
+            return services;
+        }
+        catch (BusinessRuleValidationException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch available services from GHN for {FromDistrict} -> {ToDistrict}.", fromDistrictId, toDistrictId);
+            NoteCarrierDown();
+            throw SourceUnavailable();
+        }
     }
 
     public async Task<ShippingLocationValidationResponse> ValidateLocationAsync(
@@ -245,7 +256,7 @@ public class GhnLocationService : IShippingLocationService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var provinces = await GetProvincesAsync(cancellationToken);
+        var provinces = (await GetProvincesAsync(cancellationToken)).Items;
         var province = provinces.FirstOrDefault(p => p.ProvinceId == request.ProvinceId);
         if (province == null)
         {
@@ -260,7 +271,7 @@ public class GhnLocationService : IShippingLocationService
                 Message: $"Province with ID '{request.ProvinceId}' was not found.");
         }
 
-        var districts = await GetDistrictsAsync(request.ProvinceId, cancellationToken);
+        var districts = (await GetDistrictsAsync(request.ProvinceId, cancellationToken)).Items;
         var district = districts.FirstOrDefault(d => d.DistrictId == request.DistrictId);
         if (district == null)
         {
@@ -275,7 +286,7 @@ public class GhnLocationService : IShippingLocationService
                 Message: $"District with ID '{request.DistrictId}' does not belong to province '{province.ProvinceName}'.");
         }
 
-        var wards = await GetWardsAsync(request.DistrictId, cancellationToken);
+        var wards = (await GetWardsAsync(request.DistrictId, cancellationToken)).Items;
         var ward = wards.FirstOrDefault(w => string.Equals(w.WardCode, request.WardCode, StringComparison.OrdinalIgnoreCase));
         if (ward == null)
         {
@@ -299,60 +310,6 @@ public class GhnLocationService : IShippingLocationService
             WardCode: ward.WardCode,
             WardName: ward.WardName);
     }
-
-    private static IReadOnlyList<ProvinceDto> GetFallbackProvinces() => new List<ProvinceDto>
-    {
-        new(201, "Hà Nội", "01"),
-        new(202, "Hồ Chí Minh", "79"),
-        new(203, "Đà Nẵng", "48")
-    };
-
-    private static IReadOnlyList<DistrictDto> GetFallbackDistricts(int provinceId) => provinceId switch
-    {
-        201 => new List<DistrictDto>
-        {
-            new(1442, 201, "Quận Ba Đình", 3),
-            new(1443, 201, "Quận Hoàn Kiếm", 3),
-            new(1444, 201, "Quận Đống Đa", 3),
-            new(1445, 201, "Quận Cầu Giấy", 3)
-        },
-        202 => new List<DistrictDto>
-        {
-            new(1446, 202, "Quận 1", 3),
-            new(1447, 202, "Quận 3", 3),
-            new(1448, 202, "Quận Bình Thạnh", 3)
-        },
-        203 => new List<DistrictDto>
-        {
-            new(1449, 203, "Quận Hải Châu", 3),
-            new(1450, 203, "Quận Thanh Khê", 3)
-        },
-        _ => new List<DistrictDto>()
-    };
-
-    private static IReadOnlyList<WardDto> GetFallbackWards(int districtId) => districtId switch
-    {
-        1442 => new List<WardDto>
-        {
-            new("20101", 1442, "Phường Phúc Xá"),
-            new("20102", 1442, "Phường Trúc Bạch"),
-            new("20103", 1442, "Phường Vĩnh Phúc")
-        },
-        1444 => new List<WardDto>
-        {
-            new("20104", 1444, "Phường Cát Linh"),
-            new("20105", 1444, "Phường Văn Miếu")
-        },
-        1446 => new List<WardDto>
-        {
-            new("20201", 1446, "Phường Bến Nghé"),
-            new("20202", 1446, "Phường Bến Thành")
-        },
-        _ => new List<WardDto>
-        {
-            new($"{districtId}01", districtId, "Phường Trung Tâm")
-        }
-    };
 
     private sealed class GhnRawApiResponse<T>
     {

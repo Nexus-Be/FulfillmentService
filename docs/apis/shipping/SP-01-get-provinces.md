@@ -29,3 +29,11 @@ Tra cuu toan bo danh muc 63 Tinh/Thanh pho truc thuoc trung uong theo chuan ma d
   }
 ]
 ```
+
+## Nguon du lieu va loi 503 (24/11/2026)
+- Danh sach chi den tu GHN, hoac tu mot cau tra loi truoc do cua GHN con trong cache. **Khong con danh sach mau** thay the khi GHN loi hoac thieu token.
+- Body van la mang JSON thuan (khong doi hop dong). Nguon va thoi diem GHN tra loi nam trong hai header phan hoi:
+  - `X-Location-Source`: `ghn` (vua lay tu GHN) hoac `ghn-cache` (cau tra loi truoc do cua GHN con trong cache).
+  - `X-Location-Observed-At`: thoi diem GHN tra loi that, dinh dang ISO 8601.
+- Khi khong co du lieu dang tin cay (thieu token, GHN loi, GHN vua loi trong 30 giay truoc): `503` voi `errorCode = LOCATION_SOURCE_UNAVAILABLE`.
+- Gateway cho phep trinh duyet doc hai header tren (`WithExposedHeaders`).

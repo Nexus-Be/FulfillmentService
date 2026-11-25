@@ -9,16 +9,47 @@ using Fulfillment.Application.Common;
 using Fulfillment.Application.Common.Models;
 using Fulfillment.Application.Exceptions;
 using Fulfillment.Application.Interfaces;
+using Fulfillment.Application.Interfaces.Shipping;
+using Fulfillment.Application.Services.Shipping;
 using Fulfillment.Domain.Entities;
 using Fulfillment.Domain.Exceptions;
 
 public class WarehouseService : IWarehouseService
 {
     private readonly IFulfillmentDbContext _dbContext;
+    private readonly IShippingLocationService _locations;
 
-    public WarehouseService(IFulfillmentDbContext dbContext)
+    public WarehouseService(IFulfillmentDbContext dbContext, IShippingLocationService locations)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _locations = locations ?? throw new ArgumentNullException(nameof(locations));
+    }
+
+    /// <summary>
+    /// A warehouse may be kept without an address (a placeholder that cannot ship yet), but an address that is given must be the whole
+    /// province, district and ward chain and must be confirmed by the GHN lists before it is saved. Without a trusted GHN source the call is
+    /// 503 LOCATION_SOURCE_UNAVAILABLE and nothing is saved. Returns the confirmation, or null for a placeholder.
+    /// </summary>
+    private async Task<ShippingLocationValidationResponse?> EnsureVerifiedAddressAsync(int? provinceId, int? districtId, string? wardCode, CancellationToken cancellationToken)
+    {
+        var ward = wardCode?.Trim();
+        if (!provinceId.HasValue && !districtId.HasValue && string.IsNullOrEmpty(ward))
+        {
+            return null;
+        }
+
+        if (!provinceId.HasValue || !districtId.HasValue || string.IsNullOrEmpty(ward))
+        {
+            throw new BusinessRuleValidationException("WAREHOUSE_ADDRESS_INCOMPLETE", "The province, district and ward of a warehouse address must be given together.", 400);
+        }
+
+        var result = await _locations.ValidateLocationAsync(new ValidateShippingLocationRequest(provinceId.Value, districtId.Value, ward), cancellationToken);
+        if (!result.IsValid)
+        {
+            throw new BusinessRuleValidationException("VAL_INVALID_LOCATION", result.Message ?? "The province, district and ward do not match.", 400);
+        }
+
+        return result;
     }
 
     public async Task<WarehouseDto> CreateAsync(CreateWarehouseRequest request, Guid sellerId, CancellationToken cancellationToken = default)
@@ -50,6 +81,8 @@ public class WarehouseService : IWarehouseService
             throw new BusinessRuleValidationException("VAL_INVALID_DISTRICT", "DistrictId must be greater than 0.", 400);
         }
 
+        var verified = await EnsureVerifiedAddressAsync(request.ProvinceId, request.DistrictId, request.WardCode, cancellationToken);
+
         var warehouse = new Warehouse
         {
             Code = normalizedCode,
@@ -57,7 +90,8 @@ public class WarehouseService : IWarehouseService
             SellerId = effectiveSellerId,
             Address = request.Address?.Trim(),
             ContactPhone = request.ContactPhone?.Trim(),
-            ProvinceName = request.ProvinceName?.Trim(),
+            ProvinceName = request.ProvinceName?.Trim() ?? verified?.ProvinceName,
+            ProvinceId = request.ProvinceId,
             DistrictId = request.DistrictId,
             WardCode = request.WardCode?.Trim(),
             GhnShopId = request.GhnShopId,
@@ -81,12 +115,30 @@ public class WarehouseService : IWarehouseService
 
         if (existingWarehouse != null)
         {
+            // A placeholder made earlier (for example when the seller opened the warehouse page) is completed by the first confirmed address
+            // that arrives, instead of being returned as it is and left unable to quote or ship.
+            var hasAddress = existingWarehouse.ProvinceId.HasValue && existingWarehouse.DistrictId.HasValue && !string.IsNullOrWhiteSpace(existingWarehouse.WardCode);
+            var givesAddress = request.ProvinceId.HasValue || request.DistrictId.HasValue || !string.IsNullOrWhiteSpace(request.WardCode);
+            if (!hasAddress && givesAddress)
+            {
+                var completed = await EnsureVerifiedAddressAsync(request.ProvinceId, request.DistrictId, request.WardCode, cancellationToken);
+                existingWarehouse.ProvinceId = request.ProvinceId;
+                existingWarehouse.DistrictId = request.DistrictId;
+                existingWarehouse.WardCode = request.WardCode?.Trim();
+                existingWarehouse.ProvinceName = request.ProvinceName?.Trim() ?? completed?.ProvinceName ?? existingWarehouse.ProvinceName;
+                if (!string.IsNullOrWhiteSpace(request.PickupAddress)) existingWarehouse.Address = request.PickupAddress.Trim();
+                if (!string.IsNullOrWhiteSpace(request.ContactPhone)) existingWarehouse.ContactPhone = request.ContactPhone.Trim();
+                await _dbContext.SaveChangesAsync(cancellationToken);
+            }
+
             return new InternalWarehouseResponse(
                 existingWarehouse.Id,
                 request.SellerId,
                 existingWarehouse.IsDisabled ? "INACTIVE" : "ACTIVE",
                 existingWarehouse.CreatedAt);
         }
+
+        var verifiedAddress = await EnsureVerifiedAddressAsync(request.ProvinceId, request.DistrictId, request.WardCode, cancellationToken);
 
         var effectiveSellerId = request.UserId != Guid.Empty ? request.UserId : request.SellerId;
         var generatedCode = "WH_" + effectiveSellerId.ToString("N")[..8].ToUpperInvariant();
@@ -110,7 +162,8 @@ public class WarehouseService : IWarehouseService
             SellerId = effectiveSellerId,
             Address = request.PickupAddress.Trim(),
             ContactPhone = request.ContactPhone?.Trim(),
-            ProvinceName = request.ProvinceName?.Trim() ?? request.ProvinceId?.ToString(),
+            ProvinceName = request.ProvinceName?.Trim() ?? verifiedAddress?.ProvinceName,
+            ProvinceId = request.ProvinceId,
             DistrictId = request.DistrictId,
             WardCode = request.WardCode?.Trim(),
             IsActive = true
@@ -139,10 +192,24 @@ public class WarehouseService : IWarehouseService
             throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to update this warehouse.", 403);
         }
 
+        // A change of name or phone is never held up by the address lists; a change of the province, district or ward is checked as a whole chain.
+        var addressChanged = request.ProvinceId.HasValue || request.DistrictId.HasValue || request.WardCode != null;
+        ShippingLocationValidationResponse? verifiedChange = null;
+        if (addressChanged)
+        {
+            verifiedChange = await EnsureVerifiedAddressAsync(
+                request.ProvinceId ?? warehouse.ProvinceId,
+                request.DistrictId ?? warehouse.DistrictId,
+                request.WardCode ?? warehouse.WardCode,
+                cancellationToken);
+        }
+
         warehouse.Name = request.Name.Trim();
         if (request.Address != null) warehouse.Address = request.Address.Trim();
         if (request.ContactPhone != null) warehouse.ContactPhone = request.ContactPhone.Trim();
-        if (request.ProvinceName != null) warehouse.ProvinceName = request.ProvinceName.Trim();
+        if (!string.IsNullOrWhiteSpace(request.ProvinceName)) warehouse.ProvinceName = request.ProvinceName.Trim();
+        else if (verifiedChange?.ProvinceName != null) warehouse.ProvinceName = verifiedChange.ProvinceName;
+        if (request.ProvinceId.HasValue) warehouse.ProvinceId = request.ProvinceId.Value;
         if (request.DistrictId.HasValue)
         {
             if (request.DistrictId.Value <= 0)
@@ -195,6 +262,36 @@ public class WarehouseService : IWarehouseService
         }
 
         return warehouse == null ? null : MapToDto(warehouse);
+    }
+
+    public async Task<WarehouseDto?> GetForSellerAsync(
+        Guid userId,
+        Guid? sellerProfileId = null,
+        string? shopName = null,
+        string? address = null,
+        CancellationToken cancellationToken = default)
+    {
+        var warehouse = await _dbContext.Warehouses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(w => w.SellerId == userId && w.IsActive, cancellationToken);
+        if (warehouse is not null)
+        {
+            return MapToDto(warehouse);
+        }
+
+        // A warehouse registered under the seller profile ID (older data) is still the seller's own.
+        if (sellerProfileId.HasValue && sellerProfileId.Value != Guid.Empty)
+        {
+            var legacy = await _dbContext.Warehouses
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.SellerId == sellerProfileId.Value && w.IsActive, cancellationToken);
+            if (legacy is not null)
+            {
+                return MapToDto(legacy);
+            }
+        }
+
+        return null;
     }
 
     public async Task<WarehouseDto?> GetOrProvisionForSellerAsync(
@@ -276,6 +373,18 @@ public class WarehouseService : IWarehouseService
             return null;
         }
 
+        // The profile sync always sends the whole chain; only a chain that differs from the saved one is checked, so a change of hotline or name
+        // is not held up by the GHN lists, and a legacy warehouse without a province id is completed by the first confirmed chain.
+        var newProvince = request.ProvinceId ?? warehouse.ProvinceId;
+        var newDistrict = request.DistrictId ?? warehouse.DistrictId;
+        var newWard = !string.IsNullOrWhiteSpace(request.WardCode) ? request.WardCode.Trim() : warehouse.WardCode;
+        var addressChangedBySeller = newProvince != warehouse.ProvinceId || newDistrict != warehouse.DistrictId || newWard != warehouse.WardCode;
+        ShippingLocationValidationResponse? verifiedBySeller = null;
+        if (addressChangedBySeller)
+        {
+            verifiedBySeller = await EnsureVerifiedAddressAsync(newProvince, newDistrict, newWard, cancellationToken);
+        }
+
         if (!string.IsNullOrWhiteSpace(request.ShopName))
         {
             warehouse.Name = request.ShopName.Trim();
@@ -294,6 +403,15 @@ public class WarehouseService : IWarehouseService
         if (!string.IsNullOrWhiteSpace(request.ProvinceName))
         {
             warehouse.ProvinceName = request.ProvinceName.Trim();
+        }
+        else if (verifiedBySeller?.ProvinceName != null)
+        {
+            warehouse.ProvinceName = verifiedBySeller.ProvinceName;
+        }
+
+        if (request.ProvinceId.HasValue)
+        {
+            warehouse.ProvinceId = request.ProvinceId.Value;
         }
 
         if (request.DistrictId.HasValue)
@@ -354,7 +472,8 @@ public class WarehouseService : IWarehouseService
                 w.WardCode,
                 w.GhnShopId,
                 !w.IsActive,
-                w.SellerId))
+                w.SellerId,
+                w.ProvinceId))
             .ToListAsync(cancellationToken);
 
         return new PagedData<WarehouseDto>(items, PaginationMetadata.Create(safePage, safePageSize, totalCount));
@@ -389,5 +508,6 @@ public class WarehouseService : IWarehouseService
             w.WardCode,
             w.GhnShopId,
             !w.IsActive,
-            w.SellerId);
+            w.SellerId,
+            w.ProvinceId);
 }

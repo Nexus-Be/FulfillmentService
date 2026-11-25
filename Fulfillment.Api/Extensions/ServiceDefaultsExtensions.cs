@@ -152,6 +152,11 @@ public static class ServiceDefaultsExtensions
         });
         app.UseGlobalExceptionHandler();
         app.UseMiddleware<UserContextMiddleware>();
+        app.Use(async (context, next) =>
+        {
+            Fulfillment.Application.Common.AuditActor.UserId = context.GetUserId()?.ToString();
+            await next();
+        });
         app.UseMiddleware<InternalServiceAuthMiddleware>();
 
         if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))

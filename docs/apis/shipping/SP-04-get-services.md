@@ -35,3 +35,6 @@ Tra cuu cac goi cuoc van chuyen cua GHN ho tro giua Quan/Huyen gui va Quan/Huyen
   }
 ]
 ```
+
+## Nguon du lieu va loi 503 (25/11/2026)
+Danh sach dich vu chi lay tu GHN (hoac cau tra loi truoc do cua GHN con trong cache). **Khong con hai dich vu mau** (ma 53320, 53321) khi GHN loi. Thieu token hoac ma cua hang, GHN loi, hoac GHN tra HTTP 200 ma body khong co `code = 200` kem danh sach: `503` voi `errorCode = LOCATION_SOURCE_UNAVAILABLE`, khong cache.

@@ -1,4 +1,4 @@
-namespace Fulfillment.Domain.Entities;
+﻿namespace Fulfillment.Domain.Entities;
 
 using System;
 using System.Collections.Generic;

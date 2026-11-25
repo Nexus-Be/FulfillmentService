@@ -1,4 +1,4 @@
-namespace Fulfillment.Application.Services.Shipment;
+﻿namespace Fulfillment.Application.Services.Shipment;
 
 using System;
 using System.Collections.Generic;
@@ -34,8 +34,10 @@ public sealed class ShipmentService : IShipmentService
         Fulfillment.Application.Services.Shipping.ShippingEstimateOptions? estimateOptions = null,
         DeliveryNotificationOutbox? outbox = null,
         INotificationClient? notificationClient = null,
-        ILogger<ShipmentService>? logger = null)
+        ILogger<ShipmentService>? logger = null,
+        ShippingBehaviorOptions? behavior = null)
     {
+        _behavior = behavior ?? new ShippingBehaviorOptions();
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _carrierResolver = carrierResolver ?? throw new ArgumentNullException(nameof(carrierResolver));
         _lockService = lockService;
@@ -121,22 +123,34 @@ public sealed class ShipmentService : IShipmentService
         }
     }
 
+    private static bool IsAddressIncomplete(Domain.Entities.Warehouse warehouse) =>
+        !warehouse.ProvinceId.HasValue || !warehouse.DistrictId.HasValue || string.IsNullOrWhiteSpace(warehouse.WardCode);
+
     public async Task<ShippingQuoteResponse> CalculateShippingFeeAsync(ShopShippingQuoteRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        // Dynamically resolve warehouse details for the seller, or fallback to default active warehouse
+        // The origin is the seller's own active warehouse. Another seller's warehouse is never used: a shop without one is told so.
+        // A caller that names the origin district itself (an estimate) does not need a warehouse.
         var warehouse = await _dbContext.Warehouses
             .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
-            ?? await _dbContext.Warehouses
-                .AsNoTracking()
-                .FirstOrDefaultAsync(w => w.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken);
+        if (warehouse is null && request.FromDistrictId <= 0)
+        {
+            throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Active warehouse of seller", request.SellerId);
+        }
 
         int? fromDistrictId = request.FromDistrictId > 0 ? request.FromDistrictId : warehouse?.DistrictId;
         if (!fromDistrictId.HasValue || fromDistrictId.Value <= 0)
         {
             throw new BusinessRuleValidationException("INVALID_FROM_DISTRICT", "FromDistrictId is required for calculating shipping fee.", 400);
+        }
+
+        // The seller's own warehouse is the origin only if its whole address was confirmed against the GHN lists when it was saved (the province id is
+        // set only by such a save). A caller that names the origin district itself is making an estimate and does not need the warehouse.
+        if (warehouse is not null && request.FromDistrictId <= 0 && IsAddressIncomplete(warehouse))
+        {
+            throw new BusinessRuleValidationException("WAREHOUSE_ADDRESS_INCOMPLETE", "The warehouse address is not complete or has not been confirmed yet.", 400);
         }
 
         var fromAddress = new ShippingAddress(
@@ -177,10 +191,52 @@ public sealed class ShipmentService : IShipmentService
                 IsEstimatedFallback: true,
                 ServiceName: "ESTIMATED");
         }
+        catch (CarrierTimeoutException)
+        {
+            throw new BusinessRuleValidationException("SHIPPING_CARRIER_TIMEOUT", "The shipping carrier did not answer in time.", 503);
+        }
+        catch (CarrierNotFoundException)
+        {
+            throw new BusinessRuleValidationException("SHIPPING_CARRIER_NOT_CONFIGURED", "The shipping carrier is not configured.", 503);
+        }
         catch (CarrierIntegrationException ex)
         {
-            throw new BusinessRuleValidationException("SHIPPING_QUOTE_FAILED", $"Failed to calculate shipping fee: {ex.Message}", 400);
+            throw MapQuoteFailure(ex);
         }
+    }
+
+    /// <summary>
+    /// A quote that failed because of the carrier (no credentials, refused credentials, carrier down, network) is not the buyer's address:
+    /// it is reported as 503 with a code of its own, so the caller does not tell the buyer to fix an address that is fine. Only a carrier
+    /// answer about the data itself (bad district or ward, bad weight) stays the 400 <c>SHIPPING_QUOTE_FAILED</c>.
+    /// </summary>
+    internal static BusinessRuleValidationException MapQuoteFailure(CarrierIntegrationException ex)
+    {
+        if (ex.ErrorCode is "MISSING_TOKEN")
+        {
+            return new BusinessRuleValidationException("SHIPPING_CARRIER_NOT_CONFIGURED", "The shipping carrier is not configured.", 503);
+        }
+
+        if (ex.ErrorCode is "HTTP_ERROR")
+        {
+            return new BusinessRuleValidationException("SHIPPING_CARRIER_UNAVAILABLE", "The shipping carrier is temporarily unavailable.", 503);
+        }
+
+        // For an HTTP answer of the carrier the error code is the name of the status ("Unauthorized", "BadGateway", ...).
+        if (Enum.TryParse<System.Net.HttpStatusCode>(ex.ErrorCode, out var status))
+        {
+            if (status is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+            {
+                return new BusinessRuleValidationException("SHIPPING_CARRIER_NOT_CONFIGURED", "The shipping carrier refused the configured credentials.", 503);
+            }
+
+            if ((int)status >= 500 || status is System.Net.HttpStatusCode.RequestTimeout or System.Net.HttpStatusCode.TooManyRequests)
+            {
+                return new BusinessRuleValidationException("SHIPPING_CARRIER_UNAVAILABLE", "The shipping carrier is temporarily unavailable.", 503);
+            }
+        }
+
+        return new BusinessRuleValidationException("SHIPPING_QUOTE_FAILED", $"Failed to calculate shipping fee: {ex.Message}", 400);
     }
 
     public async Task<CreateShipmentResponse> CreateShipmentAsync(CreateShipmentRequest request, CancellationToken cancellationToken = default)
@@ -201,12 +257,16 @@ public sealed class ShipmentService : IShipmentService
                 existing.Status.ToString());
         }
 
-        // Dynamically resolve warehouse for the seller
+        // The sender is the seller's own active warehouse. Falling back to any other warehouse would send the parcel pickup and the
+        // shipping fee to another seller's address, so a seller without one gets WAREHOUSE_NOT_FOUND and no shipment is created.
         var warehouse = await _dbContext.Warehouses
             .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
-            ?? await _dbContext.Warehouses
-                .FirstOrDefaultAsync(w => w.IsActive, cancellationToken)
-            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Warehouse for seller", request.SellerId);
+            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Active warehouse of seller", request.SellerId);
+
+        if (IsAddressIncomplete(warehouse))
+        {
+            throw new BusinessRuleValidationException("WAREHOUSE_ADDRESS_INCOMPLETE", "The warehouse address is not complete or has not been confirmed yet, so no shipment can be created.", 400);
+        }
 
         // Dynamically resolve active carrier entity matching the resolver carrier code
         var carrier = _carrierResolver.Get();
@@ -360,8 +420,8 @@ public sealed class ShipmentService : IShipmentService
             throw new BusinessRuleValidationException("FORBIDDEN", "You do not have permission to confirm return for this shipment.", 403);
         }
 
-        // Only shipments that failed delivery or are marked returned by carrier can be confirmed for inventory restoration
-        if (shipment.Status is not (ShipmentStatus.DeliveryFailed or ShipmentStatus.Returned))
+        // Only shipments that failed delivery, are on their way back or are marked returned by the carrier can be confirmed for inventory restoration
+        if (shipment.Status is not (ShipmentStatus.DeliveryFailed or ShipmentStatus.Returning or ShipmentStatus.Returned))
         {
             throw new BusinessRuleValidationException("SHIPMENT_NOT_RETURNING", "Shipment is not in a returnable state.", 409);
         }
@@ -410,8 +470,8 @@ public sealed class ShipmentService : IShipmentService
         shipment.Events.Add(new ShipmentEvent
         {
             ShipmentId = shipment.Id,
-            CarrierStatus = shipment.Status == ShipmentStatus.Returned ? "returned" : "delivery_fail",
-            Status = shipment.Status == ShipmentStatus.Returned ? ShipmentEventStatus.Returned : ShipmentEventStatus.DeliveryFailed,
+            CarrierStatus = shipment.Status == ShipmentStatus.Returned ? "returned" : shipment.Status == ShipmentStatus.Returning ? "returning" : "delivery_fail",
+            Status = shipment.Status == ShipmentStatus.Returned ? ShipmentEventStatus.Returned : shipment.Status == ShipmentStatus.Returning ? ShipmentEventStatus.Returning : ShipmentEventStatus.DeliveryFailed,
             Description = "Seller confirmed return delivery. Stock restored.",
             OccurredAt = DateTimeOffset.UtcNow,
             WarehouseName = shipment.Warehouse?.Name
@@ -871,6 +931,11 @@ public sealed class ShipmentService : IShipmentService
             lastFailEvent?.ReasonCode);
     }
 
+    private readonly ShippingBehaviorOptions _behavior;
+
+    private bool ShouldNotifyCommerce(ShipmentStatus status) =>
+        Array.IndexOf(NotifyStatuses, status) >= 0 || (status == ShipmentStatus.Returning && _behavior.EmitReturningStatus);
+
     private static readonly ShipmentStatus[] NotifyStatuses =
     {
         ShipmentStatus.HandedOver,
@@ -895,6 +960,7 @@ public sealed class ShipmentService : IShipmentService
         ShipmentStatus.Delivered => ShipmentEventStatus.Delivered,
         ShipmentStatus.DeliveryFailed => ShipmentEventStatus.DeliveryFailed,
         ShipmentStatus.Returned => ShipmentEventStatus.Returned,
+        ShipmentStatus.Returning => ShipmentEventStatus.Returning,
         _ => ShipmentEventStatus.InTransit
     };
 
@@ -912,7 +978,8 @@ public sealed class ShipmentService : IShipmentService
             "delivering" or "money_collect_delivering" => ShipmentStatus.InTransit,
             "delivered" => ShipmentStatus.Delivered,
             "delivery_fail" => ShipmentStatus.DeliveryFailed,
-            "return" or "returning" or "returned" or "return_to_origin" => ShipmentStatus.Returned,
+            "return" or "returning" => ShipmentStatus.Returning,
+            "returned" or "return_to_origin" => ShipmentStatus.Returned,
             "cancel" or "cancelled" => ShipmentStatus.Cancelled,
             _ => throw new BusinessRuleValidationException("VAL_INVALID_STATUS", $"Status '{status}' is not recognized.", 400)
         };
@@ -996,7 +1063,7 @@ public sealed class ShipmentService : IShipmentService
         };
 
         string? commerceStatusNotified = null;
-        var notify = Array.IndexOf(NotifyStatuses, targetStatus) >= 0;
+        var notify = ShouldNotifyCommerce(targetStatus);
         if (notify)
         {
             commerceStatusNotified = MapCommerceStatus(targetStatus);

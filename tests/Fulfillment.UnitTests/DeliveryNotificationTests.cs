@@ -1,4 +1,4 @@
-namespace Fulfillment.UnitTests;
+﻿namespace Fulfillment.UnitTests;
 
 using System.Net;
 using System.Text.Json;
@@ -27,6 +27,8 @@ public sealed class ShipmentStatusTransitionsTests
     // never backwards, and a repeat is not progress
     [InlineData(ShipmentStatus.Delivered, ShipmentStatus.InTransit, false)]
     [InlineData(ShipmentStatus.Delivered, ShipmentStatus.Delivered, false)]
+    [InlineData(ShipmentStatus.Delivered, ShipmentStatus.DeliveryFailed, false)]   // a late carrier "delivery failed" after delivery
+    [InlineData(ShipmentStatus.Delivered, ShipmentStatus.Cancelled, false)]
     [InlineData(ShipmentStatus.InTransit, ShipmentStatus.Picking, false)]
     [InlineData(ShipmentStatus.Delivered, ShipmentStatus.ReadyToPick, false)]   // what an unknown carrier status maps to
     [InlineData(ShipmentStatus.DeliveryFailed, ShipmentStatus.Picking, false)]

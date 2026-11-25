@@ -1,4 +1,4 @@
-namespace Fulfillment.Api.Controllers.Public;
+﻿namespace Fulfillment.Api.Controllers.Public;
 
 using System;
 using System.Text.Json;
@@ -32,8 +32,10 @@ public sealed class GhnWebhookController : ControllerBase
         IFulfillmentDbContext dbContext,
         DeliveryNotificationOutbox outbox,
         ILogger<GhnWebhookController> logger,
-        INotificationClient? notificationClient = null)
+        INotificationClient? notificationClient = null,
+        ShippingBehaviorOptions? behavior = null)
     {
+        _behavior = behavior ?? new ShippingBehaviorOptions();
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _outbox = outbox ?? throw new ArgumentNullException(nameof(outbox));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -41,6 +43,7 @@ public sealed class GhnWebhookController : ControllerBase
     }
 
     private readonly INotificationClient? _notificationClient;
+    private readonly ShippingBehaviorOptions _behavior;
 
     [HttpPost]
     public async Task<IActionResult> HandleGhnCallback(
@@ -55,9 +58,13 @@ public sealed class GhnWebhookController : ControllerBase
         var rawJson = JsonSerializer.Serialize(payload);
         _logger.LogInformation("Received GHN Webhook for OrderCode: {OrderCode}, Status: {Status}", payload.OrderCode, payload.Status);
 
+        // The carrier event time tells a repeated delivery of one event apart from a genuinely new one (for example a second failed attempt).
+        var eventTimeKey = GhnEventTime.Key(payload.Time);
+
         // 1. Audit Log creation
         var auditLog = new WebhookAuditLog
         {
+            EventTimeKey = eventTimeKey,
             OrderCode = payload.OrderCode,
             ClientOrderCode = payload.ClientOrderCode,
             EventType = payload.Type ?? "switch_status",
@@ -68,12 +75,20 @@ public sealed class GhnWebhookController : ControllerBase
         };
         _dbContext.WebhookAuditLogs.Add(auditLog);
 
-        // 2. Strict Idempotency Check: if exact orderCode & status was already processed, return early
-        var alreadyProcessed = await _dbContext.WebhookAuditLogs
-            .AnyAsync(l => l.OrderCode == payload.OrderCode &&
-                           l.Status == payload.Status &&
-                           l.IsProcessed,
-                      cancellationToken);
+        // 2. Strict Idempotency Check: the same order code, status AND event time was already processed, so return early.
+        //    Without a usable event time only the order code and status can be compared (the old behaviour).
+        var alreadyProcessed = eventTimeKey is null
+            ? await _dbContext.WebhookAuditLogs
+                .AnyAsync(l => l.OrderCode == payload.OrderCode &&
+                               l.Status == payload.Status &&
+                               l.IsProcessed,
+                          cancellationToken)
+            : await _dbContext.WebhookAuditLogs
+                .AnyAsync(l => l.OrderCode == payload.OrderCode &&
+                               l.Status == payload.Status &&
+                               l.EventTimeKey == eventTimeKey &&
+                               l.IsProcessed,
+                          cancellationToken);
 
         if (alreadyProcessed)
         {
@@ -172,7 +187,7 @@ public sealed class GhnWebhookController : ControllerBase
 
         // 5. Commerce must hear about the milestones that move an order. The update is queued on the audit row before it is sent, so a
         //    Commerce outage cannot lose it: the notification worker keeps retrying until Commerce acknowledges it.
-        var notify = Array.IndexOf(NotifyStatuses, newStatus) >= 0;
+        var notify = Array.IndexOf(NotifyStatuses, newStatus) >= 0 || (newStatus == ShipmentStatus.Returning && _behavior.EmitReturningStatus);
         if (notify)
         {
             auditLog.NotifyOrderId = shipment.OrderId;
@@ -183,7 +198,57 @@ public sealed class GhnWebhookController : ControllerBase
             auditLog.CommerceNotifyNextRetryAt = DateTimeOffset.UtcNow.Add(DeliveryNotificationOutbox.FirstRetryDelay);
         }
 
+        // Third failed attempt: send the parcel back (flag B). The attempts are counted from the saved events, plus this one.
+        WebhookAuditLog? returningAudit = null;
+        if (newStatus == ShipmentStatus.DeliveryFailed && _behavior.AutoReturnAfterFailedAttempts)
+        {
+            var persistedFailedAttempts = await _dbContext.ShipmentEvents
+                .CountAsync(e => e.ShipmentId == shipment.Id && e.Status == ShipmentEventStatus.DeliveryFailed, cancellationToken) + 1;
+            if (persistedFailedAttempts >= ShippingBehaviorOptions.MaxFailedAttempts)
+            {
+                shipment.Status = ShipmentStatus.Returning;
+                _dbContext.ShipmentEvents.Add(new ShipmentEvent
+                {
+                    ShipmentId = shipment.Id,
+                    CarrierStatus = "auto_returning",
+                    Status = ShipmentEventStatus.Returning,
+                    Description = $"Sent back automatically after {persistedFailedAttempts} failed delivery attempts.",
+                    ExternalEventId = "auto_return",
+                    OccurredAt = DateTimeOffset.UtcNow,
+                    RawPayload = rawJson,
+                    WarehouseName = payload.Warehouse
+                });
+
+                if (_behavior.EmitReturningStatus)
+                {
+                    returningAudit = new WebhookAuditLog
+                    {
+                        OrderCode = payload.OrderCode,
+                        ClientOrderCode = payload.ClientOrderCode,
+                        EventType = "auto_return",
+                        Status = "returning",
+                        RawJson = rawJson,
+                        ReceivedAt = DateTimeOffset.UtcNow,
+                        IsProcessed = true,
+                        ProcessMessage = $"Moved to Returning after {persistedFailedAttempts} failed delivery attempts.",
+                        NotifyOrderId = shipment.OrderId,
+                        NotifyStatus = MapCommerceStatus(ShipmentStatus.Returning),
+                        NotifyTrackingNumber = shipment.TrackingNumber ?? payload.OrderCode,
+                        NotifyDescription = $"Sent back after {persistedFailedAttempts} failed delivery attempts.",
+                        CommerceNotifyAttempts = 0,
+                        CommerceNotifyNextRetryAt = DateTimeOffset.UtcNow.Add(DeliveryNotificationOutbox.FirstRetryDelay)
+                    };
+                    _dbContext.WebhookAuditLogs.Add(returningAudit);
+                }
+            }
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (returningAudit is not null)
+        {
+            await _outbox.TrySendAsync(returningAudit, cancellationToken);
+        }
 
         if (notify)
         {
@@ -246,6 +311,7 @@ public sealed class GhnWebhookController : ControllerBase
         ShipmentStatus.Delivered => ShipmentEventStatus.Delivered,
         ShipmentStatus.DeliveryFailed => ShipmentEventStatus.DeliveryFailed,
         ShipmentStatus.Returned => ShipmentEventStatus.Returned,
+        ShipmentStatus.Returning => ShipmentEventStatus.Returning,
         ShipmentStatus.Cancelled => ShipmentEventStatus.Cancelled,
         _ => ShipmentEventStatus.InTransit
     };

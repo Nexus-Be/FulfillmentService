@@ -34,7 +34,7 @@ public sealed class ShippingController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ProvinceDto>>> GetProvinces(CancellationToken cancellationToken)
     {
         var provinces = await _locationService.GetProvincesAsync(cancellationToken);
-        return Ok(provinces);
+        return this.OkLocations(provinces);
     }
 
     /// <summary>
@@ -52,7 +52,7 @@ public sealed class ShippingController : ControllerBase
         }
 
         var districts = await _locationService.GetDistrictsAsync(provinceId, cancellationToken);
-        return Ok(districts);
+        return this.OkLocations(districts);
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public sealed class ShippingController : ControllerBase
         }
 
         var wards = await _locationService.GetWardsAsync(districtId, cancellationToken);
-        return Ok(wards);
+        return this.OkLocations(wards);
     }
 
     /// <summary>

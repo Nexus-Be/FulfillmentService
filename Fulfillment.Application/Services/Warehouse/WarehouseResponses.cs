@@ -13,4 +13,5 @@ public sealed record WarehouseResponse(
     string? WardCode,
     int? GhnShopId,
     bool IsDisabled,
-    Guid? SellerId = null);
+    Guid? SellerId = null,
+    int? ProvinceId = null);

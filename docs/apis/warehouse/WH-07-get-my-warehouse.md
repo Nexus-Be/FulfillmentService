@@ -36,6 +36,7 @@ Lay thong tin kho hang cua Seller dang dang nhap dua vao JWT claim `sub` (`userI
   "address": "123 Truong Chinh, Quan Tan Binh, TP. Ho Chi Minh",
   "contactPhone": "0901234567",
   "provinceName": "TP. Ho Chi Minh",
+  "provinceId": 202,
   "districtId": 1442,
   "wardCode": "20101",
   "ghnShopId": 5550559,
