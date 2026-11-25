@@ -103,7 +103,9 @@ public class CommerceWebhookClient : ICommerceWebhookClient
             shipperName = request.ShipperName,
             shipperPhone = request.ShipperPhone,
             reasonCode = request.ReasonCode,
-            reason = request.Reason
+            reason = request.Reason,
+            eventType = request.EventType,
+            eventTime = request.EventTime
         };
 
         try

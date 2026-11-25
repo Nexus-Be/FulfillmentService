@@ -54,6 +54,8 @@ public sealed class DeliveryNotificationOutbox
         string? location = null;
         string? reasonCode = null;
         string? reason = null;
+        string? eventType = null;
+        DateTimeOffset? eventTime = null;
 
         if (!string.IsNullOrWhiteSpace(log.RawJson))
         {
@@ -74,6 +76,13 @@ public sealed class DeliveryNotificationOutbox
                     reasonCode = rc.ValueKind == JsonValueKind.Null ? null : rc.ToString();
                 if (root.TryGetProperty("Reason", out var rs) || root.TryGetProperty("reason", out rs))
                     reason = rs.ValueKind == JsonValueKind.Null ? null : rs.ToString();
+                // The carrier's own event type and time, so Commerce can tell one failed attempt of one parcel from another and can put the
+                // attempts in order. The time of receipt below says nothing about when the carrier's event happened.
+                if (root.TryGetProperty("Type", out var ty) || root.TryGetProperty("type", out ty))
+                    eventType = ty.ValueKind == JsonValueKind.Null ? null : ty.ToString();
+                if ((root.TryGetProperty("Time", out var tm) || root.TryGetProperty("time", out tm)) && tm.ValueKind == JsonValueKind.String
+                    && DateTimeOffset.TryParse(tm.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsedTime))
+                    eventTime = parsedTime.ToUniversalTime();
             }
             catch
             {
@@ -96,7 +105,9 @@ public sealed class DeliveryNotificationOutbox
             ShipperName = shipperName,
             ShipperPhone = shipperPhone,
             ReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim(),
-            Reason = string.IsNullOrWhiteSpace(reason) ? null : (reason.Length > 500 ? reason[..500] : reason)
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : (reason.Length > 500 ? reason[..500] : reason),
+            EventType = string.IsNullOrWhiteSpace(eventType) ? null : eventType.Trim(),
+            EventTime = eventTime
         };
 
         bool delivered;

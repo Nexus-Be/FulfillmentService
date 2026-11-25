@@ -66,6 +66,37 @@ public sealed class DeliveryReasonCodeTests
         sent.Reason.Should().Be("Customer refused to receive");
     }
 
+    [Fact]
+    public async Task The_carriers_own_event_type_and_time_are_sent_not_the_time_of_receipt()
+    {
+        using var db = CreateDb();
+        var commerce = new CapturingCommerce();
+        var log = await AddFailureAsync(db, """{"OrderCode":"GHN123","Status":"delivery_fail","Type":"switch_status","Time":"2026-11-25T03:00:00.000Z","ReasonCode":"GHN-DCD0A8"}""");
+
+        await Outbox(db, commerce).TrySendAsync(log);
+
+        var sent = commerce.Requests.Should().ContainSingle().Subject;
+        sent.EventType.Should().Be("switch_status");
+        sent.EventTime.Should().Be(new DateTimeOffset(2026, 11, 25, 3, 0, 0, TimeSpan.Zero));
+        sent.EventTime.Should().NotBe(log.ReceivedAt);
+    }
+
+    [Theory]
+    [InlineData("""{"OrderCode":"GHN123","Status":"delivery_fail"}""")]
+    [InlineData("""{"OrderCode":"GHN123","Status":"delivery_fail","Type":null,"Time":null}""")]
+    [InlineData("""{"OrderCode":"GHN123","Status":"delivery_fail","Time":"not a time"}""")]
+    [InlineData("""{"OrderCode":"GHN123","Status":"delivery_fail","Time":12345}""")]
+    public async Task A_missing_or_unreadable_event_time_is_sent_as_nothing_never_replaced_by_the_time_of_receipt(string raw)
+    {
+        using var db = CreateDb();
+        var commerce = new CapturingCommerce();
+        var log = await AddFailureAsync(db, raw);
+
+        await Outbox(db, commerce).TrySendAsync(log);
+
+        commerce.Requests.Should().ContainSingle().Subject.EventTime.Should().BeNull();
+    }
+
     [Theory]
     [InlineData("""{"OrderCode":"GHN123","Status":"returned"}""")]
     [InlineData("""{"OrderCode":"GHN123","Status":"returned","ReasonCode":null,"Reason":null}""")]
@@ -114,12 +145,15 @@ public sealed class DeliveryReasonCodeTests
 
         await client.NotifyDeliveryStatusAsync(new CommerceDeliveryStatusRequest
         {
-            SubOrderId = Guid.NewGuid(), Status = "DeliveryFailed", ReasonCode = "102", Reason = "Customer refused"
+            SubOrderId = Guid.NewGuid(), Status = "DeliveryFailed", ReasonCode = "102", Reason = "Customer refused",
+            EventType = "switch_status", EventTime = new DateTimeOffset(2026, 11, 25, 3, 0, 0, TimeSpan.Zero)
         });
 
         using var doc = JsonDocument.Parse(handler.Body!);
         doc.RootElement.GetProperty("reasonCode").GetString().Should().Be("102");
         doc.RootElement.GetProperty("reason").GetString().Should().Be("Customer refused");
+        doc.RootElement.GetProperty("eventType").GetString().Should().Be("switch_status");
+        doc.RootElement.GetProperty("eventTime").GetDateTimeOffset().Should().Be(new DateTimeOffset(2026, 11, 25, 3, 0, 0, TimeSpan.Zero));
     }
 
     private sealed class CaptureHandler : HttpMessageHandler

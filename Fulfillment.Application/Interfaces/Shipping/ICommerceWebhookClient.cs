@@ -22,6 +22,15 @@ public sealed class CommerceDeliveryStatusRequest
 
     /// <summary>The carrier's free text for the reason, exactly as received.</summary>
     public string? Reason { get; set; }
+
+    /// <summary>The carrier's own event type ("Type" of its callback, for example switch_status), exactly as received. Null when it sent none.</summary>
+    public string? EventType { get; set; }
+
+    /// <summary>
+    /// When the CARRIER says the event happened ("Time" of its callback). It is not the moment this service received the webhook (that is
+    /// <see cref="DeliveredAt"/>). Null when the carrier sent no time or one that could not be read.
+    /// </summary>
+    public DateTimeOffset? EventTime { get; set; }
 }
 
 public interface ICommerceWebhookClient
