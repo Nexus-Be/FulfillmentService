@@ -73,14 +73,13 @@ public sealed partial class InventoryAppService
         }
 
         var reservation = InventoryReservation.Create(request.ReferenceId, request.HoldMinutes);
-        _dbContext.InventoryReservations.Add(reservation);
-
         var reservationItems = HoldStockAndCreateReservationItems(reservation.Id, aggregatedRequests, itemMap);
+        reservation.ReservationItems = reservationItems;
 
+        _dbContext.InventoryReservations.Add(reservation);
         _dbContext.InventoryReservationItems.AddRange(reservationItems);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        reservation.ReservationItems = reservationItems;
         return await MapToReservationResponseAsync(reservation, cancellationToken);
     }
 
@@ -343,9 +342,12 @@ public sealed partial class InventoryAppService
 
             reservationItems.Add(new InventoryReservationItem
             {
+                Id = Guid.NewGuid(),
                 ReservationId = reservationId,
                 InventoryItemId = item.Id,
-                Quantity = req.Quantity
+                Quantity = req.Quantity,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
             });
         }
 

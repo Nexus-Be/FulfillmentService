@@ -76,6 +76,11 @@ public class WarehouseService : IWarehouseService
             throw new BusinessRuleValidationException("WAREHOUSE_CODE_TAKEN", $"Warehouse code '{normalizedCode}' is already in use.", 400);
         }
 
+        if (request.DistrictId <= 0)
+        {
+            throw new BusinessRuleValidationException("VAL_INVALID_DISTRICT", "DistrictId must be greater than 0.", 400);
+        }
+
         var verified = await EnsureVerifiedAddressAsync(request.ProvinceId, request.DistrictId, request.WardCode, cancellationToken);
 
         var warehouse = new Warehouse
@@ -145,6 +150,11 @@ public class WarehouseService : IWarehouseService
             generatedCode = "WH_" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         }
 
+        if (request.DistrictId <= 0)
+        {
+            throw new BusinessRuleValidationException("VAL_INVALID_DISTRICT", "DistrictId must be greater than 0.", 400);
+        }
+
         var warehouse = new Warehouse
         {
             Code = generatedCode,
@@ -200,7 +210,14 @@ public class WarehouseService : IWarehouseService
         if (!string.IsNullOrWhiteSpace(request.ProvinceName)) warehouse.ProvinceName = request.ProvinceName.Trim();
         else if (verifiedChange?.ProvinceName != null) warehouse.ProvinceName = verifiedChange.ProvinceName;
         if (request.ProvinceId.HasValue) warehouse.ProvinceId = request.ProvinceId.Value;
-        if (request.DistrictId.HasValue) warehouse.DistrictId = request.DistrictId.Value;
+        if (request.DistrictId.HasValue)
+        {
+            if (request.DistrictId.Value <= 0)
+            {
+                throw new BusinessRuleValidationException("VAL_INVALID_DISTRICT", "DistrictId must be greater than 0.", 400);
+            }
+            warehouse.DistrictId = request.DistrictId.Value;
+        }
         if (request.WardCode != null) warehouse.WardCode = request.WardCode.Trim();
         if (request.GhnShopId.HasValue) warehouse.GhnShopId = request.GhnShopId.Value;
 
@@ -399,6 +416,10 @@ public class WarehouseService : IWarehouseService
 
         if (request.DistrictId.HasValue)
         {
+            if (request.DistrictId.Value <= 0)
+            {
+                throw new BusinessRuleValidationException("VAL_INVALID_DISTRICT", "DistrictId must be greater than 0.", 400);
+            }
             warehouse.DistrictId = request.DistrictId.Value;
         }
 

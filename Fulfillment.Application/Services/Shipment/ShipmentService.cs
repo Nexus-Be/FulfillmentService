@@ -898,6 +898,8 @@ public sealed class ShipmentService : IShipmentService
             e.PodUrl,
             e.WarehouseName)).OrderBy(e => e.OccurredAt).ToList();
 
+        var lastFailEvent = events?.LastOrDefault(e => !string.IsNullOrEmpty(e.Reason) || !string.IsNullOrEmpty(e.ReasonCode));
+
         return new ShipmentDto(
             s.Id,
             s.OrderId,
@@ -924,7 +926,9 @@ public sealed class ShipmentService : IShipmentService
             s.EstimatedDeliveryAt,
             s.DeliveredAt,
             items,
-            events);
+            events,
+            lastFailEvent?.Reason,
+            lastFailEvent?.ReasonCode);
     }
 
     private readonly ShippingBehaviorOptions _behavior;

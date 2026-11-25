@@ -116,12 +116,26 @@ public sealed class GhnWebhookController : ControllerBase
             return Ok(new { message = "Shipment not found, acknowledged." });
         }
 
-        var newStatus = GhnStatusMapper.Map(payload.Status);
+        var isDeliveryFail = string.Equals(payload.Status?.Trim(), "delivery_fail", StringComparison.OrdinalIgnoreCase);
+        var failedAttempts = shipment.Events.Count(e =>
+            string.Equals(e.CarrierStatus, "delivery_fail", StringComparison.OrdinalIgnoreCase) ||
+            e.Status == ShipmentEventStatus.DeliveryFailed) + 1;
+
+        ShipmentStatus newStatus;
+        if (isDeliveryFail && failedAttempts >= 3)
+        {
+            newStatus = ShipmentStatus.Returned;
+            _logger.LogInformation("Shipment {TrackingNumber} reached 3 failed delivery attempts. Automatically transitioning to Returned/Returning.", shipment.TrackingNumber);
+        }
+        else
+        {
+            newStatus = GhnStatusMapper.Map(payload.Status);
+        }
+
+        var isRepeatedDeliveryAttempt = isDeliveryFail && failedAttempts < 3 && shipment.Status == ShipmentStatus.DeliveryFailed;
 
         // A late, repeated or unknown status must not undo progress (for example "in transit" after "delivered").
-        // A second failed attempt carries the same status as the first; the time check above has already shown that it is a new event.
-        var isNewFailedAttempt = eventTimeKey is not null && ShipmentStatusTransitions.IsRepeatedFailedAttempt(shipment.Status, newStatus);
-        if (!isNewFailedAttempt && !ShipmentStatusTransitions.IsForward(shipment.Status, newStatus))
+        if (!isRepeatedDeliveryAttempt && !ShipmentStatusTransitions.IsForward(shipment.Status, newStatus))
         {
             auditLog.IsProcessed = true;
             auditLog.ProcessMessage = $"Ignored out-of-order status '{newStatus}' (shipment is '{shipment.Status}').";
@@ -144,12 +158,18 @@ public sealed class GhnWebhookController : ControllerBase
 
         // 4. Record ShipmentEvent with detailed extracted attributes
         var eventStatus = MapToEventStatus(newStatus);
+        var eventDescription = isDeliveryFail
+            ? (failedAttempts >= 3
+                ? $"Delivery attempt 3 failed. Package returning to sender. Reason: {payload.Reason ?? payload.Description ?? "Delivery failed"}."
+                : $"Delivery attempt {failedAttempts} of 3 failed. Courier will reschedule. Reason: {payload.Reason ?? payload.Description ?? "Customer unavailable"}.")
+            : (payload.Description ?? $"Status updated to {newStatus}");
+
         var shipmentEvent = new ShipmentEvent
         {
             ShipmentId = shipment.Id,
             CarrierStatus = payload.Status,
             Status = eventStatus,
-            Description = payload.Description ?? $"Status updated to {newStatus}",
+            Description = eventDescription,
             ExternalEventId = payload.Type,
             OccurredAt = DateTimeOffset.UtcNow,
             RawPayload = rawJson,
@@ -182,9 +202,9 @@ public sealed class GhnWebhookController : ControllerBase
         WebhookAuditLog? returningAudit = null;
         if (newStatus == ShipmentStatus.DeliveryFailed && _behavior.AutoReturnAfterFailedAttempts)
         {
-            var failedAttempts = await _dbContext.ShipmentEvents
+            var persistedFailedAttempts = await _dbContext.ShipmentEvents
                 .CountAsync(e => e.ShipmentId == shipment.Id && e.Status == ShipmentEventStatus.DeliveryFailed, cancellationToken) + 1;
-            if (failedAttempts >= ShippingBehaviorOptions.MaxFailedAttempts)
+            if (persistedFailedAttempts >= ShippingBehaviorOptions.MaxFailedAttempts)
             {
                 shipment.Status = ShipmentStatus.Returning;
                 _dbContext.ShipmentEvents.Add(new ShipmentEvent
@@ -192,7 +212,7 @@ public sealed class GhnWebhookController : ControllerBase
                     ShipmentId = shipment.Id,
                     CarrierStatus = "auto_returning",
                     Status = ShipmentEventStatus.Returning,
-                    Description = $"Sent back automatically after {failedAttempts} failed delivery attempts.",
+                    Description = $"Sent back automatically after {persistedFailedAttempts} failed delivery attempts.",
                     ExternalEventId = "auto_return",
                     OccurredAt = DateTimeOffset.UtcNow,
                     RawPayload = rawJson,
@@ -210,11 +230,11 @@ public sealed class GhnWebhookController : ControllerBase
                         RawJson = rawJson,
                         ReceivedAt = DateTimeOffset.UtcNow,
                         IsProcessed = true,
-                        ProcessMessage = $"Moved to Returning after {failedAttempts} failed delivery attempts.",
+                        ProcessMessage = $"Moved to Returning after {persistedFailedAttempts} failed delivery attempts.",
                         NotifyOrderId = shipment.OrderId,
                         NotifyStatus = MapCommerceStatus(ShipmentStatus.Returning),
                         NotifyTrackingNumber = shipment.TrackingNumber ?? payload.OrderCode,
-                        NotifyDescription = $"Sent back after {failedAttempts} failed delivery attempts.",
+                        NotifyDescription = $"Sent back after {persistedFailedAttempts} failed delivery attempts.",
                         CommerceNotifyAttempts = 0,
                         CommerceNotifyNextRetryAt = DateTimeOffset.UtcNow.Add(DeliveryNotificationOutbox.FirstRetryDelay)
                     };
@@ -241,13 +261,17 @@ public sealed class GhnWebhookController : ControllerBase
                     var alertRequest = new DeliveryAlertRequest
                     {
                         OrderId = shipment.OrderId,
+                        ShipmentId = shipment.Id,
+                        ShopId = shipment.Warehouse?.SellerId ?? shipment.WarehouseId,
+                        BuyerUserId = shipment.BuyerId ?? Guid.Empty,
+                        SellerUserId = shipment.Warehouse?.SellerId ?? shipment.CreatedBy,
                         TrackingNumber = shipment.TrackingNumber ?? payload.OrderCode,
                         Status = MapCommerceStatus(newStatus),
                         Note = payload.Description ?? payload.Reason,
                         ShipperName = payload.ShipperName,
                         ShipperPhone = payload.ShipperPhone,
                         PodUrl = payload.PodUrl,
-                        WarehouseName = payload.Warehouse,
+                        WarehouseName = payload.Warehouse ?? shipment.Warehouse?.Name,
                         OccurredAt = DateTimeOffset.UtcNow
                     };
 

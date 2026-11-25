@@ -28,6 +28,8 @@ public class FulfillmentWebApplicationFactory : WebApplicationFactory<Program>
                 new KeyValuePair<string, string?>("INTERNAL_SERVICE_SECRET", "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e"),
                 new KeyValuePair<string, string?>("InternalSecurity:ServiceKey", "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e"),
                 new KeyValuePair<string, string?>("Carriers:DefaultCarrierCode", "GHN"),
+                new KeyValuePair<string, string?>("Carriers:GHN:Token", ""),
+                new KeyValuePair<string, string?>("GHN_TOKEN", ""),
                 new KeyValuePair<string, string?>("Carriers:GHN:WebhookSecret", WebhookSecret),
                 new KeyValuePair<string, string?>("Swagger:Enabled", "false")
             });

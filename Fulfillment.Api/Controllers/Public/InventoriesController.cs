@@ -225,6 +225,8 @@ public sealed class InventoriesController : ControllerBase
     [RequireRole("seller", "admin", "staff")]
     public async Task<IActionResult> GetLowStockAlerts(
         [FromQuery] Guid? warehouseId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
         CancellationToken cancellationToken)
     {
         if (!this.TryGetUserId(out var userId, out var errorResult))
@@ -233,6 +235,16 @@ public sealed class InventoriesController : ControllerBase
         }
 
         var result = await _inventoryAppService.GetLowStockAlertsAsync(warehouseId, userId, this.IsAdmin(), cancellationToken);
+        if (page.HasValue || pageSize.HasValue)
+        {
+            var p = Math.Max(1, page ?? 1);
+            var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+            Response.Headers["X-Total-Count"] = result.Count.ToString();
+            Response.Headers["X-Page"] = p.ToString();
+            Response.Headers["X-Page-Size"] = ps.ToString();
+            return Ok(result.Skip((p - 1) * ps).Take(ps).ToList());
+        }
+
         return Ok(result);
     }
 
@@ -242,6 +254,8 @@ public sealed class InventoriesController : ControllerBase
     public async Task<IActionResult> GetDeadStockAlerts(
         [FromQuery] Guid? warehouseId,
         [FromQuery] int days = 30,
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null,
         CancellationToken cancellationToken = default)
     {
         if (!this.TryGetUserId(out var userId, out var errorResult))
@@ -250,6 +264,16 @@ public sealed class InventoriesController : ControllerBase
         }
 
         var result = await _inventoryAppService.GetDeadStockAlertsAsync(warehouseId, days, userId, this.IsAdmin(), cancellationToken);
+        if (page.HasValue || pageSize.HasValue)
+        {
+            var p = Math.Max(1, page ?? 1);
+            var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+            Response.Headers["X-Total-Count"] = result.Count.ToString();
+            Response.Headers["X-Page"] = p.ToString();
+            Response.Headers["X-Page-Size"] = ps.ToString();
+            return Ok(result.Skip((p - 1) * ps).Take(ps).ToList());
+        }
+
         return Ok(result);
     }
 
