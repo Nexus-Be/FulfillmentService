@@ -15,16 +15,17 @@ public static class GhnStatusMapper
         return rawStatus.Trim().ToLowerInvariant() switch
         {
             "ready_to_pick" => ShipmentStatus.ReadyToPick,
-            "picking" => ShipmentStatus.Picking,
+            "picking" or "money_collect_picking" => ShipmentStatus.Picking,
             "storing" or "packed" => ShipmentStatus.Packed,
             "picked" => ShipmentStatus.HandedOver,
-            "delivering" or "money_collect_delivering" => ShipmentStatus.InTransit,
+            "delivering" or "money_collect_delivering" or "transporting" or "sorting" => ShipmentStatus.InTransit,
             "delivered" => ShipmentStatus.Delivered,
             "delivery_fail" => ShipmentStatus.DeliveryFailed,
             // The parcel being on its way back is not the goods being back: only "returned" may cancel, refund and restock.
-            "return" or "returning" => ShipmentStatus.Returning,
+            "waiting_to_return" or "return" or "returning" or "return_transporting" or "return_sorting" => ShipmentStatus.Returning,
             "returned" or "return_to_origin" => ShipmentStatus.Returned,
             "cancel" => ShipmentStatus.Cancelled,
+            "exception" or "lost" or "damage" or "scrap" => ShipmentStatus.DeliveryFailed,
             _ => ShipmentStatus.ReadyToPick
         };
     }

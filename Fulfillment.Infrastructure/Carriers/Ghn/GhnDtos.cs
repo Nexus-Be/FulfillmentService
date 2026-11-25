@@ -114,6 +114,9 @@ public sealed class GhnCreateOrderRequest
     [JsonPropertyName("from_ward_name")]
     public string? FromWardName { get; set; }
 
+    [JsonPropertyName("from_ward_code")]
+    public string? FromWardCode { get; set; }
+
     [JsonPropertyName("from_district_id")]
     public int? FromDistrictId { get; set; }
 

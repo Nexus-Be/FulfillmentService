@@ -28,9 +28,27 @@
 ## 3. Headers & Query Parameters
 | Tham so | Vi tri | Bat buoc | Mo ta |
 |---|---|---|---|
-| `token` | Query | Co (neu khong co header) | Bi mat webhook (VD: `?token=ghn-webhook-secret-key`) |
-| `X-Webhook-Token` | Header | Co (neu khong co query) | Bi mat webhook truyen qua header |
+| `token` hoac `secret` | Query | Co (neu khong co header) | Bi mat webhook truyen tren URL (VD: `?token=Matkhaumanh` hoac `?secret=Matkhaumanh`) |
+| `X-Webhook-Token` | Header | Co (tuy chon thay the) | Bi mat webhook theo chuan GHN v2 |
+| `X-Webhook-Secret` | Header | Co (tuy chon thay the) | Bi mat webhook theo form cau hinh `developer.ghn.dev` |
+| `X-GHN-Secret` | Header | Co (tuy chon thay the) | Bi mat webhook alias |
 | `Content-Type` | Header | Co | `application/json` |
+
+## 3.1. Bang Anh Xa Trang Thai Hai Chieu (GHN <-> Fulfillment <-> Commerce)
+| Trang thai GHN Callback | Trang thai Fulfillment (`ShipmentStatus`) | Trang thai Commerce (`SubOrderStatus`) | Hanh vi he thong |
+|---|---|---|---|
+| `ready_to_pick` | `ReadyToPick` (0) | `Confirmed` (2) | Don hang cho buu ta den kho lay hang |
+| `picking` / `money_collect_picking` | `Picking` (1) | `Confirmed` (2) | Buu ta dang den kho lay hang |
+| `storing` / `packed` | `Packed` (2) | `Confirmed` (2) | Hang da dong goi tai kho |
+| `picked` | `HandedOver` (3) | `Shipped` (3) | Da ban giao cho buu ta GHN |
+| `delivering` / `money_collect_delivering` / `sorting` / `transporting` | `InTransit` (4) | `Shipped` (3) | Hang dang luan chuyen hoac tren duong giao |
+| `delivered` | `Delivered` (5) | `Delivered` (4) | Giao thanh cong; dong bo `Order` cha neu moi don con deu Delivered |
+| `delivery_fail` | `DeliveryFailed` (6) | `Shipped` (3) | Giao that bai lan 1 hoac 2, ghi nhan `DeliveryFailureAttempt` |
+| `delivery_fail` (lan 3) | `Returned` (7) | `Cancelled` (6) | Sau 3 lan that bai, tu dong chuyen hoan va huy don, hoan tien vi |
+| `waiting_to_return` / `return` / `returning` / `return_transporting` / `return_sorting` | `Returning` (9) | `Returning` (8) | Goi hang dang tren duong tra ve kho nguoi ban |
+| `returned` / `return_to_origin` | `Returned` (7) | `Cancelled` (6) | Kho da nhan lai hang; huy don, hoan tien vi, giai phong ton kho |
+| `cancel` | `Cancelled` (8) | `Cancelled` (6) | Don hang van chuyen da bi huy tren GHN |
+| `exception` / `lost` / `damage` / `scrap` | `DeliveryFailed` (6) | `Shipped` (3) | Su co van chuyen can CSKH ho tro |
 
 ## 4. Request Body (GHN Webhook Payload)
 ```json
