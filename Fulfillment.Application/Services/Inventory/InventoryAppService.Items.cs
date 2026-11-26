@@ -51,6 +51,7 @@ public sealed partial class InventoryAppService
                 InventoryMovementType.Initial.ToString().ToUpperInvariant(),
                 request.Quantity,
                 note: request.Note ?? "Initial inventory declaration.");
+            ledger.InventoryItem = item;
 
             _dbContext.InventoryLedgers.Add(ledger);
         }
@@ -225,6 +226,7 @@ public sealed partial class InventoryAppService
             movementType,
             quantity,
             note: note);
+        ledger.InventoryItem = item;
 
         _dbContext.InventoryLedgers.Add(ledger);
 
