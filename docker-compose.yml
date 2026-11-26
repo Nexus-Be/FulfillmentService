@@ -29,14 +29,12 @@ services:
       Carriers__GHN__WebhookSecret: "${GHN_WEBHOOK_SECRET:-ghn-webhook-secret-key}"
       COMMERCE_SERVICE_URL: "${COMMERCE_SERVICE_URL:-http://commerce-service:8003}"
       NOTIFICATION_SERVICE_URL: "${NOTIFICATION_SERVICE_URL:-http://notification-service:8007}"
-      # Inside the container "localhost" is the container itself, so the callbacks to Commerce and Notification need the names on the Docker
-      # network. These two settings take precedence over the values baked into appsettings.Development.json and are NOT read from the
-      # COMMERCE_SERVICE_URL / NOTIFICATION_SERVICE_URL of .env, which stay "localhost" for a service started directly on the host.
-      Services__CommerceService__BaseUrl: "${DOCKER_COMMERCE_SERVICE_URL:-http://commerce-service:8003}"
-      Services__NotificationService__BaseUrl: "${DOCKER_NOTIFICATION_SERVICE_URL:-http://notification-service:8007}"
+      # Inside the container "localhost" is the container itself, so callbacks to Commerce and Notification need reachable service URLs.
+      Services__CommerceService__BaseUrl: "${DOCKER_COMMERCE_SERVICE_URL:-${COMMERCE_SERVICE_URL:-http://commerce-service:8003}}"
+      Services__NotificationService__BaseUrl: "${DOCKER_NOTIFICATION_SERVICE_URL:-${NOTIFICATION_SERVICE_URL:-http://notification-service:8007}}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       GEMINI_MODEL: "${GEMINI_MODEL:-gemma-4-31b-it}"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://tempo:4317}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
     restart: unless-stopped
 
 networks:

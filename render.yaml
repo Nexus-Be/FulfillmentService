@@ -17,9 +17,11 @@ services:
       - key: InternalSecurity__ServiceKey
         sync: false
       - key: COMMERCE_SERVICE_URL
-        value: http://nexus-commerce-service:8003
+        value: https://commerceservice-ig5w.onrender.com
       - key: NOTIFICATION_SERVICE_URL
-        value: http://nexus-notification-service:8007
+        value: https://notificationservice-qqbn.onrender.com
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: ""
       - key: Carriers__DefaultCarrierCode
         value: GHN
       - key: GHN_ENVIRONMENT
