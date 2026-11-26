@@ -23,8 +23,17 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddHttpClient<IShippingLocationService, GhnLocationService>();
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? "Host=localhost;Port=5438;Database=fulfillment_db;Username=postgres;Password=MatkhaucuaTui123@";
+        var defaultConn = configuration.GetConnectionString("DefaultConnection");
+        var rawConnection = (!string.IsNullOrWhiteSpace(defaultConn) && !defaultConn.Contains("<HOST>"))
+            ? defaultConn
+            : (configuration["FULFILLMENT_DB_CONNECTION"]
+                ?? configuration["CONNECTION_STRING"]
+                ?? Environment.GetEnvironmentVariable("FULFILLMENT_DB_CONNECTION")
+                ?? Environment.GetEnvironmentVariable("CONNECTION_STRING")
+                ?? defaultConn
+                ?? "Host=localhost;Port=5438;Database=fulfillment_db;Username=postgres;Password=MatkhaucuaTui123@");
+
+        var connectionString = NormalizeConnectionString(rawConnection);
 
         services.AddDbContext<AppDbContext>(options =>
             options.UseNpgsql(connectionString));
@@ -36,9 +45,9 @@ public static class DependencyInjection
         // Options pattern for CommerceService integration
         services.Configure<CommerceOptions>(options =>
         {
-            var baseUrl = Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL")
-                ?? configuration["COMMERCE_SERVICE_URL"]
-                ?? configuration["Services:CommerceService:BaseUrl"];
+            var baseUrl = configuration["COMMERCE_SERVICE_URL"]
+                ?? configuration["Services:CommerceService:BaseUrl"]
+                ?? Environment.GetEnvironmentVariable("COMMERCE_SERVICE_URL");
             if (!string.IsNullOrWhiteSpace(baseUrl))
                 options.BaseUrl = baseUrl;
 
@@ -48,11 +57,11 @@ public static class DependencyInjection
             if (!string.IsNullOrWhiteSpace(path))
                 options.DeliveryStatusPath = path;
 
-            var serviceKey = Environment.GetEnvironmentVariable("INTERNAL_SERVICE_SECRET")
-                ?? Environment.GetEnvironmentVariable("INTERNAL_SERVICE_KEY")
-                ?? configuration["INTERNAL_SERVICE_SECRET"]
+            var serviceKey = configuration["INTERNAL_SERVICE_SECRET"]
                 ?? configuration["INTERNAL_SERVICE_KEY"]
-                ?? configuration["InternalSecurity:ServiceKey"];
+                ?? configuration["InternalSecurity:ServiceKey"]
+                ?? Environment.GetEnvironmentVariable("INTERNAL_SERVICE_SECRET")
+                ?? Environment.GetEnvironmentVariable("INTERNAL_SERVICE_KEY");
             if (!string.IsNullOrWhiteSpace(serviceKey))
                 options.ServiceKey = serviceKey;
         });
@@ -110,5 +119,30 @@ public static class DependencyInjection
         services.AddTransient<Services.Common.IdentityPropagationHandler>();
 
         return services;
+    }
+
+    private static string NormalizeConnectionString(string? connStr)
+    {
+        if (string.IsNullOrWhiteSpace(connStr)) return string.Empty;
+        if (connStr.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) || 
+            connStr.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var uri = new Uri(connStr);
+                var userInfo = uri.UserInfo.Split(':');
+                var user = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+                var pass = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+                var host = uri.Host;
+                var port = uri.Port > 0 ? uri.Port : 5432;
+                var db = uri.AbsolutePath.TrimStart('/');
+                return $"Host={host};Port={port};Database={db};Username={user};Password={pass};SSL Mode=Require;Trust Server Certificate=true";
+            }
+            catch
+            {
+                return connStr;
+            }
+        }
+        return connStr;
     }
 }
