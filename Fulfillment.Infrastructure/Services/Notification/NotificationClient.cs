@@ -54,6 +54,10 @@ public sealed class NotificationClient : INotificationClient
                 Content = JsonContent.Create(payload)
             };
 
+            request.Headers.Add("x-user-id", "00000000-0000-0000-0000-000000000006");
+            request.Headers.Add("x-user-roles", "service");
+            request.Headers.Add("X-Caller-Service", "fulfillment-service");
+
             if (!string.IsNullOrWhiteSpace(_internalServiceKey))
             {
                 request.Headers.Add("X-Internal-Service-Key", _internalServiceKey);
