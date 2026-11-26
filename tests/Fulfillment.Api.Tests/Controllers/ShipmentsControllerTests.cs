@@ -15,6 +15,7 @@ using Fulfillment.Api.Tests.Infrastructure;
 using Fulfillment.Application.Services.Shipment;
 using Fulfillment.Application.Services.Shipping;
 using Fulfillment.Domain.Entities;
+using Fulfillment.Domain.Enums;
 using Fulfillment.Infrastructure.Persistence;
 
 public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationFactory>
@@ -57,9 +58,9 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         {
             db.Warehouses.Add(new Warehouse
             {
-                Id = Guid.Parse("eeeeeeee-3333-3333-3333-eeeeeeeeeeee"),
+                Id = Guid.NewGuid(),
                 SellerId = sellerId,
-                Code = "WH_SELLER_01",
+                Code = $"WH_{sellerId.ToString("N")[..8]}",
                 Name = "Kho Trung Tam Seller",
                 Address = "123 Le Loi, Ben Thanh, Quan 1, TP.HCM",
                 IsActive = true
@@ -320,5 +321,101 @@ public class ShipmentsControllerTests : IClassFixture<FulfillmentWebApplicationF
         _output.WriteLine("================================================================================");
         _output.WriteLine("🎉 HOÀN THÀNH TOÀN BỘ 11 BƯỚC E2E TEST: SHIPMENT MODULE HOẠT ĐỘNG HOÀN HẢO! 100% PASS");
         _output.WriteLine("================================================================================");
+    }
+
+    [Fact]
+    public async Task GetPrintLabel_WhenShipmentNotFound_Returns404NotFound()
+    {
+        var randomId = Guid.NewGuid();
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/shipments/{randomId}/print-label");
+        req.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        req.Headers.Add("x-user-roles", "seller");
+
+        var response = await _client.SendAsync(req);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetPrintLabel_WhenCallerNotOwnerAndNotAdmin_Returns403Forbidden()
+    {
+        var ownerSellerId = Guid.NewGuid();
+        var attackerSellerId = Guid.NewGuid();
+        var shipmentId = Guid.NewGuid();
+
+        await EnsureTestDataSeededAsync(ownerSellerId);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var wh = await db.Warehouses.FirstAsync(w => w.SellerId == ownerSellerId);
+            var carrier = await db.Carriers.FirstAsync(c => c.Code == "GHN");
+
+            db.Shipments.Add(new Shipment
+            {
+                Id = shipmentId,
+                OrderId = Guid.NewGuid(),
+                WarehouseId = wh.Id,
+                CarrierId = carrier.Id,
+                TrackingNumber = "GHN_AUTH_TEST",
+                Status = ShipmentStatus.ReadyToPick,
+                ReceiverName = "Buyer",
+                ReceiverPhone = "0900000000",
+                ReceiverAddress = "Test Address",
+                PrintToken = "sample_token"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/shipments/{shipmentId}/print-label");
+        req.Headers.Add("x-user-id", attackerSellerId.ToString());
+        req.Headers.Add("x-user-roles", "seller");
+
+        var response = await _client.SendAsync(req);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetPrintLabel_WhenCallerIsSellerOwner_Returns200WithPrintUrl()
+    {
+        var ownerSellerId = Guid.NewGuid();
+        var shipmentId = Guid.NewGuid();
+
+        await EnsureTestDataSeededAsync(ownerSellerId);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var wh = await db.Warehouses.FirstAsync(w => w.SellerId == ownerSellerId);
+            var carrier = await db.Carriers.FirstAsync(c => c.Code == "GHN");
+
+            db.Shipments.Add(new Shipment
+            {
+                Id = shipmentId,
+                OrderId = Guid.NewGuid(),
+                WarehouseId = wh.Id,
+                CarrierId = carrier.Id,
+                TrackingNumber = "GHN_PRINT_OK_TEST",
+                Status = ShipmentStatus.ReadyToPick,
+                ReceiverName = "Buyer",
+                ReceiverPhone = "0900000000",
+                ReceiverAddress = "Test Address",
+                PrintToken = "token_xyz_123"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/shipments/{shipmentId}/print-label?pageSize=80x80");
+        req.Headers.Add("x-user-id", ownerSellerId.ToString());
+        req.Headers.Add("x-user-roles", "seller");
+
+        var response = await _client.SendAsync(req);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var content = await response.Content.ReadFromJsonAsync<PrintShippingLabelResponse>();
+        Assert.NotNull(content);
+        Assert.Equal(shipmentId, content.ShipmentId);
+        Assert.Equal("GHN_PRINT_OK_TEST", content.TrackingNumber);
+        Assert.Equal("80x80", content.PageSize);
+        Assert.Contains("token_xyz_123", content.PrintUrl);
     }
 }
