@@ -970,13 +970,13 @@ public sealed class ShipmentService : IShipmentService
         return status.Trim().ToLowerInvariant() switch
         {
             "ready_to_pick" => ShipmentStatus.ReadyToPick,
-            "picking" => ShipmentStatus.Picking,
+            "picking" or "money_collect_picking" => ShipmentStatus.Picking,
             "storing" or "packed" => ShipmentStatus.Packed,
             "picked" => ShipmentStatus.HandedOver,
-            "delivering" or "money_collect_delivering" => ShipmentStatus.InTransit,
+            "delivering" or "money_collect_delivering" or "transporting" or "sorting" => ShipmentStatus.InTransit,
             "delivered" => ShipmentStatus.Delivered,
             "delivery_fail" => ShipmentStatus.DeliveryFailed,
-            "return" or "returning" => ShipmentStatus.Returning,
+            "waiting_to_return" or "return" or "returning" or "return_transporting" or "return_sorting" => ShipmentStatus.Returning,
             "returned" or "return_to_origin" => ShipmentStatus.Returned,
             "cancel" or "cancelled" => ShipmentStatus.Cancelled,
             _ => throw new BusinessRuleValidationException("VAL_INVALID_STATUS", $"Status '{status}' is not recognized.", 400)
@@ -999,12 +999,18 @@ public sealed class ShipmentService : IShipmentService
             throw new BusinessRuleValidationException("VAL_INVALID_INPUT", "Tracking number or order identifier is required.", 400);
         }
 
+        var trimmed = effectiveTracking.Trim();
+        var isGuid = Guid.TryParse(trimmed, out var orderGuid);
+
         var shipment = await _dbContext.Shipments
             .Include(s => s.Events)
             .Include(s => s.Warehouse)
-            .FirstOrDefaultAsync(s => s.TrackingNumber == effectiveTracking ||
-                                      s.GhnOrderCode == effectiveTracking ||
-                                      s.OrderId.ToString() == effectiveTracking,
+            .FirstOrDefaultAsync(s => s.TrackingNumber == trimmed ||
+                                      (s.TrackingNumber != null && s.TrackingNumber.ToLower() == trimmed.ToLower()) ||
+                                      s.GhnOrderCode == trimmed ||
+                                      (s.GhnOrderCode != null && s.GhnOrderCode.ToLower() == trimmed.ToLower()) ||
+                                      s.ClientOrderCode == trimmed ||
+                                      (isGuid && s.OrderId == orderGuid),
                                  cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", effectiveTracking);
 
