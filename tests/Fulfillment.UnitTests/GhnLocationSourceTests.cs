@@ -208,6 +208,39 @@ public class GhnLocationSourceTests
         cache.TryGetValue("ghn:master_data:wards:1442", out _).Should().BeFalse("an empty list is not kept for 24 hours");
     }
 
+    [Fact]
+    public async Task An_invalid_province_rejection_does_not_trip_carrier_down_for_valid_provinces()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var handler = new InvalidProvinceThenValidHandler();
+        var service = Create(token: "token", cache, handler);
+
+        await Unavailable(() => service.GetDistrictsAsync(2002));
+        cache.TryGetValue(GhnLocationService.CarrierDownCacheKey, out _).Should().BeFalse();
+
+        var valid = await service.GetDistrictsAsync(202);
+        valid.Items.Should().ContainSingle(d => d.DistrictId == 1442);
+    }
+
+    private sealed class InvalidProvinceThenValidHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
+            if (body.Contains("2002"))
+            {
+                return new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("{\"code\":400,\"message\":\"province_id is invalid\",\"data\":null}")
+                };
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"code\":200,\"message\":\"Success\",\"data\":[{\"DistrictID\":1442,\"ProvinceID\":202,\"DistrictName\":\"Quan 1\",\"SupportType\":3}]}")
+            };
+        }
+    }
+
     // ---- the carrier's service list: no made-up services
     private static GhnLocationService CreateWithShop(string token, string shop, IMemoryCache cache, HttpMessageHandler handler) =>
         new(Options.Create(new GhnOptions { Token = token, ShopId = shop, BaseUrl = "https://dev-online-gateway.ghn.vn" }), cache,
