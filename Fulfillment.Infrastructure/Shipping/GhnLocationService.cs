@@ -79,6 +79,7 @@ public class GhnLocationService : IShippingLocationService
         Func<CancellationToken, Task<HttpResponseMessage>> call,
         Func<List<TRaw>, List<T>> map,
         bool emptyIsAnswer,
+        bool tripCircuitOnAllErrors,
         CancellationToken cancellationToken)
     {
         if (_cache.TryGetValue(cacheKey, out CachedLocations<T>? hit) && hit != null)
@@ -103,7 +104,11 @@ public class GhnLocationService : IShippingLocationService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("GHN {What} returned status {StatusCode}", what, response.StatusCode);
-                NoteCarrierDown();
+                var statusCode = (int)response.StatusCode;
+                if (tripCircuitOnAllErrors || statusCode >= 500 || statusCode == 429)
+                {
+                    NoteCarrierDown();
+                }
                 throw SourceUnavailable();
             }
 
@@ -113,7 +118,10 @@ public class GhnLocationService : IShippingLocationService
             if (result is null || result.Code != 200 || result.Data is null || (result.Data.Count == 0 && !emptyIsAnswer))
             {
                 _logger.LogWarning("GHN {What} answered HTTP 200 without a usable list (code {Code}).", what, result?.Code);
-                NoteCarrierDown();
+                if (tripCircuitOnAllErrors)
+                {
+                    NoteCarrierDown();
+                }
                 throw SourceUnavailable();
             }
 
@@ -149,6 +157,7 @@ public class GhnLocationService : IShippingLocationService
             ct => _httpClient.GetAsync("/shiip/public-api/master-data/province", ct),
             raw => raw.Select(p => new ProvinceDto(p.ProvinceId, p.ProvinceName, p.Code)).ToList(),
             emptyIsAnswer: false,
+            tripCircuitOnAllErrors: true,
             cancellationToken);
 
     public Task<LocationList<DistrictDto>> GetDistrictsAsync(int provinceId, CancellationToken cancellationToken = default)
@@ -164,6 +173,7 @@ public class GhnLocationService : IShippingLocationService
             ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/district", new { province_id = provinceId }, ct),
             raw => raw.Select(d => new DistrictDto(d.DistrictId, d.ProvinceId, d.DistrictName, d.SupportType)).ToList(),
             emptyIsAnswer: false,
+            tripCircuitOnAllErrors: false,
             cancellationToken);
     }
 
@@ -180,6 +190,7 @@ public class GhnLocationService : IShippingLocationService
             ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/ward", new { district_id = districtId }, ct),
             raw => raw.Select(w => new WardDto(w.WardCode, w.DistrictId, w.WardName)).ToList(),
             emptyIsAnswer: true,
+            tripCircuitOnAllErrors: false,
             cancellationToken);
     }
 
