@@ -8,6 +8,7 @@ using Fulfillment.Domain.Enums;
 public class Shipment : AuditableEntity<Guid>
 {
     public required Guid OrderId { get; set; }
+    public string? SubOrderNo { get; set; }
     public Guid? BuyerId { get; set; }
     public required Guid WarehouseId { get; set; }
     public required Guid CarrierId { get; set; }

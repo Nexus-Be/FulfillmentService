@@ -512,6 +512,11 @@ namespace Fulfillment.Infrastructure.Persistence.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SubOrderNo")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("sub_order_no");
+
                     b.Property<string>("TrackingNumber")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");

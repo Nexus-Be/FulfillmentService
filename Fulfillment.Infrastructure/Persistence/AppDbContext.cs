@@ -125,7 +125,10 @@ public class AppDbContext : DbContext, IFulfillmentDbContext
                 {
                     entry.Entity.CreatedAt = now;
                 }
-                entry.Entity.UpdatedAt = now;
+                if (entry.Entity.UpdatedAt == default)
+                {
+                    entry.Entity.UpdatedAt = now;
+                }
             }
             else if (entry.State == EntityState.Modified)
             {

@@ -67,6 +67,7 @@ public sealed class ShipmentService : IShipmentService
             .FirstOrDefaultAsync(s =>
                 (s.TrackingNumber != null && s.TrackingNumber.ToLower() == trimmedLower) ||
                 (s.GhnOrderCode != null && s.GhnOrderCode.ToLower() == trimmedLower) ||
+                (s.SubOrderNo != null && s.SubOrderNo.ToLower() == trimmedLower) ||
                 (s.ClientOrderCode != null && s.ClientOrderCode.ToLower() == trimmedLower) ||
                 (isGuid && (s.OrderId == lookupGuid || s.Id == lookupGuid)),
                 cancellationToken)
@@ -338,6 +339,7 @@ public sealed class ShipmentService : IShipmentService
         {
             Id = Guid.NewGuid(),
             OrderId = request.SubOrderId,
+            SubOrderNo = string.IsNullOrWhiteSpace(request.SubOrderNo) ? null : request.SubOrderNo.Trim(),
             BuyerId = request.BuyerId,
             WarehouseId = warehouse.Id,
             CarrierId = carrierEntity.Id,
@@ -546,6 +548,7 @@ public sealed class ShipmentService : IShipmentService
             query = query.Where(s =>
                 (s.TrackingNumber != null && s.TrackingNumber.ToLower().Contains(searchLower)) ||
                 (s.GhnOrderCode != null && s.GhnOrderCode.ToLower().Contains(searchLower)) ||
+                (s.SubOrderNo != null && s.SubOrderNo.ToLower().Contains(searchLower)) ||
                 (s.ClientOrderCode != null && s.ClientOrderCode.ToLower().Contains(searchLower)) ||
                 s.ReceiverName.ToLower().Contains(searchLower) ||
                 s.ReceiverPhone.ToLower().Contains(searchLower) ||
@@ -980,7 +983,8 @@ public sealed class ShipmentService : IShipmentService
             lastFailEvent?.Reason,
             lastFailEvent?.ReasonCode,
             s.CreatedAt,
-            s.UpdatedAt);
+            s.UpdatedAt,
+            s.SubOrderNo);
     }
 
     private readonly ShippingBehaviorOptions _behavior;
@@ -1054,15 +1058,17 @@ public sealed class ShipmentService : IShipmentService
         }
 
         var trimmed = effectiveTracking.Trim();
+        var trimmedLower = trimmed.ToLowerInvariant();
         var isGuid = Guid.TryParse(trimmed, out var orderGuid);
 
         var shipment = await _dbContext.Shipments
             .Include(s => s.Events)
             .Include(s => s.Warehouse)
             .FirstOrDefaultAsync(s => s.TrackingNumber == trimmed ||
-                                      (s.TrackingNumber != null && s.TrackingNumber.ToLower() == trimmed.ToLower()) ||
+                                      (s.TrackingNumber != null && s.TrackingNumber.ToLower() == trimmedLower) ||
                                       s.GhnOrderCode == trimmed ||
-                                      (s.GhnOrderCode != null && s.GhnOrderCode.ToLower() == trimmed.ToLower()) ||
+                                      (s.GhnOrderCode != null && s.GhnOrderCode.ToLower() == trimmedLower) ||
+                                      (s.SubOrderNo != null && s.SubOrderNo.ToLower() == trimmedLower) ||
                                       s.ClientOrderCode == trimmed ||
                                       (isGuid && (s.OrderId == orderGuid || s.Id == orderGuid)),
                                  cancellationToken)

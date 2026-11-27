@@ -11,12 +11,12 @@
 - **Quyen han / Role**: `buyer`, `seller`, `admin`, `staff` (`[RequireRole("buyer", "seller", "admin", "staff")]`)
 
 ## 2. Mo ta nghiep vu
-Tra cuu van don theo ma van don GHN (`trackingNumber`, `ghnOrderCode`, `clientOrderCode`, khong phan biet hoa thuong) hoac theo `SubOrderId` / `ShipmentId` (GUID), bao gom lich su cac moc giao van va anh chung tu giao hang POD (neu co).
+Tra cuu van don theo ma van don GHN (`trackingNumber`, `ghnOrderCode`, `clientOrderCode`, khong phan biet hoa thuong), ma don hang con (`subOrderNo`, VD: `SUB-...` hoac `AO-...`) hoac theo `SubOrderId` / `ShipmentId` (GUID), bao gom danh sach san pham (`items`), lich su cac moc giao van va anh chung tu giao hang POD (neu co).
 
 ## 3. Path Parameters
 | Tham so | Kieu | Bat buoc | Mo ta |
 |---|---|---|---|
-| `trackingNumber` | `string` | Co | Ma van don GHN (VD: `GHN1029384`) |
+| `trackingNumber` | `string` | Co | Ma van don GHN (VD: `GHN1029384`), ma SubOrder (`SUB-...` / `AO-...`) hoac GUID |
 
 ## 4. Phan hoi thanh cong (200 OK)
 Tra ve doi tuong `ShipmentDto` kem danh sach su kien van chuyen `events`.

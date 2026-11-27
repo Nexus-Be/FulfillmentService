@@ -330,4 +330,30 @@ public class SimulateShipperStatusTests
         var ex = await act.Should().ThrowAsync<BusinessRuleValidationException>();
         ex.Which.ErrorCode.Should().Be("VAL_INVALID_STATUS");
     }
+
+    [Fact]
+    public async Task SimulateShipperStatus_AndLookup_BySubOrderNo_ShouldFindAndUpdateShipment()
+    {
+        using var db = CreateDbContext();
+        var tracking = "GHN_SIM_SUBNO_001";
+        var shipment = await SeedShipmentAsync(db, tracking, ShipmentStatus.ReadyToPick);
+        shipment.SubOrderNo = "SUB-20261127-ABC123";
+        await db.SaveChangesAsync();
+
+        var service = new ShipmentService(db, new FakeCarrierResolver(new FakeCarrierGateway()), outbox: new DeliveryNotificationOutbox(db, new FakeCommerceWebhookClient(), new Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNotificationOutbox>()));
+
+        var foundBySubNo = await service.GetByTrackingNumberAsync("sub-20261127-abc123", isAdminOrStaff: true);
+        foundBySubNo.SubOrderNo.Should().Be("SUB-20261127-ABC123");
+        foundBySubNo.TrackingNumber.Should().Be(tracking);
+
+        var listResult = await service.ListShipmentsAsync(new ShipmentFilterRequest(Search: "ABC123"), Guid.NewGuid(), isAdmin: true);
+        listResult.Items.Should().ContainSingle(s => s.Id == shipment.Id && s.SubOrderNo == "SUB-20261127-ABC123");
+
+        var simResult = await service.SimulateShipperStatusAsync(new SimulateShipperStatusRequest(
+            TrackingNumber: "SUB-20261127-ABC123",
+            Status: "picked"));
+
+        simResult.IsSuccess.Should().BeTrue();
+        simResult.CurrentStatus.Should().Be("HandedOver");
+    }
 }

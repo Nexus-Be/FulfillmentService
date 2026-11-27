@@ -29,7 +29,7 @@ public class ShipmentsController : ControllerBase
         CancellationToken ct)
     {
         var userId = this.GetUserId() ?? Guid.Empty;
-        var result = await _shipmentService.ListShipmentsAsync(request, userId, this.IsAdmin(), ct);
+        var result = await _shipmentService.ListShipmentsAsync(request, userId, this.IsAdmin() || this.IsStaff(), ct);
         return Ok(result);
     }
 
@@ -93,6 +93,17 @@ public class ShipmentsController : ControllerBase
         var userId = this.GetUserId() ?? Guid.Empty;
         var isAdminOrStaff = this.IsAdmin() || this.IsStaff();
         var shipment = await _shipmentService.GetByOrderIdAsync(orderId, userId, isAdminOrStaff, ct);
+        return Ok(shipment);
+    }
+
+    /// <summary>Gets shipment details by sub-order or auction-order ID.</summary>
+    [HttpGet("sub-orders/{subOrderId:guid}")]
+    [RequireRole("buyer", "seller", "admin", "staff")]
+    public async Task<ActionResult<ShipmentDto>> GetBySubOrderId([FromRoute] Guid subOrderId, CancellationToken ct)
+    {
+        var userId = this.GetUserId() ?? Guid.Empty;
+        var isAdminOrStaff = this.IsAdmin() || this.IsStaff();
+        var shipment = await _shipmentService.GetByOrderIdAsync(subOrderId, userId, isAdminOrStaff, ct);
         return Ok(shipment);
     }
 

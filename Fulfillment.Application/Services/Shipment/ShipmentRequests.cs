@@ -34,7 +34,8 @@ public sealed record CreateShipmentRequest(
     string? RequiredNote = "CHOXEMHANGKHONGTHU",
     string? Note = null,
     IReadOnlyList<CreateShipmentItemRequest>? Items = null,
-    int? PickShiftId = null);
+    int? PickShiftId = null,
+    string? SubOrderNo = null);
 
 public sealed record UpdateShipmentStatusRequest(
     string TrackingNumber,

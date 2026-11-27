@@ -82,7 +82,7 @@ public class WarehousesController : ControllerBase
     }
 
     [HttpPost("initialize")]
-    [RequireRole("admin")]
+    [RequireRole("admin", "staff")]
     public async Task<ActionResult<InternalWarehouseResponse>> Initialize(
         [FromBody] InternalCreateWarehouseRequest request,
         CancellationToken ct)
@@ -92,7 +92,7 @@ public class WarehousesController : ControllerBase
     }
 
     [HttpPut("seller/{sellerId:guid}")]
-    [RequireRole("admin")]
+    [RequireRole("admin", "staff")]
     public async Task<IActionResult> UpdateBySellerId(
         [FromRoute] Guid sellerId,
         [FromBody] InternalUpdateSellerWarehouseRequest request,
@@ -108,7 +108,7 @@ public class WarehousesController : ControllerBase
     }
 
     [HttpDelete("seller/{sellerId:guid}")]
-    [RequireRole("admin")]
+    [RequireRole("admin", "staff")]
     public async Task<IActionResult> DeleteBySellerId(
         [FromRoute] Guid sellerId,
         CancellationToken ct)

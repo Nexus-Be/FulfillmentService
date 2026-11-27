@@ -277,6 +277,34 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
     }
 
     [Fact]
+    public async Task PublicInitialize_WithStaffRole_Returns201Created()
+    {
+        var sellerId = Guid.NewGuid();
+        var request = new InternalCreateWarehouseRequest(
+            SellerId: sellerId,
+            UserId: sellerId,
+            ShopName: "Staff Approved Warehouse",
+            ContactName: "Staff Approved Owner",
+            ContactPhone: "0901234567",
+            PickupAddress: "789 Le Loi, Quan 1",
+            ProvinceId: 202,
+            DistrictId: 1442,
+            WardCode: "20101");
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/warehouses/initialize");
+        httpRequest.Headers.Add("x-user-id", Guid.NewGuid().ToString());
+        httpRequest.Headers.Add("x-user-roles", "staff");
+        httpRequest.Content = JsonContent.Create(request);
+
+        var response = await _client.SendAsync(httpRequest);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<InternalWarehouseResponse>();
+        Assert.NotNull(result);
+        Assert.Equal(sellerId, result.SellerId);
+    }
+
+    [Fact]
     public async Task InternalWarehouse_BySellerId_OperationsWorkWithServiceKey()
     {
         var sellerId = Guid.NewGuid();

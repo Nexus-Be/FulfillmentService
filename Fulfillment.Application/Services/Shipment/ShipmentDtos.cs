@@ -56,7 +56,8 @@ public sealed record ShipmentDto(
     string? LastDeliveryFailureReason = null,
     string? LastDeliveryFailureCode = null,
     DateTimeOffset CreatedAt = default,
-    DateTimeOffset UpdatedAt = default);
+    DateTimeOffset UpdatedAt = default,
+    string? SubOrderNo = null);
 
 public sealed record CreateShipmentDto(
     Guid OrderId,
