@@ -356,4 +356,37 @@ public class SimulateShipperStatusTests
         simResult.IsSuccess.Should().BeTrue();
         simResult.CurrentStatus.Should().Be("HandedOver");
     }
+
+    [Fact]
+    public async Task SimulateShipperStatus_RepeatedDeliveryFail_WithoutForce_Succeeds()
+    {
+        // Arrange
+        using var db = CreateDbContext();
+        var tracking = "GHN_SIM_REPEAT_FAIL_001";
+        await SeedShipmentAsync(db, tracking, ShipmentStatus.DeliveryFailed);
+
+        var commerce = new FakeCommerceWebhookClient();
+        var outbox = new DeliveryNotificationOutbox(db, commerce, new Microsoft.Extensions.Logging.Abstractions.NullLogger<DeliveryNotificationOutbox>());
+        var service = new ShipmentService(db, new FakeCarrierResolver(new FakeCarrierGateway()), outbox: outbox);
+
+        var request = new SimulateShipperStatusRequest(
+            TrackingNumber: tracking,
+            Status: "delivery_fail",
+            ReasonCode: "BUYER_NOT_HOME",
+            Reason: "Second failed delivery attempt",
+            Force: false);
+
+        // Act
+        var response = await service.SimulateShipperStatusAsync(request);
+
+        // Assert
+        response.IsSuccess.Should().BeTrue();
+        response.PreviousStatus.Should().Be("DeliveryFailed");
+        response.CurrentStatus.Should().Be("DeliveryFailed");
+        response.CommerceStatusNotified.Should().Be("DeliveryAttemptFailed");
+
+        var updated = await db.Shipments.Include(s => s.Events).FirstAsync(s => s.TrackingNumber == tracking);
+        updated.Status.Should().Be(ShipmentStatus.DeliveryFailed);
+        updated.Events.Should().ContainSingle(e => e.CarrierStatus == "delivery_fail" && e.Reason == "Second failed delivery attempt");
+    }
 }

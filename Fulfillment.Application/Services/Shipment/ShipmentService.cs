@@ -1077,7 +1077,9 @@ public sealed class ShipmentService : IShipmentService
         var targetStatus = ParseTargetStatus(request.Status);
         var previousStatus = shipment.Status;
 
-        if (!request.Force && !ShipmentStatusTransitions.IsForward(previousStatus, targetStatus))
+        if (!request.Force &&
+            !ShipmentStatusTransitions.IsForward(previousStatus, targetStatus) &&
+            !ShipmentStatusTransitions.IsRepeatedFailedAttempt(previousStatus, targetStatus))
         {
             throw new BusinessRuleValidationException(
                 "INVALID_STATUS_TRANSITION",
