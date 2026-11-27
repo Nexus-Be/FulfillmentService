@@ -2,6 +2,7 @@ namespace Fulfillment.Infrastructure.Shipping;
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -61,6 +62,43 @@ public class GhnLocationService : IShippingLocationService
         {
             _httpClient.DefaultRequestHeaders.Add("Token", _options.Token);
         }
+
+        if (!string.IsNullOrWhiteSpace(_options.ShopId) && !_httpClient.DefaultRequestHeaders.Contains("ShopId"))
+        {
+            _httpClient.DefaultRequestHeaders.Add("ShopId", _options.ShopId);
+        }
+    }
+
+    private static readonly StringComparer VietnameseNameComparer =
+        StringComparer.Create(CultureInfo.GetCultureInfo("vi-VN"), ignoreCase: true);
+
+    private static bool IsUsableProvince(GhnRawProvince p)
+    {
+        if (p.ProvinceId <= 0 || p.ProvinceId == 2002 || string.IsNullOrWhiteSpace(p.ProvinceName))
+        {
+            return false;
+        }
+
+        var name = p.ProvinceName.Trim();
+        return !name.Contains("test", StringComparison.OrdinalIgnoreCase) &&
+               !name.Contains("alert", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsUsableDistrict(GhnRawDistrict d)
+    {
+        if (d.DistrictId <= 0 || string.IsNullOrWhiteSpace(d.DistrictName))
+        {
+            return false;
+        }
+
+        var name = d.DistrictName.Trim();
+        return !name.Contains("test", StringComparison.OrdinalIgnoreCase) &&
+               !name.Contains("alert", StringComparison.OrdinalIgnoreCase) &&
+               !name.Equals("Quận Đặc Biệt", StringComparison.OrdinalIgnoreCase) &&
+               !name.Equals("Quận mới", StringComparison.OrdinalIgnoreCase) &&
+               !name.Equals("Quận mới 1", StringComparison.OrdinalIgnoreCase) &&
+               !name.EndsWith("- cũ", StringComparison.OrdinalIgnoreCase) &&
+               !name.EndsWith("- cu", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record CachedLocations<T>(IReadOnlyList<T> Items, DateTimeOffset ObservedAt);
@@ -113,9 +151,10 @@ public class GhnLocationService : IShippingLocationService
             }
 
             // HTTP 200 is not enough: the body must say success and carry a list. An error body, a missing list, or an empty list where one cannot
-            // be empty (provinces) is a failed read, never an answer, so a saved code is not judged wrong from it.
+            // be empty (provinces/districts) is a failed read, never an answer, so a saved code is not judged wrong from it.
+            // Note: GHN returns `data: null` (with code=200) for districts that have zero wards (e.g. island districts), so `emptyIsAnswer` accepts null as empty.
             var result = await response.Content.ReadFromJsonAsync<GhnRawApiResponse<List<TRaw>>>(cancellationToken: cancellationToken);
-            if (result is null || result.Code != 200 || result.Data is null || (result.Data.Count == 0 && !emptyIsAnswer))
+            if (result is null || result.Code != 200 || (result.Data is null && !emptyIsAnswer))
             {
                 _logger.LogWarning("GHN {What} answered HTTP 200 without a usable list (code {Code}).", what, result?.Code);
                 if (tripCircuitOnAllErrors)
@@ -125,7 +164,18 @@ public class GhnLocationService : IShippingLocationService
                 throw SourceUnavailable();
             }
 
-            var items = map(result.Data);
+            var rawItems = result.Data ?? new List<TRaw>();
+            if (rawItems.Count == 0 && !emptyIsAnswer)
+            {
+                _logger.LogWarning("GHN {What} answered HTTP 200 with an empty list (code {Code}).", what, result.Code);
+                if (tripCircuitOnAllErrors)
+                {
+                    NoteCarrierDown();
+                }
+                throw SourceUnavailable();
+            }
+
+            var items = map(rawItems);
             var observedAt = DateTimeOffset.UtcNow;
             if (items.Count > 0)
             {
@@ -155,7 +205,11 @@ public class GhnLocationService : IShippingLocationService
             "ghn:master_data:provinces",
             "provinces",
             ct => _httpClient.GetAsync("/shiip/public-api/master-data/province", ct),
-            raw => raw.Select(p => new ProvinceDto(p.ProvinceId, p.ProvinceName, p.Code)).ToList(),
+            raw => raw
+                .Where(IsUsableProvince)
+                .Select(p => new ProvinceDto(p.ProvinceId, p.ProvinceName.Trim(), p.Code))
+                .OrderBy(p => p.ProvinceName, VietnameseNameComparer)
+                .ToList(),
             emptyIsAnswer: false,
             tripCircuitOnAllErrors: true,
             cancellationToken);
@@ -171,7 +225,11 @@ public class GhnLocationService : IShippingLocationService
             $"ghn:master_data:districts:{provinceId}",
             $"districts of province {provinceId}",
             ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/district", new { province_id = provinceId }, ct),
-            raw => raw.Select(d => new DistrictDto(d.DistrictId, d.ProvinceId, d.DistrictName, d.SupportType)).ToList(),
+            raw => raw
+                .Where(IsUsableDistrict)
+                .Select(d => new DistrictDto(d.DistrictId, d.ProvinceId, d.DistrictName.Trim(), d.SupportType))
+                .OrderBy(d => d.DistrictName, VietnameseNameComparer)
+                .ToList(),
             emptyIsAnswer: false,
             tripCircuitOnAllErrors: false,
             cancellationToken);
@@ -188,7 +246,11 @@ public class GhnLocationService : IShippingLocationService
             $"ghn:master_data:wards:{districtId}",
             $"wards of district {districtId}",
             ct => _httpClient.PostAsJsonAsync("/shiip/public-api/master-data/ward", new { district_id = districtId }, ct),
-            raw => raw.Select(w => new WardDto(w.WardCode, w.DistrictId, w.WardName)).ToList(),
+            raw => raw
+                .Where(w => !string.IsNullOrWhiteSpace(w.WardCode) && !string.IsNullOrWhiteSpace(w.WardName))
+                .Select(w => new WardDto(w.WardCode.Trim(), w.DistrictId, w.WardName.Trim()))
+                .OrderBy(w => w.WardName, VietnameseNameComparer)
+                .ToList(),
             emptyIsAnswer: true,
             tripCircuitOnAllErrors: false,
             cancellationToken);

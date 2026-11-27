@@ -185,27 +185,74 @@ public class GhnLocationSourceTests
     [Theory]
     [InlineData("{\"code\":400,\"message\":\"Bad request\",\"data\":null}")]
     [InlineData("{\"code\":200,\"message\":\"Success\",\"data\":null}")]
-    public async Task A_district_or_ward_read_with_an_error_body_or_no_list_is_503_not_an_empty_answer(string body)
+    public async Task A_district_read_with_an_error_body_or_no_list_is_503_not_an_empty_answer(string body)
     {
         using var cache = new MemoryCache(new MemoryCacheOptions());
         var service = Create(token: "token", cache, new FixedBody(body));
 
         (await Unavailable(() => service.GetDistrictsAsync(202))).StatusCode.Should().Be(503);
-        cache.Remove(GhnLocationService.CarrierDownCacheKey);
-        (await Unavailable(() => service.GetWardsAsync(1442))).StatusCode.Should().Be(503);
     }
 
     [Fact]
-    public async Task A_ward_list_that_GHN_confirms_is_empty_is_an_answer_and_is_not_cached()
+    public async Task A_ward_read_with_an_error_code_is_503_not_an_empty_answer()
     {
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var service = Create(token: "token", cache, new FixedBody("{\"code\":200,\"message\":\"Success\",\"data\":[]}"));
+        var service = Create(token: "token", cache, new FixedBody("{\"code\":400,\"message\":\"Bad request\",\"data\":null}"));
+
+        (await Unavailable(() => service.GetWardsAsync(1442))).StatusCode.Should().Be(503);
+    }
+
+    [Theory]
+    [InlineData("{\"code\":200,\"message\":\"Success\",\"data\":[]}")]
+    [InlineData("{\"code\":200,\"message\":\"Success\",\"data\":null}")]
+    public async Task A_ward_list_that_GHN_confirms_is_empty_is_an_answer_and_is_not_cached(string body)
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var service = Create(token: "token", cache, new FixedBody(body));
 
         var wards = await service.GetWardsAsync(1442);
 
         wards.Items.Should().BeEmpty();
         wards.Source.Should().Be(LocationSources.Ghn);
         cache.TryGetValue("ghn:master_data:wards:1442", out _).Should().BeFalse("an empty list is not kept for 24 hours");
+    }
+
+    [Fact]
+    public async Task Provinces_and_districts_exclude_staging_test_entries_and_are_sorted_alphabetically()
+    {
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var handler = new StagingJunkHandler();
+        var service = CreateWithShop("token", "241115", cache, handler);
+
+        var provinces = await service.GetProvincesAsync();
+        provinces.Items.Select(p => p.ProvinceName).Should().Equal("Hà Nội", "Hồ Chí Minh");
+        handler.LastShopIdHeader.Should().Be("241115");
+
+        var districts = await service.GetDistrictsAsync(268);
+        districts.Items.Select(d => d.DistrictName).Should().Equal("Huyện Văn Giang", "Thành phố Hưng Yên");
+    }
+
+    private sealed class StagingJunkHandler : HttpMessageHandler
+    {
+        public string? LastShopIdHeader { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.Headers.TryGetValues("ShopId", out var values))
+            {
+                LastShopIdHeader = string.Join(",", values);
+            }
+
+            var path = request.RequestUri!.AbsolutePath;
+            var data = path.EndsWith("/province")
+                ? "[{\"ProvinceID\":2002,\"ProvinceName\":\"Hà Nội 02\",\"Code\":\"4\"},{\"ProvinceID\":298,\"ProvinceName\":\"Test - Alert - Tỉnh - 001\",\"Code\":null},{\"ProvinceID\":202,\"ProvinceName\":\"Hồ Chí Minh\",\"Code\":\"8\"},{\"ProvinceID\":201,\"ProvinceName\":\"Hà Nội\",\"Code\":\"4\"}]"
+                : "[{\"DistrictID\":3451,\"ProvinceID\":268,\"DistrictName\":\"Quận Đặc Biệt\",\"SupportType\":3},{\"DistrictID\":3770,\"ProvinceID\":268,\"DistrictName\":\"Quận mới\",\"SupportType\":3},{\"DistrictID\":1688,\"ProvinceID\":268,\"DistrictName\":\"TT Phú Mỹ - cũ\",\"SupportType\":0},{\"DistrictID\":2044,\"ProvinceID\":268,\"DistrictName\":\"Thành phố Hưng Yên\",\"SupportType\":3},{\"DistrictID\":2045,\"ProvinceID\":268,\"DistrictName\":\"Huyện Văn Giang\",\"SupportType\":3}]";
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{\"code\":200,\"message\":\"Success\",\"data\":" + data + "}")
+            });
+        }
     }
 
     [Fact]
