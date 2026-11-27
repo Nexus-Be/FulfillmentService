@@ -54,7 +54,9 @@ public sealed record ShipmentDto(
     IReadOnlyList<ShipmentItemDto>? Items = null,
     IReadOnlyList<ShipmentEventDto>? Events = null,
     string? LastDeliveryFailureReason = null,
-    string? LastDeliveryFailureCode = null);
+    string? LastDeliveryFailureCode = null,
+    DateTimeOffset CreatedAt = default,
+    DateTimeOffset UpdatedAt = default);
 
 public sealed record CreateShipmentDto(
     Guid OrderId,
@@ -72,7 +74,10 @@ public sealed record ShipmentFilterRequest(
     DateTimeOffset? FromDate = null,
     DateTimeOffset? ToDate = null,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 20,
+    string? Search = null,
+    string? SortBy = null,
+    string? SortOrder = null);
 
 public sealed record CancelShipmentResponse(
     Guid ShipmentId,

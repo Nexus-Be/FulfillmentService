@@ -256,4 +256,137 @@ public class ShipmentAdvancedTests
         var updated = await db.Shipments.FindAsync(shipment.Id);
         updated!.PrintToken.Should().Be("mock_ghn_token_xyz");
     }
+
+    [Fact]
+    public async Task ListShipmentsAsync_ShouldSupportUnifiedSearch_MultiStatusFilter_AndTimeSorting()
+    {
+        using var db = CreateDbContext();
+        var sellerId = Guid.NewGuid();
+        var wh = new Warehouse { Id = Guid.NewGuid(), SellerId = sellerId, Code = "WH1", Name = "Warehouse 1", Address = "HCM" };
+        db.Warehouses.Add(wh);
+
+        var t0 = DateTimeOffset.UtcNow.AddHours(-5);
+        var orderId1 = Guid.NewGuid();
+        var orderId2 = Guid.NewGuid();
+        var orderId3 = Guid.NewGuid();
+
+        var s1 = new Shipment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId1,
+            WarehouseId = wh.Id,
+            CarrierId = Guid.NewGuid(),
+            TrackingNumber = "LY9WHT",
+            GhnOrderCode = "LY9WHT",
+            Status = ShipmentStatus.ReadyToPick,
+            ReceiverName = "Tran Van An",
+            ReceiverPhone = "0901112222",
+            ReceiverAddress = "Quan 1, HCM",
+            CreatedAt = t0,
+            UpdatedAt = t0.AddMinutes(30)
+        };
+
+        var s2 = new Shipment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId2,
+            WarehouseId = wh.Id,
+            CarrierId = Guid.NewGuid(),
+            TrackingNumber = "GHN888222",
+            GhnOrderCode = "GHN888222",
+            Status = ShipmentStatus.InTransit,
+            ReceiverName = "Nguyen Thi Binh",
+            ReceiverPhone = "0903334444",
+            ReceiverAddress = "Quan 3, HCM",
+            CreatedAt = t0.AddHours(1),
+            UpdatedAt = t0.AddHours(4)
+        };
+
+        var s3 = new Shipment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId3,
+            WarehouseId = wh.Id,
+            CarrierId = Guid.NewGuid(),
+            TrackingNumber = "GHN999333",
+            GhnOrderCode = "GHN999333",
+            Status = ShipmentStatus.Delivered,
+            ReceiverName = "Le Minh Chau",
+            ReceiverPhone = "0905556666",
+            ReceiverAddress = "Ha Noi",
+            CreatedAt = t0.AddHours(2),
+            UpdatedAt = t0.AddHours(2)
+        };
+
+        db.Shipments.AddRange(s1, s2, s3);
+        await db.SaveChangesAsync();
+
+        var service = new ShipmentService(db, new MockCarrierResolver(new MockCarrierGateway()));
+
+        // Search by lowercase partial tracking number
+        var byTracking = await service.ListShipmentsAsync(new ShipmentFilterRequest(Search: "ly9w"), Guid.NewGuid(), isAdmin: true);
+        byTracking.Items.Should().ContainSingle(x => x.TrackingNumber == "LY9WHT");
+        byTracking.Items[0].CreatedAt.Should().Be(s1.CreatedAt);
+        byTracking.Items[0].UpdatedAt.Should().Be(s1.UpdatedAt);
+
+        // Search by SubOrder GUID
+        var byOrderGuid = await service.ListShipmentsAsync(new ShipmentFilterRequest(Search: orderId2.ToString()), Guid.NewGuid(), isAdmin: true);
+        byOrderGuid.Items.Should().ContainSingle(x => x.OrderId == orderId2);
+
+        // Search by receiver phone
+        var byPhone = await service.ListShipmentsAsync(new ShipmentFilterRequest(Search: "0905556666"), Guid.NewGuid(), isAdmin: true);
+        byPhone.Items.Should().ContainSingle(x => x.TrackingNumber == "GHN999333");
+
+        // Multi-status filter (comma-separated)
+        var multiStatus = await service.ListShipmentsAsync(new ShipmentFilterRequest(Status: "ReadyToPick,Delivered"), Guid.NewGuid(), isAdmin: true);
+        multiStatus.Items.Should().HaveCount(2);
+        multiStatus.Items.Select(x => x.TrackingNumber).Should().BeEquivalentTo(new[] { "LY9WHT", "GHN999333" });
+
+        // Sort by createdAt asc
+        var createdAsc = await service.ListShipmentsAsync(new ShipmentFilterRequest(SortBy: "createdAt", SortOrder: "asc"), Guid.NewGuid(), isAdmin: true);
+        createdAsc.Items.Select(x => x.TrackingNumber).Should().ContainInOrder("LY9WHT", "GHN888222", "GHN999333");
+
+        // Sort by updatedAt desc (s2 was updated last)
+        var updatedDesc = await service.ListShipmentsAsync(new ShipmentFilterRequest(SortBy: "updatedAt", SortOrder: "desc"), Guid.NewGuid(), isAdmin: true);
+        updatedDesc.Items.Select(x => x.TrackingNumber).Should().ContainInOrder("GHN888222", "GHN999333", "LY9WHT");
+
+        // Numeric status must be rejected
+        var invalidNumeric = () => service.ListShipmentsAsync(new ShipmentFilterRequest(Status: "0"), Guid.NewGuid(), isAdmin: true);
+        await invalidNumeric.Should().ThrowAsync<BusinessRuleValidationException>();
+    }
+
+    [Fact]
+    public async Task GetByTrackingNumberAsync_ShouldMatchCaseInsensitiveTracking_AndSubOrderGuid()
+    {
+        using var db = CreateDbContext();
+        var sellerId = Guid.NewGuid();
+        var wh = new Warehouse { Id = Guid.NewGuid(), SellerId = sellerId, Code = "WH1", Name = "Warehouse 1", Address = "HCM" };
+        db.Warehouses.Add(wh);
+
+        var orderId = Guid.NewGuid();
+        var shipment = new Shipment
+        {
+            Id = Guid.NewGuid(),
+            OrderId = orderId,
+            WarehouseId = wh.Id,
+            CarrierId = Guid.NewGuid(),
+            TrackingNumber = "LY9WHT",
+            GhnOrderCode = "LY9WHT",
+            ClientOrderCode = orderId.ToString(),
+            Status = ShipmentStatus.ReadyToPick,
+            ReceiverName = "Buyer",
+            ReceiverPhone = "0901234567",
+            ReceiverAddress = "HCM"
+        };
+        db.Shipments.Add(shipment);
+        await db.SaveChangesAsync();
+
+        var service = new ShipmentService(db, new MockCarrierResolver(new MockCarrierGateway()));
+
+        var byLowerTracking = await service.GetByTrackingNumberAsync("ly9wht", Guid.NewGuid(), isAdminOrStaff: true);
+        byLowerTracking.Id.Should().Be(shipment.Id);
+
+        var byOrderId = await service.GetByTrackingNumberAsync(orderId.ToString(), Guid.NewGuid(), isAdminOrStaff: true);
+        byOrderId.Id.Should().Be(shipment.Id);
+    }
 }

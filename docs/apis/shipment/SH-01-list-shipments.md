@@ -26,8 +26,11 @@ Truy van danh sach van don giao hang co phan trang va cach ly du lieu nghiem nga
 |---|---|---|---|
 | `warehouseId` | `Guid?` | `null` | Loc theo kho hang |
 | `orderId` | `Guid?` | `null` | Loc theo don hang con |
-| `trackingNumber` | `string?` | `null` | Tim theo ma van don GHN |
-| `status` | `string?` | `null` | Loc trang thai van don |
+| `trackingNumber` | `string?` | `null` | Tim theo ma van don GHN (khong phan biet hoa thuong) |
+| `search` | `string?` | `null` | Tim kiem hop nhat theo ma van don GHN, ma don con (`orderId`), ten hoac SDT nguoi nhan |
+| `status` | `string?` | `null` | Loc mot hoac nhieu trang thai van don, phan tach boi dau phay (VD: `ReadyToPick,InTransit`) |
+| `sortBy` | `string?` | `createdAt` | Truong sap xep thoi gian (`createdAt` hoac `updatedAt`) |
+| `sortOrder` | `string?` | `desc` | Thu tu sap xep (`desc` moi nhat truoc, `asc` cu nhat truoc) |
 | `fromDate` | `DateTimeOffset?` | `null` | Tu ngay |
 | `toDate` | `DateTimeOffset?` | `null` | Den ngay |
 | `page` | `int` | `1` | So trang |
@@ -53,6 +56,8 @@ Truy van danh sach van don giao hang co phan trang va cach ly du lieu nghiem nga
       "ghnOrderCode": "GHN1029384",
       "estimatedDeliveryAt": "2026-11-21T10:00:00Z",
       "deliveredAt": null,
+      "createdAt": "2026-11-21T08:00:00Z",
+      "updatedAt": "2026-11-21T09:15:00Z",
       "items": [],
       "events": []
     }

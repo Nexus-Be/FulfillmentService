@@ -55,12 +55,21 @@ public sealed class ShipmentService : IShipmentService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
 
+        var trimmed = trackingNumber.Trim();
+        var trimmedLower = trimmed.ToLowerInvariant();
+        var isGuid = Guid.TryParse(trimmed, out var lookupGuid);
+
         var shipment = await _dbContext.Shipments
             .AsNoTracking()
             .Include(s => s.Items)
             .Include(s => s.Events)
             .Include(s => s.Warehouse)
-            .FirstOrDefaultAsync(s => s.TrackingNumber == trackingNumber || s.GhnOrderCode == trackingNumber, cancellationToken)
+            .FirstOrDefaultAsync(s =>
+                (s.TrackingNumber != null && s.TrackingNumber.ToLower() == trimmedLower) ||
+                (s.GhnOrderCode != null && s.GhnOrderCode.ToLower() == trimmedLower) ||
+                (s.ClientOrderCode != null && s.ClientOrderCode.ToLower() == trimmedLower) ||
+                (isGuid && (s.OrderId == lookupGuid || s.Id == lookupGuid)),
+                cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", trackingNumber);
 
         ValidateShipmentAccess(shipment, currentUserId, isAdminOrStaff);
@@ -524,21 +533,53 @@ public sealed class ShipmentService : IShipmentService
 
         if (!string.IsNullOrWhiteSpace(request.TrackingNumber))
         {
-            var tracking = request.TrackingNumber.Trim();
+            var trackingLower = request.TrackingNumber.Trim().ToLowerInvariant();
             query = query.Where(s =>
-                (s.TrackingNumber != null && s.TrackingNumber.Contains(tracking)) ||
-                (s.GhnOrderCode != null && s.GhnOrderCode.Contains(tracking)));
+                (s.TrackingNumber != null && s.TrackingNumber.ToLower().Contains(trackingLower)) ||
+                (s.GhnOrderCode != null && s.GhnOrderCode.ToLower().Contains(trackingLower)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var searchLower = request.Search.Trim().ToLowerInvariant();
+            var isSearchGuid = Guid.TryParse(request.Search.Trim(), out var searchGuid);
+            query = query.Where(s =>
+                (s.TrackingNumber != null && s.TrackingNumber.ToLower().Contains(searchLower)) ||
+                (s.GhnOrderCode != null && s.GhnOrderCode.ToLower().Contains(searchLower)) ||
+                (s.ClientOrderCode != null && s.ClientOrderCode.ToLower().Contains(searchLower)) ||
+                s.ReceiverName.ToLower().Contains(searchLower) ||
+                s.ReceiverPhone.ToLower().Contains(searchLower) ||
+                (isSearchGuid && (s.OrderId == searchGuid || s.Id == searchGuid)));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Status))
         {
-            if (Enum.TryParse<ShipmentStatus>(request.Status, true, out var parsedStatus))
+            var tokens = request.Status
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            var parsedStatuses = new List<ShipmentStatus>(tokens.Length);
+            foreach (var token in tokens)
             {
-                query = query.Where(s => s.Status == parsedStatus);
+                if (!int.TryParse(token, out _) &&
+                    Enum.TryParse<ShipmentStatus>(token, true, out var parsedStatus) &&
+                    Enum.IsDefined(typeof(ShipmentStatus), parsedStatus))
+                {
+                    parsedStatuses.Add(parsedStatus);
+                }
+                else
+                {
+                    throw new BusinessRuleValidationException("VAL_INVALID_STATUS", $"Invalid shipment status '{token}'.", 400);
+                }
             }
-            else
+
+            if (parsedStatuses.Count == 1)
             {
-                throw new BusinessRuleValidationException("VAL_INVALID_STATUS", $"Invalid shipment status '{request.Status}'.", 400);
+                var singleStatus = parsedStatuses[0];
+                query = query.Where(s => s.Status == singleStatus);
+            }
+            else if (parsedStatuses.Count > 1)
+            {
+                query = query.Where(s => parsedStatuses.Contains(s.Status));
             }
         }
 
@@ -557,8 +598,19 @@ public sealed class ShipmentService : IShipmentService
         int safePage = Math.Max(1, request.Page);
         int safePageSize = Math.Clamp(request.PageSize, 1, 100);
 
-        var shipments = await query
-            .OrderByDescending(s => s.CreatedAt)
+        var sortBy = request.SortBy?.Trim().ToLowerInvariant();
+        var sortOrder = request.SortOrder?.Trim().ToLowerInvariant();
+        var isAscending = sortOrder is "asc" or "oldest";
+
+        var orderedQuery = (sortBy, isAscending) switch
+        {
+            ("updatedat" or "updated_at", true) => query.OrderBy(s => s.UpdatedAt).ThenBy(s => s.Id),
+            ("updatedat" or "updated_at", false) => query.OrderByDescending(s => s.UpdatedAt).ThenByDescending(s => s.Id),
+            (_, true) => query.OrderBy(s => s.CreatedAt).ThenBy(s => s.Id),
+            _ => query.OrderByDescending(s => s.CreatedAt).ThenByDescending(s => s.Id)
+        };
+
+        var shipments = await orderedQuery
             .Skip((safePage - 1) * safePageSize)
             .Take(safePageSize)
             .ToListAsync(cancellationToken);
@@ -926,7 +978,9 @@ public sealed class ShipmentService : IShipmentService
             items,
             events,
             lastFailEvent?.Reason,
-            lastFailEvent?.ReasonCode);
+            lastFailEvent?.ReasonCode,
+            s.CreatedAt,
+            s.UpdatedAt);
     }
 
     private readonly ShippingBehaviorOptions _behavior;
@@ -1010,7 +1064,7 @@ public sealed class ShipmentService : IShipmentService
                                       s.GhnOrderCode == trimmed ||
                                       (s.GhnOrderCode != null && s.GhnOrderCode.ToLower() == trimmed.ToLower()) ||
                                       s.ClientOrderCode == trimmed ||
-                                      (isGuid && s.OrderId == orderGuid),
+                                      (isGuid && (s.OrderId == orderGuid || s.Id == orderGuid)),
                                  cancellationToken)
             ?? throw new EntityNotFoundException("SHIPMENT_NOT_FOUND", "Shipment", effectiveTracking);
 

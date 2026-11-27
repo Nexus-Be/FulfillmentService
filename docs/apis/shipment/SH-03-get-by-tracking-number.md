@@ -11,7 +11,7 @@
 - **Quyen han / Role**: `buyer`, `seller`, `admin`, `staff` (`[RequireRole("buyer", "seller", "admin", "staff")]`)
 
 ## 2. Mo ta nghiep vu
-Tra cuu van don theo ma van don GHN (`trackingNumber` hoac `ghnOrderCode`), bao gom lich su cac moc giao van va anh chung tu giao hang POD (neu co).
+Tra cuu van don theo ma van don GHN (`trackingNumber`, `ghnOrderCode`, `clientOrderCode`, khong phan biet hoa thuong) hoac theo `SubOrderId` / `ShipmentId` (GUID), bao gom lich su cac moc giao van va anh chung tu giao hang POD (neu co).
 
 ## 3. Path Parameters
 | Tham so | Kieu | Bat buoc | Mo ta |
