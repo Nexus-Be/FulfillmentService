@@ -1100,6 +1100,10 @@ public sealed class ShipmentService : IShipmentService
                     var alertRequest = new DeliveryAlertRequest
                     {
                         OrderId = shipment.OrderId,
+                        ShipmentId = shipment.Id,
+                        ShopId = shipment.Warehouse?.SellerId ?? shipment.WarehouseId,
+                        BuyerUserId = shipment.BuyerId ?? Guid.Empty,
+                        SellerUserId = shipment.Warehouse?.SellerId ?? shipment.CreatedBy,
                         TrackingNumber = shipment.TrackingNumber ?? effectiveTracking,
                         Status = commerceStatusNotified!,
                         Note = request.Description ?? request.Reason,

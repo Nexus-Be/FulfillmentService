@@ -90,11 +90,24 @@ public sealed class NotificationClient : INotificationClient
             return false;
         }
 
+        var recipients = new System.Collections.Generic.HashSet<Guid>();
+        if (request.BuyerUserId != Guid.Empty) recipients.Add(request.BuyerUserId);
+        if (request.SellerUserId != Guid.Empty) recipients.Add(request.SellerUserId);
+
+        if (recipients.Count == 0)
+        {
+            _logger.LogWarning(
+                "[REST Notification] Skipping delivery alert for Order {OrderId}: no buyer or seller user ID.",
+                request.OrderId);
+            return false;
+        }
+
         try
         {
-            var payload = new
+            var metadataJson = System.Text.Json.JsonSerializer.Serialize(new
             {
                 orderId = request.OrderId,
+                shipmentId = request.ShipmentId,
                 trackingNumber = request.TrackingNumber,
                 status = request.Status,
                 note = request.Note,
@@ -103,35 +116,61 @@ public sealed class NotificationClient : INotificationClient
                 podUrl = request.PodUrl,
                 warehouseName = request.WarehouseName,
                 occurredAt = request.OccurredAt
-            };
+            });
 
-            using var requestMsg = new HttpRequestMessage(HttpMethod.Post, "api/v1/internal/notifications/delivery-alert")
-            {
-                Content = JsonContent.Create(payload)
-            };
+            var notificationType = string.Equals(request.Status, "Delivered", StringComparison.OrdinalIgnoreCase)
+                ? "OrderCompleted"
+                : "OrderShipped";
 
-            if (!string.IsNullOrWhiteSpace(_internalServiceKey))
+            var title = $"Shipment update: {request.Status}";
+            var body = string.IsNullOrWhiteSpace(request.Note)
+                ? $"Shipment {request.TrackingNumber} for order {request.OrderId} is now {request.Status}."
+                : $"Shipment {request.TrackingNumber} is now {request.Status}: {request.Note}";
+
+            var allSucceeded = true;
+            foreach (var userId in recipients)
             {
-                requestMsg.Headers.Add("X-Internal-Service-Key", _internalServiceKey);
+                var payload = new
+                {
+                    userId,
+                    title,
+                    body,
+                    notificationType,
+                    payload = metadataJson
+                };
+
+                using var requestMsg = new HttpRequestMessage(HttpMethod.Post, "api/v1/notifications/in-app")
+                {
+                    Content = JsonContent.Create(payload)
+                };
+
+                if (!string.IsNullOrWhiteSpace(_internalServiceKey))
+                {
+                    requestMsg.Headers.Add("X-Internal-Service-Key", _internalServiceKey);
+                }
+
+                var response = await _httpClient.SendAsync(requestMsg, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation(
+                        "[REST Notification] Dispatched delivery alert to user {UserId} for Order {OrderId}, Status {Status}",
+                        userId,
+                        request.OrderId,
+                        request.Status);
+                }
+                else
+                {
+                    allSucceeded = false;
+                    var error = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogWarning(
+                        "[REST Notification] NotificationService returned HTTP {StatusCode}: {Error} for Order {OrderId}",
+                        response.StatusCode,
+                        error,
+                        request.OrderId);
+                }
             }
 
-            var response = await _httpClient.SendAsync(requestMsg, cancellationToken);
-            if (response.IsSuccessStatusCode)
-            {
-                _logger.LogInformation(
-                    "[REST Notification] Successfully dispatched delivery alert for Order {OrderId}, Status {Status}",
-                    request.OrderId,
-                    request.Status);
-                return true;
-            }
-
-            var error = await response.Content.ReadAsStringAsync(cancellationToken);
-            _logger.LogWarning(
-                "[REST Notification] NotificationService returned HTTP {StatusCode}: {Error} for Order {OrderId}",
-                response.StatusCode,
-                error,
-                request.OrderId);
-            return false;
+            return allSucceeded;
         }
         catch (Exception ex)
         {

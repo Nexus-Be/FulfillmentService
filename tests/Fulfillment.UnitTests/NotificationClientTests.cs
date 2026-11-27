@@ -124,10 +124,12 @@ public sealed class NotificationClientTests
 
         var client = new NotificationClient(httpClient, NullLogger<NotificationClient>.Instance, config);
         var orderId = Guid.NewGuid();
+        var buyerId = Guid.NewGuid();
 
         var request = new DeliveryAlertRequest
         {
             OrderId = orderId,
+            BuyerUserId = buyerId,
             TrackingNumber = "GHN_TRACK_123",
             Status = "Delivered",
             Note = "Giao thành công cho bảo vệ",
@@ -144,16 +146,20 @@ public sealed class NotificationClientTests
         // Assert
         result.Should().BeTrue();
         mockHandler.LastRequest.Should().NotBeNull();
-        mockHandler.LastRequest!.RequestUri!.ToString().Should().Be("http://localhost:8007/api/v1/internal/notifications/delivery-alert");
+        mockHandler.LastRequest!.RequestUri!.ToString().Should().Be("http://localhost:8007/api/v1/notifications/in-app");
         mockHandler.LastRequest.Headers.Contains("X-Internal-Service-Key").Should().BeTrue();
 
         using var doc = JsonDocument.Parse(mockHandler.LastRequestBody!);
         var root = doc.RootElement;
-        root.GetProperty("orderId").GetGuid().Should().Be(orderId);
-        root.GetProperty("trackingNumber").GetString().Should().Be("GHN_TRACK_123");
-        root.GetProperty("status").GetString().Should().Be("Delivered");
-        root.GetProperty("shipperName").GetString().Should().Be("Nguyễn Văn Shipper");
-        root.GetProperty("podUrl").GetString().Should().Be("https://cdn.ghn.vn/pod/img.jpg");
+        root.GetProperty("userId").GetGuid().Should().Be(buyerId);
+        root.GetProperty("notificationType").GetString().Should().Be("OrderCompleted");
+        root.GetProperty("title").GetString().Should().Contain("Delivered");
+        root.GetProperty("body").GetString().Should().Contain("GHN_TRACK_123");
+        using var metaDoc = JsonDocument.Parse(root.GetProperty("payload").GetString()!);
+        metaDoc.RootElement.GetProperty("orderId").GetGuid().Should().Be(orderId);
+        metaDoc.RootElement.GetProperty("trackingNumber").GetString().Should().Be("GHN_TRACK_123");
+        metaDoc.RootElement.GetProperty("shipperName").GetString().Should().Be("Nguyễn Văn Shipper");
+        metaDoc.RootElement.GetProperty("podUrl").GetString().Should().Be("https://cdn.ghn.vn/pod/img.jpg");
     }
 
     [Fact]
@@ -175,6 +181,7 @@ public sealed class NotificationClientTests
         var request = new DeliveryAlertRequest
         {
             OrderId = Guid.NewGuid(),
+            BuyerUserId = Guid.NewGuid(),
             TrackingNumber = "GHN_TRACK_123",
             Status = "Delivered"
         };
