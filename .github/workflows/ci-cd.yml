@@ -46,13 +46,31 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+<<<<<<< HEAD
       - name: Trigger Render Deploy
         if: github.event_name != 'pull_request'
+=======
+  deploy-render:
+    name: Trigger Render Deploy
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy Webhook
+>>>>>>> 4d5d0dc (ci(deploy): trigger render deploy webhook after image push)
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+<<<<<<< HEAD
             echo "RENDER_DEPLOY_HOOK_URL secret is not set" >&2
             exit 1
           fi
           curl -fsS "$RENDER_DEPLOY_HOOK_URL"
+=======
+            echo "::error::Missing RENDER_DEPLOY_HOOK_URL repository secret."
+            exit 1
+          fi
+          curl -fsS --retry 3 --retry-delay 5 --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL"
+>>>>>>> 4d5d0dc (ci(deploy): trigger render deploy webhook after image push)
