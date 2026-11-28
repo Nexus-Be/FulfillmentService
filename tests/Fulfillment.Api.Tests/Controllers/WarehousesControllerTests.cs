@@ -43,6 +43,13 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
         Assert.NotNull(warehouse);
 
         var skuId = Guid.NewGuid();
+        using var init = new HttpRequestMessage(HttpMethod.Post, "/api/v1/inventories/initialize");
+        init.Headers.Add("x-user-id", sellerId.ToString());
+        init.Headers.Add("x-user-roles", "seller");
+        init.Content = JsonContent.Create(new DeclareInventoryRequest(skuId, warehouse.Id, 0));
+        var initResponse = await _client.SendAsync(init);
+        Assert.Equal(HttpStatusCode.OK, initResponse.StatusCode);
+
         var intake = new AdjustInventoryRequest(skuId, InventoryAdjustmentType.Intake, 7, "First intake", warehouse.Id);
         using var forbiddenRequest = new HttpRequestMessage(HttpMethod.Post, "/api/v1/inventories/adjust");
         forbiddenRequest.Headers.Add("x-user-id", otherSellerId.ToString());
@@ -351,6 +358,36 @@ public class WarehousesControllerTests : IClassFixture<FulfillmentWebApplication
         deleteMsg.Headers.Add("X-Internal-Service-Key", "eaT0Ombups70WJzd85CBBpp8rAno55SxKn1qvYBGH9e");
         var deleteRes = await _client.SendAsync(deleteMsg);
         Assert.Equal(HttpStatusCode.NoContent, deleteRes.StatusCode);
+    }
+
+    [Fact]
+    public async Task SellerCannotIntakeUninitializedSku()
+    {
+        var sellerId = Guid.NewGuid();
+        using var create = new HttpRequestMessage(HttpMethod.Post, "/api/v1/warehouses");
+        create.Headers.Add("x-user-id", sellerId.ToString());
+        create.Headers.Add("x-user-roles", "seller");
+        create.Content = JsonContent.Create(new CreateWarehouseRequest(
+            Code: "WH_UNINIT_" + Guid.NewGuid().ToString("N")[..6],
+            Name: "Seller warehouse",
+            Address: "Address",
+            Type: "SellerWarehouse"));
+        var created = await _client.SendAsync(create);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var warehouse = await created.Content.ReadFromJsonAsync<WarehouseDto>();
+        Assert.NotNull(warehouse);
+
+        var uninitSkuId = Guid.NewGuid();
+        var intake = new AdjustInventoryRequest(uninitSkuId, InventoryAdjustmentType.Intake, 10, "Intake unapproved SKU", warehouse.Id);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/inventories/adjust");
+        request.Headers.Add("x-user-id", sellerId.ToString());
+        request.Headers.Add("x-user-roles", "seller");
+        request.Content = JsonContent.Create(intake);
+        var response = await _client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.Contains("SKU_NOT_INITIALIZED", content);
     }
 }
 

@@ -201,15 +201,9 @@ public sealed partial class InventoryAppService
         var item = existingItem;
         if (item == null)
         {
-            if (warehouse != null && type == InventoryAdjustmentType.Intake && quantity > 0)
-            {
-                item = InventoryItem.Create(skuId, warehouse.Id, 0);
-                _dbContext.InventoryItems.Add(item);
-            }
-            else
-            {
-                throw new EntityNotFoundException("INVENTORY_NOT_FOUND", "InventoryItem for SKU", skuId);
-            }
+            throw new BusinessRuleValidationException(
+                "SKU_NOT_INITIALIZED",
+                $"SKU '{skuId}' has not been declared or approved by CatalogService.");
         }
 
         item.Adjust(quantity);

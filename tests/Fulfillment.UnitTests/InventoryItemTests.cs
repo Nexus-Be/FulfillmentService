@@ -196,6 +196,7 @@ public class InventoryItemTests : IDisposable
 
         await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuExisting1, _warehouseId, 20));
         await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuExisting2, _warehouseId, 15));
+        await _service.DeclareInventoryAsync(new DeclareInventoryRequest(skuNewIntake, _warehouseId, 0));
 
         var request = new BatchAdjustInventoryRequest(
             Items: new List<BatchAdjustInventoryItemRequest>
@@ -311,5 +312,44 @@ public class InventoryItemTests : IDisposable
 
         // Assert
         await act.Should().ThrowAsync<BusinessRuleValidationException>();
+    }
+
+    [Fact]
+    public async Task AdjustInventory_WhenSkuNotInitialized_ShouldThrowSkuNotInitializedException()
+    {
+        // Arrange
+        var undeclaredSku = Guid.NewGuid();
+        var request = new AdjustInventoryRequest(undeclaredSku, InventoryAdjustmentType.Intake, 10, "Restock unapproved SKU", _warehouseId);
+
+        // Act
+        var act = async () => await _service.AdjustInventoryAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<BusinessRuleValidationException>();
+        ex.Which.ErrorCode.Should().Be("SKU_NOT_INITIALIZED");
+    }
+
+    [Fact]
+    public async Task BatchAdjustInventory_WhenSkuNotInitialized_ShouldThrowSkuNotInitializedException()
+    {
+        // Arrange
+        var declaredSku = Guid.NewGuid();
+        var undeclaredSku = Guid.NewGuid();
+        await _service.DeclareInventoryAsync(new DeclareInventoryRequest(declaredSku, _warehouseId, 10));
+
+        var request = new BatchAdjustInventoryRequest(
+            Items: new List<BatchAdjustInventoryItemRequest>
+            {
+                new(declaredSku, InventoryAdjustmentType.Intake, 5),
+                new(undeclaredSku, InventoryAdjustmentType.Intake, 10)
+            },
+            WarehouseId: _warehouseId);
+
+        // Act
+        var act = async () => await _service.BatchAdjustInventoryAsync(request);
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<BusinessRuleValidationException>();
+        ex.Which.ErrorCode.Should().Be("SKU_NOT_INITIALIZED");
     }
 }
