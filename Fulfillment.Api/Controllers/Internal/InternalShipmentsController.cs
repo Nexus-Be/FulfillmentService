@@ -21,9 +21,13 @@ public sealed class InternalShipmentsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<CreateShipmentResponse>> CreateShipment(
         [FromBody] CreateShipmentRequest request,
+        [FromHeader(Name = "X-Carrier-Code")] string? headerCarrierCode,
         CancellationToken cancellationToken)
     {
-        var result = await _shipmentService.CreateShipmentAsync(request, cancellationToken);
+        var effectiveRequest = !string.IsNullOrWhiteSpace(headerCarrierCode) && string.IsNullOrWhiteSpace(request.CarrierCode)
+            ? request with { CarrierCode = headerCarrierCode }
+            : request;
+        var result = await _shipmentService.CreateShipmentAsync(effectiveRequest, cancellationToken);
         return Ok(result);
     }
 

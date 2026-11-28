@@ -4,9 +4,8 @@ using System;
 using System.Collections.Generic;
 using Fulfillment.Application.Interfaces.Shipping;
 using Fulfillment.Application.Services.Shipping;
-using Fulfillment.Infrastructure.Carriers.Ahamove;
 using Fulfillment.Infrastructure.Carriers.Ghn;
-using Fulfillment.Infrastructure.Carriers.Ghtk;
+using Fulfillment.Infrastructure.Carriers.Simulator;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -64,8 +63,8 @@ public static class CarrierServiceCollectionExtensions
 
         services.AddScoped<GhnGateway>();
         services.AddScoped<ICarrierGateway>(sp => sp.GetRequiredService<GhnGateway>());
-        services.AddScoped<ICarrierGateway, GhtkGateway>();
-        services.AddScoped<ICarrierGateway, AhamoveGateway>();
+        services.AddScoped<SimulatorGateway>();
+        services.AddScoped<ICarrierGateway>(sp => sp.GetRequiredService<SimulatorGateway>());
 
         services.AddScoped<ICarrierResolver>(sp =>
         {

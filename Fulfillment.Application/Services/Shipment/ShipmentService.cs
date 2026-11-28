@@ -1,4 +1,4 @@
-﻿namespace Fulfillment.Application.Services.Shipment;
+namespace Fulfillment.Application.Services.Shipment;
 
 using System;
 using System.Collections.Generic;
@@ -140,6 +140,24 @@ public sealed class ShipmentService : IShipmentService
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var carrier = _carrierResolver.Get(request.CarrierCode);
+
+        // Simulator is completely decoupled from GHN warehouse checks and external lookups
+        if (carrier.Code == "SIMULATOR")
+        {
+            var simResult = await carrier.CalculateFeeAsync(
+                new CarrierFeeCalculationRequest(
+                    FromAddress: new ShippingAddress("Seller Warehouse", "0900000000", "Warehouse"),
+                    ToAddress: new ShippingAddress("Recipient", "0901111111", "Recipient Address", request.ToWardCode, DistrictId: request.ToDistrictId),
+                    TotalWeightInGrams: request.WeightInGrams > 0 ? request.WeightInGrams : 500),
+                cancellationToken);
+
+            return new ShippingQuoteResponse(
+                Fee: simResult.TotalFee,
+                IsEstimatedFallback: false,
+                ServiceName: simResult.ServiceCode ?? "SIM_STANDARD");
+        }
+
         // The origin is the seller's own active warehouse. Another seller's warehouse is never used: a shop without one is told so.
         // A caller that names the origin district itself (an estimate) does not need a warehouse.
         var warehouse = await _dbContext.Warehouses
@@ -176,8 +194,6 @@ public sealed class ShipmentService : IShipmentService
             AddressLine: "Recipient Shipping Address",
             WardCode: request.ToWardCode,
             DistrictId: request.ToDistrictId);
-
-        var carrier = _carrierResolver.Get();
 
         try
         {
@@ -267,32 +283,43 @@ public sealed class ShipmentService : IShipmentService
                 existing.Status.ToString());
         }
 
-        // The sender is the seller's own active warehouse. Falling back to any other warehouse would send the parcel pickup and the
-        // shipping fee to another seller's address, so a seller without one gets WAREHOUSE_NOT_FOUND and no shipment is created.
-        var warehouse = await _dbContext.Warehouses
-            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken)
-            ?? throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Active warehouse of seller", request.SellerId);
-
-        if (IsAddressIncomplete(warehouse))
-        {
-            throw new BusinessRuleValidationException("WAREHOUSE_ADDRESS_INCOMPLETE", "The warehouse address is not complete or has not been confirmed yet, so no shipment can be created.", 400);
-        }
-
         // Dynamically resolve active carrier entity matching the resolver carrier code
-        var carrier = _carrierResolver.Get();
+        var carrier = _carrierResolver.Get(request.CarrierCode);
         var carrierEntity = await _dbContext.Carriers
             .FirstOrDefaultAsync(c => c.Code == carrier.Code && c.IsActive, cancellationToken)
             ?? await _dbContext.Carriers
                 .FirstOrDefaultAsync(c => c.IsActive, cancellationToken)
                 ?? throw new EntityNotFoundException("CARRIER_NOT_FOUND", "Carrier", carrier.Code);
 
+        // The sender is the seller's own active warehouse. Falling back to any other warehouse would send the parcel pickup and the
+        // shipping fee to another seller's address, so a seller without one gets WAREHOUSE_NOT_FOUND and no shipment is created.
+        var warehouse = await _dbContext.Warehouses
+            .FirstOrDefaultAsync(w => w.SellerId == request.SellerId && w.IsActive, cancellationToken);
+
+        if (warehouse is null && carrier.Code != "SIMULATOR")
+        {
+            throw new EntityNotFoundException("WAREHOUSE_NOT_FOUND", "Active warehouse of seller", request.SellerId);
+        }
+
+        if (carrier.Code != "SIMULATOR" && warehouse is not null && IsAddressIncomplete(warehouse))
+        {
+            throw new BusinessRuleValidationException("WAREHOUSE_ADDRESS_INCOMPLETE", "The warehouse address is not complete or has not been confirmed yet, so no shipment can be created.", 400);
+        }
+
+        var effectiveWarehouseId = warehouse?.Id;
+        if (!effectiveWarehouseId.HasValue || effectiveWarehouseId.Value == Guid.Empty)
+        {
+            var anyWarehouse = await _dbContext.Warehouses.FirstOrDefaultAsync(cancellationToken);
+            effectiveWarehouseId = anyWarehouse?.Id ?? Guid.NewGuid();
+        }
+
         // Construct sender warehouse address (Fix Bug 1: take real warehouse ContactPhone and DistrictId)
         var fromAddress = new ShippingAddress(
-            FullName: warehouse.Name,
-            Phone: !string.IsNullOrWhiteSpace(warehouse.ContactPhone) ? warehouse.ContactPhone : "0900000000",
-            AddressLine: warehouse.Address ?? "Warehouse Storage, Ho Chi Minh, Vietnam",
-            WardCode: warehouse.WardCode,
-            DistrictId: warehouse.DistrictId);
+            FullName: warehouse?.Name ?? "Seller Warehouse",
+            Phone: !string.IsNullOrWhiteSpace(warehouse?.ContactPhone) ? warehouse.ContactPhone : "0900000000",
+            AddressLine: warehouse?.Address ?? "Warehouse Storage, Ho Chi Minh, Vietnam",
+            WardCode: warehouse?.WardCode,
+            DistrictId: warehouse?.DistrictId);
 
         var toAddress = new ShippingAddress(
             FullName: request.RecipientName,
@@ -324,7 +351,7 @@ public sealed class ShipmentService : IShipmentService
                 CodAmount: request.CodAmount,
                 Note: request.Note,
                 Items: carrierItems,
-                ShopId: warehouse.GhnShopId,
+                ShopId: warehouse?.GhnShopId,
                 PickShiftId: request.PickShiftId),
             cancellationToken);
 
@@ -341,7 +368,7 @@ public sealed class ShipmentService : IShipmentService
             OrderId = request.SubOrderId,
             SubOrderNo = string.IsNullOrWhiteSpace(request.SubOrderNo) ? null : request.SubOrderNo.Trim(),
             BuyerId = request.BuyerId,
-            WarehouseId = warehouse.Id,
+            WarehouseId = effectiveWarehouseId.Value,
             CarrierId = carrierEntity.Id,
             ServiceType = ShippingServiceType.Standard,
             TrackingNumber = carrierResult.TrackingCode,
@@ -399,7 +426,7 @@ public sealed class ShipmentService : IShipmentService
             Status = ShipmentEventStatus.Created,
             Description = "Shipment created and awaiting courier pickup.",
             OccurredAt = DateTimeOffset.UtcNow,
-            WarehouseName = warehouse.Name
+            WarehouseName = warehouse?.Name ?? "Main Warehouse"
         });
 
         _dbContext.Shipments.Add(shipment);

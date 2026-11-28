@@ -29,9 +29,13 @@ public sealed class InternalShippingController : ControllerBase
     [HttpPost("quote")]
     public async Task<ActionResult<ShippingQuoteResponse>> Quote(
         [FromBody] ShopShippingQuoteRequest request,
+        [FromHeader(Name = "X-Carrier-Code")] string? headerCarrierCode,
         CancellationToken cancellationToken)
     {
-        var result = await _shipmentService.CalculateShippingFeeAsync(request, cancellationToken);
+        var effectiveRequest = !string.IsNullOrWhiteSpace(headerCarrierCode) && string.IsNullOrWhiteSpace(request.CarrierCode)
+            ? request with { CarrierCode = headerCarrierCode }
+            : request;
+        var result = await _shipmentService.CalculateShippingFeeAsync(effectiveRequest, cancellationToken);
         return Ok(result);
     }
 

@@ -16,7 +16,8 @@ public sealed record ShopShippingQuoteRequest(
     [Range(1, int.MaxValue)] int ToDistrictId,
     [Required] string ToWardCode,
     [Range(1, int.MaxValue)] int WeightInGrams,
-    IReadOnlyList<ShippingQuoteItem>? Items = null);
+    IReadOnlyList<ShippingQuoteItem>? Items = null,
+    string? CarrierCode = null);
 
 public sealed record ShippingQuoteResponse(
     decimal Fee,
